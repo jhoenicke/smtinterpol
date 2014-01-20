@@ -1081,6 +1081,16 @@ public class SMTInterpol extends NoopScript {
 			Term res = generator.convert(retrieveProof());
 			if (mBy0Seen != -1)
 				res = new Div0Remover().transform(res);
+			/* Begin Proof-Checker */
+			System.out.print("\nProof-Checker:\n");
+			if(new ProofChecker().check(res, this))
+			{
+				System.out.println("Der Beweispruefer konnte keinen Fehler finden.");
+			} else {
+				System.out.println("Der Beweispruefer hat einen Fehler gefunden!");
+			}
+			System.out.print("\n\n");
+			/* End Proof-Checker */
 			return res;
 		} catch (Exception exc) {	
 			throw new SMTLIBException(exc.getMessage() == null 
