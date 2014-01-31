@@ -66,7 +66,7 @@ public class ProofChecker extends SMTInterpol {
 			
 			for (int i = 0; i < stackResults.size(); i++)
 			{
-				System.out.println("Result(" + i + "): " + stackResults.elementAt(i));
+				System.out.println("Result(" + i + "): " + stackResults.elementAt(i).toStringDirect());
 			}
 			System.out.println("");
 			
@@ -248,7 +248,7 @@ public class ProofChecker extends SMTInterpol {
 				
 			case "@eq":
 				stackWalker.push(new WalkerId<Term,String>(appTerm, "eq"));
-				//calcParams(appTerm);
+				calcParams(appTerm);
 				return;
 				
 			case "@lemma":
@@ -409,7 +409,7 @@ public class ProofChecker extends SMTInterpol {
 				 * the last argument. */
 				
 				System.out.println("Believed as alright to be (intern) rewritten: " + appTerm.getParameters()[0].toStringDirect() + " ."); //TODO: Implement rule-reader
-				stackPush(appTerm.getParameters()[0], term);
+				//stackPush(appTerm.getParameters()[0], term);
 				return;
 				
 			case "@split":
@@ -501,7 +501,6 @@ public class ProofChecker extends SMTInterpol {
 		//Term[] paramsCalc = new Term[params.length]; //The arguments of the resolution function after the unfolding-calculation
 		//Term paramCheck = null; //parameter that is getting checked.
 		//Not nice: Initialization as null.
-		
 		switch (type)
 		{		
 		case "calcParams":
@@ -873,7 +872,6 @@ public class ProofChecker extends SMTInterpol {
 			 *  ["May" stands for Maybe]
 			 */
 			ApplicationTerm termAppParamsAppIMayAnnApp;
-			
 			// Initialisation
 			for (int i = 0; i < termArgs.length; i++)
 			{
@@ -889,14 +887,16 @@ public class ProofChecker extends SMTInterpol {
 				}
 				termAppParamsApp[i] = (ApplicationTerm) termArgs[i];
 				
-				// Check, if the params are correct for themselves
-				stackWalker.push(new WalkerId<Term,String>(termAppParamsApp[i],""));
+				// OLD and WRONG: Check, if the params are correct for themselves
+				// This was already done, and at this points leads to chaos on the resultStack
+				// stackWalker.push(new WalkerId<Term,String>(termAppParamsApp[i],""));
 				
 			}
-			
-			termEdit = termAppParamsApp[0];
-			
-			
+
+			//System.out.println(termApp.toStringDirect());
+			//System.out.println(termAppParamsApp[0].toStringDirect());
+			termEdit = stackResults.pop(); //termAppParamsApp[0];
+			//System.out.println(termEdit.toStringDirect());
 			// Editing
 			for (int i = 1; i < termArgs.length; i++)
 			{
@@ -984,7 +984,7 @@ public class ProofChecker extends SMTInterpol {
 //					System.out.println("This code shouldn't be reachable, a random number: 473957");
 //				}
 			}
-			System.out.println("Z");
+			System.out.println("Z");			
 			
 			stackPush(termEdit, term);			
 			return;
@@ -1103,14 +1103,17 @@ public class ProofChecker extends SMTInterpol {
 		stackResults.push(pushTerm);
 	}
 	
-	public Term rewriteTerm(Term termOrig, final Term termDelete, final Term termInsert) {
-
+	public Term rewriteTerm(final Term termOrig, final Term termDelete, final Term termInsert) {
+		
+		//System.out.println("A: " + stackWalker.size());
 		return new TermTransformer() {
 			@Override
 			public void convert(Term t) {
-				System.out.println("Endlosschleife");
+				//System.out.println(termOrig.toStringDirect() + ", " + termDelete.toStringDirect() + ", "+ termInsert.toStringDirect() + ", " + t.toStringDirect());
+				System.out.println("Endlosschleife: " + t.toStringDirect());
 				if (t == termDelete)
 				{
+					//System.out.println(t.toStringDirect() + " = " + termDelete.toStringDirect());
 					pushTerm(termInsert);
 				} else
 				{
@@ -1118,6 +1121,8 @@ public class ProofChecker extends SMTInterpol {
 				}
 			}
 		}.transform(termOrig);
+		
+		
 	}
 		
 	
