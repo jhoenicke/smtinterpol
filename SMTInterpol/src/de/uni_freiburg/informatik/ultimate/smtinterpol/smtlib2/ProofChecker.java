@@ -565,7 +565,7 @@ public class ProofChecker extends SMTInterpol {
 			AnnotatedTerm[] termArgsCalcAnn = new AnnotatedTerm[termArgsCalc.length];
 			
 			
-			for (int i = 0; i < termArgsCalc.length; i++)
+			for (int i = termArgsCalc.length - 1; i >= 0; i--)
 			{
 				if (!stackResults.isEmpty())
 				{
@@ -1089,8 +1089,8 @@ public class ProofChecker extends SMTInterpol {
 	{
 		Term[] params = appTerm.getParameters();
 		
-		for (int i = 0; i < params.length; i++)
-		{
+		for (int i = params.length - 1; i >= 0; i--)
+		{			
 			//Calculating in the arguments (of the resolution/equality) proven formulas
 			stackWalker.push(new WalkerId<Term,String>(params[i],""));
 			//System.out.println("Parameter: " + params[i].toStringDirect());
