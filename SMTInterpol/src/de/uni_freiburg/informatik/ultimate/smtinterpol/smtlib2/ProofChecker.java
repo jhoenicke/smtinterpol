@@ -3,8 +3,14 @@ package de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2;
 import de.uni_freiburg.informatik.ultimate.logic.AnnotatedTerm;
 import de.uni_freiburg.informatik.ultimate.logic.Annotation;
 import de.uni_freiburg.informatik.ultimate.logic.ApplicationTerm;
-import de.uni_freiburg.informatik.ultimate.logic.ConstantTerm; //May not be needed
+//import de.uni_freiburg.informatik.ultimate.logic.ConstantTerm; //May not be needed
+//import de.uni_freiburg.informatik.ultimate.logic.FormulaUnLet;
+//import de.uni_freiburg.informatik.ultimate.logic.SMTLIBException;
 import de.uni_freiburg.informatik.ultimate.logic.Term;
+import de.uni_freiburg.informatik.ultimate.logic.TermTransformer;
+//import de.uni_freiburg.informatik.ultimate.logic.TermVariable;
+//import de.uni_freiburg.informatik.ultimate.logic.Script.LBool;
+
 //import java.util.ArrayList;
 //import java.util.HashMap;
 import java.util.*;
@@ -19,7 +25,7 @@ public class ProofChecker extends SMTInterpol {
 	//SMTInterpol smtInterpolGlobal;
 	
 	// Declarations for the Walker
-	Stack<WalkerId> stackWalker = new Stack<WalkerId>();
+	Stack<WalkerId<Term,String>> stackWalker = new Stack<WalkerId<Term,String>>();
 	Stack<Term> stackResults = new Stack<Term>();
 	//Not nice: Is this really necessary?:
 	Stack<Annotation[]> stackAnnots = new Stack<Annotation[]>();
@@ -40,8 +46,8 @@ public class ProofChecker extends SMTInterpol {
 		// recursive:
 		// resCalc = unfold(res, smtInterpol, pfpc);	
 		// Now non-recursive:
-		stackWalker.push(new WalkerId(res,""));
-		WalkerId currentWalker;
+		stackWalker.push(new WalkerId<Term,String>(res,""));
+		WalkerId<Term,String> currentWalker;
 		/*stackTest.push("a");
 		stackTest.push("b");
 		stackTest.push("c");
@@ -51,7 +57,7 @@ public class ProofChecker extends SMTInterpol {
 		while (!stackWalker.isEmpty())
 		{
 			// Just for debugging
-			/*for (int i = 0; i < stackWalker.size(); i++)
+			for (int i = 0; i < stackWalker.size(); i++)
 			{
 				System.out.println("Walker(" + i + "): [" + stackWalker.elementAt(i).t.toStringDirect()
 						+ "," + stackWalker.elementAt(i).s + "]");
@@ -70,7 +76,7 @@ public class ProofChecker extends SMTInterpol {
 						+ " " + stackAnnots.elementAt(i)[0].getValue());
 			}
 			System.out.println("");
-			System.out.println("");*/
+			System.out.println("");
 			
 			
 			currentWalker = stackWalker.pop();
@@ -112,789 +118,6 @@ public class ProofChecker extends SMTInterpol {
 		// The proof-checker should use the non-recursive function:
 		throw new AssertionError ("Error: Trying to use the old non-recursive function!");
 		
-		/* The first version of this function is recursive, later it should be non-recursive */
-		/* Takes proof, returns proven formula */
-		
-		/* Just for debugging */
-		/*
-		if (pfpc.size() >= 6)
-		{
-			if (pfpc.get(3) == 3 && pfpc.get(4) == 6)
-			{
-				//System.out.println("Currently looking at: " + res.toStringDirect());
-			}
-		}*/
-		
-		/* Check the cache, if the unfolding step was already done *//*
-		if (pcCache.containsKey(res))
-		{
-			if (pcCache.get(res) == null)
-			{
-				throw new AssertionError("Error: The term " + res.toString() + " was already "
-						+ "calculated, but isn't in the cache.");
-			}
-			//System.out.println("Unfold von Term " + res.toStringDirect() 
-			//		+ " ist bekannt: " + pcCache.get(res).toStringDirect());
-			//System.out.println("++");
-			return pcCache.get(res);
-		}*/
-		
-		/* Just for debugging */
-		
-		/* Declaration of variables used later */
-		/*String functionname;
-		Term params[];
-		Term paramsCalc[]; //parameters after calculation
-		Term paramCheck = null; //parameter that is getting checked.
-		//Not nice: Initialization as null.
-		AnnotatedTerm innerAnnTerm;
-		ApplicationTerm innerAppTerm;
-		AnnotatedTerm annTerm;
-		Term pivots[];*/		
-		
-		/* Look at the class of the term and treat each different */
-		/*if (res instanceof ApplicationTerm) 
-		{			*/
-			/* res is an ApplicationTerm */
-//			ApplicationTerm appTerm = (ApplicationTerm) res;
-//			
-//			/* Get the function and parameters */
-//			functionname = appTerm.getFunction().getName();
-//			params = appTerm.getParameters();
-//			paramsCalc = new Term[params.length]; //The arguments of the resolution function after the unfolding-calculation
-//			
-			/* Just for debugging */
-			//System.out.println("Currently looking at: " + functionname);
-			//System.out.println("Current PF-Program-Counter: " + pfpc.toString());
-			
-			/* Look at the function of the application-term and treat each different */
-//			switch (functionname)
-//			{
-//			case "@res":
-//				/* Not nice: This function is expected to have as first argument the clause which is used
-//				 * further, after the pivots are deleted.
-//				 */
-//				
-//				/*if (pfpc.size() >= 5)
-//				{
-//					if (pfpc.get(3) == 3 && pfpc.get(4) == 6 && pfpc.get(5) >= 1 && pfpc.get(5) <= 2)
-//					{
-//						System.out.println("Resolution: " + appTerm.toStringDirect());
-//					}
-//				}*/
-//
-//				
-//				ArrayList<Term> disjunctsAdd = new ArrayList<Term>();
-//				
-//				/* Get the arguments and pivots */
-//				pivots = new Term[params.length]; //The zeroth entry has no meaning. 
-//				
-//				for (int i = 0; i < params.length; i++)
-//				{
-//					/* get pivot: start */
-//					if (params[i] instanceof AnnotatedTerm)
-//					{
-//						/* One should check this */						
-//						innerAnnTerm = (AnnotatedTerm) params[i];
-//						
-//						/* Check if it is a pivot-annotation */
-//						if (innerAnnTerm.getAnnotations()[0].getKey() != ":pivot")
-//						{
-//							throw new AssertionError("Error: The annotation has key " + innerAnnTerm.getAnnotations()[0].getKey() + " instead of :pivot, " 
-//									+ "which is required. It's value is: " + innerAnnTerm.getAnnotations()[0].getValue());
-//						}						
-//												
-//						/* Just take the first annotation, because it should have exactly one - otherwise the proof-checker throws a warning */
-//						if (innerAnnTerm.getAnnotations()[0].getValue() instanceof AnnotatedTerm
-//								 ||
-//								 innerAnnTerm.getAnnotations()[0].getValue() instanceof ApplicationTerm
-//								 ||
-//								 innerAnnTerm.getAnnotations()[0].getValue() instanceof ConstantTerm)
-//						{							
-//							pivots[i] = (Term) innerAnnTerm.getAnnotations()[0].getValue();
-//							//System.out.println("Das Pivot ist: " + pivots[i].toStringDirect());
-//						} else
-//						{
-//							throw new AssertionError("Error: The following object was supposed to be a known term but isn't: " + 
-//									innerAnnTerm.getAnnotations()[0].getValue().toString() + "It is:" + 
-//									innerAnnTerm.getAnnotations()[0].getValue().getClass().getCanonicalName());
-//						}
-//						
-//						if (innerAnnTerm.getAnnotations().length > 1)
-//						{
-//							throw new AssertionError("Error: Expected number of annotations was 1, instead it is " + innerAnnTerm.getAnnotations().length + " in this term " + innerAnnTerm);
-//						}
-//					}
-//					/* get pivot: end */
-//					
-//					//Calculating in the arguments (of the resolution) proven formulas
-//					//System.out.println("Olive: Berechne: " + params[i].toString());
-//					pfpc.add(0);
-//					paramsCalc[i] = unfold(params[i], smtInterpol, pfpc);
-//					pfpc = afterUnfoldPc(pfpc);
-//					//System.out.println("Olive: Ergibt: " + paramsCalc[i].toStringDirect());
-//				}
-//				
-//				// Debug
-//				//System.out.println("Nach Abarbeiten der unfolds ist PC = " + pfpc);
-//				
-//				
-//				/* OLD: Searching the pivots and deleting them in the first clause */
-//				/* Check if the pivots are really in the second argument */
-//				AnnotatedTerm[] paramsCut = new AnnotatedTerm[paramsCalc.length];
-//				
-//				for (int i = 1; i < pivots.length; i++)
-//				{
-//					/* paramsCalc still includes the pivot-annotation. This has to be cutted out */
-//					if (paramsCalc[i] instanceof AnnotatedTerm)
-//					{
-//						paramsCut[i] = (AnnotatedTerm) paramsCalc[i];
-//					} else	{
-//						throw new AssertionError("Error: This code really shouldn't be reachable! A random number: 23742");
-//					}
-//					
-//					// TODO
-//					// TODO: Can it be that e.g. pivot 4 deletes a disjunct which pivot 1 added?
-//					// TODO
-//					/* The search for the pivot in the term with the pivot: */
-//					if (paramsCut[i].getSubterm() == pivots[i])
-//					{
-//						// The Pivot-term has one disjunct
-//						//System.out.println("Konnte das Pivot " + pivots[i] + " in " + paramsCalc[i].toStringDirect() + " finden.");
-//						//Term[] disjunctsAdd = new Term[0];  
-//					} else if (paramsCut[i].getSubterm() instanceof ApplicationTerm && powLev == 0)
-//					{
-//						// The pivot term has more than one disjunct
-//						ApplicationTerm paramsCutIApp = (ApplicationTerm) paramsCut[i].getSubterm();
-//						 
-//						if (paramsCutIApp.getFunction().getApplicationString() != "or")
-//						{
-//							throw new AssertionError("Error: Hoped for a disjunction while searching the pivot " 
-//									+ pivots[i] + " in " + paramsCalc[i].toStringDirect() + ". But found "
-//									 + "a function with that symbol: " + paramsCutIApp.getFunction().getApplicationString());
-//						} 
-//						
-//						//Term[] disjunctsAdd = new Term[paramsCutIApp.getParameters().length-1];
-//						// TODO: Is there a need to find out if two terms are the same?
-//						
-//						// How the following for-loop works:
-//						// For disjunct we have to check if it's the pivot, if not it has to be added later.
-//						// If it is, only then k won't be counted up, which avoids the error.
-//						// That means if we go out of the loop without an error, we know, that the pivot has been found.
-//						int k = 0; // Counts through the disjuncts 
-//						for (int j = 0; j < disjunctsAdd.size(); j++)
-//						{
-//							if (paramsCutIApp.getParameters()[j] != pivots[i])
-//							{
-//								if (k < disjunctsAdd.size())
-//								{
-//									disjunctsAdd.add(paramsCutIApp.getParameters()[j]);
-//									k++;
-//								} else
-//								{
-//									throw new AssertionError("Error: couldn't find the pivot "+ pivots[i].toStringDirect() 
-//											+ " in the disjunction " +  paramsCutIApp.toStringDirect());
-//								}
-//								
-//							} else
-//							{
-//								System.out.println("Found the pivot " + pivots[i].toStringDirect() 
-//										+ "in the disjunction" + paramsCutIApp.toStringDirect() + "!");
-//							}
-//						}
-//					} else if (powLev > 0)
-//					{
-//						//System.out.println("Warning: The level of power had an effect.");
-//					} else
-//					{
-//						throw new AssertionError("Error: Konnte das Pivot " + pivots[i] + " NICHT in " + paramsCalc[i].toStringDirect() + " finden.");
-//						
-//					}
-//				}
-//				
-//				// Not nice: Not tested: Clause has just one disjunct (and therefore no "or")
-//				
-//				Term disjuncts[];
-//				Term innerParams[];
-//				//String pivotstr = "";
-//				//String disjunctstr = "";
-//								
-//				boolean multiDisjunct = false;
-//				innerAppTerm = null; //Not nice, but it will just be needed when multiDisjunct holds and then it is initialized properly
-//				if (paramsCalc[0] instanceof ApplicationTerm)
-//				{
-//					innerAppTerm = (ApplicationTerm) paramsCalc[0]; //First Term: The one which gets resoluted
-//					
-//					/* Does the clause have one or more disjuncts? */
-//					/* Not nice: Assumption: If there is just one clause it doesn't start with an "or" - is that correct?*/
-//					if (innerAppTerm.getFunction().getName() == "or")
-//					{
-//						multiDisjunct = true;
-//					}
-//				}
-//				
-//				/* Initialization of the disjunct(s) */
-//				
-//				if (multiDisjunct)
-//				{
-//					innerParams = innerAppTerm.getParameters();	//His disjuncts (Works just if the clause has more than one disjunct)
-//					disjuncts = new Term[innerParams.length];
-//					for (int i = 0; i < innerParams.length; i++)
-//					{
-//						disjuncts[i] = innerParams[i];
-//					}
-//				} else {
-//					disjuncts = new Term[1];
-//					disjuncts[0] = paramsCalc[0];
-//				}
-//				
-//				boolean[] disjunctsOK = new boolean[disjuncts.length];
-//				
-//				if (multiDisjunct)
-//				{
-//					for (int i = 0; i < disjuncts.length; i++)
-//					{
-//						disjunctsOK[i] = true;
-//					}
-//				} else {
-//					disjunctsOK[0] = true;
-//				}
-//				
-//				
-//				if (true)
-//					
-//					/* Compare all disjuncts with pivots (un-annotated) */
-//					for (int i = 0; i < disjuncts.length; i++)
-//					{
-//						
-//						/* Delete the disjunct if there is a fitting pivot */
-//						for (int j = 1; j < pivots.length; j++) //Not nice: Expects (j != 0), that the first clause is the one which gets resoluted.
-//						{
-//							/* Check if one negates the other, if so delete the disjunct */
-//							//System.out.println("Vergleiche: " + disjuncts[i].toStringDirect() + " vs. " + pivots[j].toStringDirect());
-//							//System.out.println("Mit: " + disjuncts[i].toStringDirect() + " vs. " + negate(pivots[j], smtInterpol).toStringDirect());
-//							//System.out.println("Ohne: " + negate(disjuncts[i], smtInterpol) + " vs. " + pivots[j]);					
-//							if (disjuncts[i] == negate(pivots[j], smtInterpol)									
-//									)
-//							{
-//								//System.out.println("Treffer! \n");
-//								disjunctsOK[i] = false;
-//							} /*else
-//							{
-//								System.out.println("Kein Treffer \n");
-//							}	*/						
-//						}						
-//					}
-//					
-//					/* Count the remaining disjuncts */
-//					int c = 0;
-//					for (int i = 0; i < disjuncts.length; i++)
-//					{
-//						if (disjunctsOK[i])
-//							c++;
-//					}
-//					//System.out.println("Von " + disjuncts.length + " Disjunktionen sind noch "
-//					//		+ c + " übrig.");
-//					//System.out.println("c = " + c);
-//					c += disjunctsAdd.size();
-//					//System.out.println("c = " + c);
-//					/*if (disjunctsAdd.size() > 0)
-//					{
-//						System.out.println("\n Konnte mit Liste der Größe " + disjunctsAdd.size() + " umgehen. \n");
-//					}*/
-//					
-//					/* Different handling for a different number of conjuncts is needed */
-//					switch (c)
-//					{
-//					case 0:	
-//						//System.out.println("Red");
-//						pcCache.put(res, smtInterpol.term("false"));
-//						return smtInterpol.term("false");
-//					case 1:
-//						//System.out.println("Green");
-//						for (int i = 0; i < disjuncts.length; i++)
-//						{
-//							if (disjunctsOK[i])
-//							{	
-//								if (pfpc.size() >= 5)
-//								{
-//									if (pfpc.get(3) == 3 && pfpc.get(4) == 6)
-//									{
-//										System.out.println("ReturningA: " + disjuncts[i].toStringDirect());
-//									}
-//								}
-//
-//								pcCache.put(res, disjuncts[i]);
-//								return disjuncts[i];
-//							}
-//						}
-//						
-//						// So the one element has to be in the list
-//						System.out.println("ReturningB: " + disjunctsAdd.get(0).toStringDirect());
-//						pcCache.put(res, disjunctsAdd.get(0));
-//						return disjunctsAdd.get(0);
-//					default:
-//						//System.out.println("Blue");
-//						// Note nice: The whole case is untested.
-//						
-//						//Build an array that contains only the disjuncts, that have to be returned
-//						Term[] disjunctsReturn = new Term[c];
-//						int d = 0; //Counts through the disjuncts
-//						//System.out.println("Counter...");
-//						for (int i = 0; i < disjuncts.length; i ++)
-//						{
-//							if (disjunctsOK[i])
-//							{
-//								if (d < c)
-//								{
-//									disjunctsReturn[d] = disjuncts[i];
-//									d++;
-//								} else {
-//									throw new AssertionError("Error: A total unexpected miscalculation occured. Random number: 638402");
-//								}
-//							} /*else
-//							{
-//								System.out.println("| (" + d + "," + i + ")");
-//							}*/
-//						}
-//						if (disjunctsReturn.length - d != disjunctsAdd.size())
-//						{
-//							throw new AssertionError("Error: I'd like to fill up the to be returned disjuncts with "
-//									+ "the list of \"to be added\"-disjuncts, but the size doesn't fit. The list has "
-//									+ "size " + disjunctsAdd.size() + " and there is/are " 
-//									+ (disjunctsReturn.length - d) + " = " + disjunctsReturn.length + " - "
-//									+ d + " free space(s).");									
-//						}
-//						
-//						// Now add the "to be added"-disjuncts
-//						int p = 0; //counts through the list
-//						while (d < disjunctsReturn.length)
-//						{
-//							disjunctsReturn[d] = disjunctsAdd.get(p);
-//							//disjunctsReturn[d] = disjunctsAdd.remove(0); Could bet more effective, but is untested
-//							d++;
-//							p++;
-//						}
-//						
-//						/*if (pfpc.size() >= 5)
-//						{
-//							if (pfpc.get(3) == 3 && pfpc.get(4) == 6)
-//							{
-//								System.out.println("Returning: " + disjunctsReturn.toString());
-//							}
-//						}*/
-//						pcCache.put(res, smtInterpol.term("or", disjunctsReturn));						
-//						return smtInterpol.term("or", disjunctsReturn);
-//					}
-//				/*} else
-//				{
-//					throw new AssertionError("Expected an application term inside the first argument, but the following term doesn't have one: " + params[0]);
-//					//innerAppTerm = (ApplicationTerm) smtInterpol.term("false");
-//				}*/
-//				
-//			case "@eq":
-//				/* Expected: The first argument is unary each other argument binary.
-//				 * Then for each n>=0 the nth argument describes one term rewritten by an equal new term, 
-//				 * where the two terms
-//				 *  - nth argument's last argument
-//				 *  - (n+1)th argument's first argument 
-//				 *  are the same and for each n >= 1:
-//				 *  - nth argument's first argument is rewritten by the equal term's
-//				 *    nth argument's second argument. */
-//				/* This works just for rewrite, not for intern */
-//
-//				ApplicationTerm[] paramsApp = new ApplicationTerm[params.length]; //Parameters of @eq, uncalculated, application terms
-//				ApplicationTerm paramsCalcIApp; //The ith parameter of @eq, calculated, application term
-//						
-//				for (int i = 0; i < params.length; i++)
-//				{
-//					pfpc.add(0);
-//					paramsCalc[i] = unfold(params[i], smtInterpol, pfpc);	//Parameters of @eq, calculated, terms
-//					pfpc = afterUnfoldPc(pfpc);
-//					
-//					if (params[i] instanceof ApplicationTerm)
-//					{
-//						paramsApp[i] = (ApplicationTerm) params[i];
-//					} else
-//					{
-//						throw new AssertionError("Error: The following terms should be an application term but isn't: " + params[i]);
-//					}
-//					/* The first argument is unary, and requires therefore different treatment */
-//					if (i == 0)
-//						paramCheck = paramsCalc[0];
-//					else
-//					{
-//						/* It has to be an ApplicationTerm with function symbol "=". Everything else should throw an error */
-//						if (paramsCalc[i] instanceof ApplicationTerm)
-//						{
-//							paramsCalcIApp = (ApplicationTerm) paramsCalc[i];										
-//						} else
-//						{
-//							throw new AssertionError("Expected an application term inside any rewrite-term, but the following term doesn't have one: " + paramsCalc[i]);							
-//						} 
-//												
-//						if (paramsCalcIApp.getFunction().getApplicationString() != "=")
-//						{
-//							System.out.println("A random number: 582046"); // Can be used to differ between two same-sounding errors
-//							throw new AssertionError("Error: The following terms should have = as function symbol, but it has: " + paramsCalcIApp.getFunction().getApplicationString() + "\n"
-//									 + "Term: " + paramsCalcIApp.toStringDirect() + " calculated from " + params[i].toStringDirect()); 
-//						}
-//						
-//						
-//						if (paramsApp[i].getFunction().getName() != "@rewrite" && paramsApp[i].getFunction().getName() != "@intern")
-//						{
-//							throw new AssertionError("Error: An argument of @eq was neither a @rewrite nor a @intern, it was: " + paramsApp[i].getFunction().getName() + ".");							
-//						}
-//							
-//						//Note: paramCheck was declared in the last for-loop
-//						if (paramsApp[i].getFunction().getName() == "@rewrite" && paramCheck != paramsCalcIApp.getParameters()[0])
-//						{
-//							throw new AssertionError("Error: The following terms should be the same but aren't: " + paramCheck + " vs. " + paramsCalcIApp.getParameters()[0]);
-//						} 
-//						else if (paramsApp[i].getFunction().getName() == "@rewrite")
-//						{
-//							/* Preparation for the next comparison */
-//							paramCheck = paramsCalcIApp.getParameters()[1];								
-//						}
-//						else if (paramsApp[i].getFunction().getName() == "@intern") //The equality is not needed 
-//						{
-//							Term rewrittenTerm = internalRewrite(paramCheck, paramsCalcIApp.getParameters()[0], paramsCalcIApp.getParameters()[1], smtInterpol);
-//							
-//							if (rewrittenTerm == paramCheck){
-//								throw new AssertionError("Error: Couldn't understand the internal rewrite of " + paramCheck.toStringDirect() + " with the rule: " + 
-//										paramsCalcIApp.getParameters()[0].toStringDirect() + " --> " + paramsCalcIApp.getParameters()[1].toStringDirect());
-//							}
-//							
-//							//System.out.println("Alter Term: " + paramCheck.toStringDirect());
-//							//System.out.println("Gebe zurück: " + rewrittenTerm.toStringDirect());
-//							pcCache.put(res, rewrittenTerm);
-//							return rewrittenTerm;
-//							
-//							/*
-//							// First Case: They are just the same 
-//							if (paramCheck == paramsCalcIApp.getParameters()[0])
-//							{
-//								// Preparation for the next comparison 
-//								paramCheck = paramsCalcIApp.getParameters()[1];
-//							}
-//							
-//							// Second case: Partial rewrite of the first term. 
-//							// Not nice: Assumption: The rewrite goes at maximum two layers deep 
-//							// Not nice: Maybe missing rules /
-//							
-//							else 
-//							{
-//								if (!(paramCheck instanceof ApplicationTerm))							
-//								{
-//									throw new AssertionError("Error: The following term was assumed to be an application term but isn't: " + paramCheck);
-//								}
-//								ApplicationTerm paramCheckApp = (ApplicationTerm) paramCheck;
-//								
-//								if (paramCheckApp.getParameters()[0] == paramsCalcIApp.getParameters()[0])
-//								{
-//									// Preparation for the next comparison 
-//									paramCheck = smtInterpol.term(paramCheckApp.getFunction().getName(), paramsCalcIApp.getParameters()[1]);							
-//								} else
-//								{
-//									// Last chance: Check one layer deeper 
-//									throw new AssertionError("Error: Couldn't understand the internal rewrite of " + paramCheck.toStringDirect() + " with the rule: " + 
-//											paramsCalcIApp.getParameters()[0].toStringDirect() + " --> " + paramsCalcIApp.getParameters()[1].toStringDirect());
-//								}
-//							}*/
-//						}
-//						else
-//						{
-//							System.out.println("This code shouldn't be reachable, a random number: 473957");
-//						}
-//					}
-//				}
-//				pcCache.put(res, paramCheck);
-//				return paramCheck;
-//				
-//			case "@lemma":
-//				System.out.println("Believed as true: " + appTerm.toStringDirect() + " ."); //TODO: Implement rule-reader
-//				
-//				// If possible return the un-annotated version
-//				// Warning: Code duplicates (Random number: 498255) 
-//				if (appTerm.getParameters()[0] instanceof AnnotatedTerm)
-//				{
-//					innerAnnTerm = (AnnotatedTerm) appTerm.getParameters()[0];
-//					pcCache.put(res, innerAnnTerm.getSubterm());
-//					return innerAnnTerm.getSubterm();
-//				} else
-//				{
-//					throw new AssertionError("Expected an annotated term inside any lemma-term, but the following term doesn't have one: " + appTerm.getParameters()[0]);
-//				}
-//				
-//			case "@tautology":
-//				System.out.println("Believed as true: " + appTerm.toStringDirect() + " ."); //TODO: Implement rule-reader
-//				
-//				// If possible return the un-annotated version
-//				// Warning: Code duplicates (Random number: 498255)
-//				if (appTerm.getParameters()[0] instanceof AnnotatedTerm)
-//				{
-//					innerAnnTerm = (AnnotatedTerm) appTerm.getParameters()[0];
-//					pcCache.put(res, innerAnnTerm.getSubterm());
-//					return innerAnnTerm.getSubterm();
-//				} else
-//				{
-//					throw new AssertionError("Expected an annotated term inside any tautology-term, but the following term doesn't have one: " + appTerm.getParameters()[0]);
-//					//return appTerm.getParameters()[0];
-//				}
-//				
-//			case "@asserted":
-//				System.out.println("Believed as asserted: " + appTerm.getParameters()[0].toStringDirect() + " .");
-//				/* Just return the part without @asserted */ 
-//				pcCache.put(res, appTerm.getParameters()[0]);
-//				return appTerm.getParameters()[0]; 
-//				//break;
-//				
-//			case "@rewrite":
-//				
-//				/* At this point there is no access to the other arguments, so it
-//				 * can't be checked here if the first argument is the same as the last argument of 
-//				 * the last argument. */
-//				
-//				/* Treatment:
-//				 *  - At first check if the rewrite rule was correctly executed.
-//				 *  - Secondly, remove the @rewrite and the annotation for later uses in the @eq-function.
-//				 */
-//				
-//				/* Get access to the internal terms */
-//				if (appTerm.getParameters()[0] instanceof AnnotatedTerm)
-//				{
-//					innerAnnTerm = (AnnotatedTerm) appTerm.getParameters()[0]; //The annotated term inside the rewrite-term
-//				} else
-//				{
-//					throw new AssertionError("Expected an annotated term inside any rewrite-term, but the following term doesn't have one: " + appTerm.getParameters()[0]);					
-//				}
-//				if (innerAnnTerm.getSubterm() instanceof ApplicationTerm)
-//				{
-//					innerAppTerm = (ApplicationTerm) innerAnnTerm.getSubterm(); //The application term inside the annotated term inside the rewrite-term
-//				} else
-//				{
-//					throw new AssertionError("Expected an application term inside the annotated term inside a rewrite-term, but the following term is none: " + innerAnnTerm.getSubterm());					
-//				}
-//				if (innerAppTerm.getFunction().getApplicationString() != "=")
-//				{
-//					System.out.println("A random number: 440358"); // Can be used to differ between two same-sounding errors
-//					throw new AssertionError("Error: The following terms should have = as function symbol, but it has: " + innerAppTerm.getFunction().getApplicationString());					
-//				}
-//				
-//				
-//				/* Read the rule and handle each differently */
-//				if (innerAnnTerm.getAnnotations()[0].getKey() == ":strip")
-//				{
-//					if (innerAppTerm.getParameters()[0] instanceof AnnotatedTerm)
-//					{
-//						AnnotatedTerm stripAnnTerm = (AnnotatedTerm) innerAppTerm.getParameters()[0]; //Term which has to be stripped, annotated term
-//						if (stripAnnTerm.getSubterm() != innerAppTerm.getParameters()[1])
-//						{
-//							throw new AssertionError("Error: Couldn't verify a strip-rewrite. Those two terms should be the same but arent" 
-//									+ stripAnnTerm.getSubterm() + "vs. " + innerAppTerm.getParameters()[1] + ".");
-//						} /*else // Not needed
-//						{
-//							System.out.println("Verified a strip-rule");
-//						}*/
-//					} else
-//					{
-//						throw new AssertionError("Error: The first argument of a rewrite equality was expected to be " 
-//								+ "an annotated term, because the rule is strip. The error-causing term is" + innerAppTerm.getParameters()[0] + ".");
-//					}
-//				} else if (innerAnnTerm.getAnnotations()[0].getKey() == ":notSimp")
-//				{
-//					// The first argument of the rewrite has to be the double-negated version of the second argument
-//					ApplicationTerm innerAppTermFirstNeg; //The first negation inside the first argument
-//					ApplicationTerm innerAppTermSecondNeg; //The second negation inside the first argument
-//					
-//					// Check syntactical correctness
-//					if (!(innerAppTerm.getParameters()[0] instanceof ApplicationTerm))
-//					{
-//						throw new AssertionError("Error: " + innerAppTerm.getParameters()[0].toString() 
-//								+ "should be a double-negated ApplicationTerm but isn't even an ApplicationTerm. "
-//								+ "It's of the class: " + innerAppTerm.getParameters()[0].getClass().getName());
-//					}
-//					
-//					innerAppTermFirstNeg = (ApplicationTerm) innerAppTerm.getParameters()[0];
-//					
-//					if (!((innerAppTermFirstNeg.getParameters()[0] instanceof ApplicationTerm) 
-//							&& (innerAppTermFirstNeg.getFunction().getName() == "not")))
-//					{
-//						throw new AssertionError("Error: " + innerAppTerm.getParameters()[0].toString() 
-//								+ "should be a double-negated ApplicationTerm, it is an ApplicationTerm, but "
-//								+ "either the the function isn't \"not\" or the inside is no ApplicationTerm. "
-//								+ "The function is " + innerAppTermFirstNeg.getFunction().getName() + " and the "
-//								+ "class of the subterm is: " + innerAppTermFirstNeg.getParameters()[0].getClass().getName());
-//								
-//					}
-//					
-//					innerAppTermSecondNeg = (ApplicationTerm) innerAppTermFirstNeg.getParameters()[0];
-//					
-//					if (!(innerAppTermSecondNeg.getFunction().getName() == "not"))
-//					{
-//						throw new AssertionError("Error: " + innerAppTerm.getParameters()[0].toString() 
-//								+ "should be a double-negated ApplicationTerm, but it is just once negated. The inner"
-//								+ "isn't \"not\", it's " + innerAppTermSecondNeg.getFunction().getName() + ".");
-//					}
-//					
-//					// Check if the rule was executed correctly
-//					
-//					if (innerAppTermSecondNeg.getParameters()[0] != innerAppTerm.getParameters()[1])
-//					{
-//						throw new AssertionError("Error: The rule \"notSimp\" couldn't be verified, because the following "
-//								+ "two terms aren't the same: " + innerAppTermSecondNeg.getParameters()[0].toString() 
-//								+ " and " + innerAppTerm.getParameters()[1].toStringDirect() + ".\n"
-//								+ "The original term was: " + appTerm.toStringDirect());
-//					}
-//					
-//					// Important: The return is done later, the following is false: 
-//					// return innerAppTerm.getParameters()[1];
-//					
-//				} else
-//				{
-//					System.out.println("Can't handle the following rule " + innerAnnTerm.getAnnotations()[0].getKey() + ", therefore...");
-//					System.out.println("...believed as alright to be rewritten: " + appTerm.getParameters()[0].toStringDirect() + " ."); //Not nice: Too few rules
-//				}				
-//			
-//				
-//				// The second part, cut the @rewrite and the annotation out, both aren't needed for the @eq-function.
-//				pcCache.put(res, innerAnnTerm.getSubterm());
-//				return innerAnnTerm.getSubterm();				
-//				
-//				
-//			case "@intern":
-//				
-//				/* At this point there is no access to the other arguments, so it
-//				 * can't be checked here if the first argument is the same as the last argument of 
-//				 * the last argument. */
-//				
-//				System.out.println("Believed as alright to be (intern) rewritten: " + appTerm.getParameters()[0].toStringDirect() + " ."); //TODO: Implement rule-reader
-//				pcCache.put(res, appTerm.getParameters()[0]);
-//				return appTerm.getParameters()[0];
-//				
-//			case "@split":
-//				// TODO: Check if the first argument contains the second argument
-//				
-//				/* At this point there is no access to the other arguments, so it
-//				 * can't be checked here if the first argument is the same as the last argument of 
-//				 * the last argument. */
-//				
-//				//return unfold(appTerm.getParameters()[1], smtInterpol);
-//				//System.out.println("Split hat " + appTerm.getParameters().length + " Argumente.");
-//				//System.out.println("Splitte " + appTerm.getParameters()[0].toString() + " und nehme " + appTerm.getParameters()[1].toString());
-//				pcCache.put(res, appTerm.getParameters()[1]);
-//				return appTerm.getParameters()[1]; //Not nice: Kann da auch etwas stehen was eigentlich aufgefaltet werden sollte?
-//				
-//			case "@clause":
-//				//throw new AssertionError("Error: The routine for the function " + functionname + " is under construction.");
-//				//System.out.println("Clause erreicht!"); //: " + appTerm.toStringDirect());				
-//				
-//				/* Check if the parameters of clause are two disjunctions (which they should be) */
-//				
-//				ApplicationTerm paramDisjunct1; //The first Parameter of clause, which is a disjunct
-//				ApplicationTerm paramDisjunct2;
-//				
-//				if (appTerm.getParameters().length != 2)
-//				{
-//					throw new AssertionError("Error: The clause term has not 2 parameters, it has " 
-//							+ appTerm.getParameters().length + ". The term is " + appTerm.toString());
-//				}
-//								
-//
-//				pfpc.add(0);
-//				Term param1Calc = unfold(appTerm.getParameters()[0], smtInterpol, pfpc);
-//				pfpc = afterUnfoldPc(pfpc);				
-//
-//				pfpc.add(0);
-//				Term param2Calc = unfold(appTerm.getParameters()[1], smtInterpol, pfpc);
-//				pfpc = afterUnfoldPc(pfpc);
-//				
-//				
-//				if (!(param1Calc instanceof ApplicationTerm)
-//					|| !(param2Calc instanceof ApplicationTerm))
-//				{
-//					throw new AssertionError("Error: The clause-term has one parameter which isn't an application"
-//							+ "term. The first parameter " + param1Calc + " is of the class"
-//							+ param1Calc.getClass().getName() + " and the second paramter " 
-//							+ param2Calc + " is of the class "
-//							+ param2Calc.getClass().getName() + ".");							
-//				}
-//				
-//				paramDisjunct1 = (ApplicationTerm) param1Calc;
-//				paramDisjunct2 = (ApplicationTerm) param2Calc;				
-//				
-//				if (paramDisjunct1.getFunction().getApplicationString() != "or"
-//						|| paramDisjunct2.getFunction().getApplicationString() != "or")
-//					{
-//						throw new AssertionError("Error: The clause-term has one parameter which isn't a disjunction"
-//								+ ". The first parameter " + paramDisjunct1 + " has the function symbol "
-//								+ paramDisjunct1.getFunction().getApplicationString() + " and the second paramter " 
-//								+ paramDisjunct2 + " has the function symbol "
-//								+ paramDisjunct2.getFunction().getApplicationString() + ".");							
-//					}
-//											
-//				
-//				/* Check if the clause operation was correct. Each later disjunct has to be in the first disjunction.
-//				 *  Actually more has to hold, but this is enough for the proof to be correct.
-//				 */
-//				
-//				Term[] paramDisjunct1Disjuncts = paramDisjunct1.getParameters(); //Just needed to fasten things up.
-//				Term[] paramDisjunct2Disjuncts = paramDisjunct2.getParameters();
-//				
-//				for (int i = 0; i < paramDisjunct2Disjuncts.length; i++)
-//				{
-//					boolean found = false;
-//					for (int j = 0; j < paramDisjunct1Disjuncts.length; j++)
-//					{
-//						if (paramDisjunct1Disjuncts[j] == paramDisjunct2Disjuncts[i])
-//						{
-//							found = true;
-//						}
-//					}
-//					if (!found)
-//					{
-//						throw new AssertionError("Error: Couldn't find the disjunct " 
-//								+ paramDisjunct2Disjuncts[i].toString() + " in the disjunction "
-//								+ paramDisjunct1.toString() + ".");
-//					}
-//				}
-//				
-//												
-//				pcCache.put(res, paramDisjunct2);
-//				return paramDisjunct2;
-//				
-//			default:
-//				if (!(functionname.startsWith("@")))
-//				{
-//					// Not nice: The Proof-Checker shouldn't do that
-//					System.out.println("Out of mysterious reasons the Proof-Checker made contact with "
-//							+ "the function symbol " + functionname + ". The Proof-Checker will take a step back.");
-//					System.out.println("The mysterious term is: " + appTerm.toStringDirect());
-//					pcCache.put(res, appTerm);
-//					return appTerm;
-//				}
-//				
-//				throw new AssertionError("Error: The Proof-Checker has no routine for the function " + functionname + "."
-//						+ "The error-causing term is " + appTerm);
-//			}
-//			
-//		} else if (res instanceof AnnotatedTerm) {
-//			/* res is an AnnotatedTerm */
-//			
-//			/* Annotations no more get just removed, this was incorrect */
-//			
-//			/* Assumption: There is no need to unfold stuff HERE inside an annotation 
-//			 * (because if that's needed the function on the outside will take care */
-//			/* This assumption may be wrong! */
-//			
-//			annTerm = (AnnotatedTerm) res;
-//			
-//			pcCache.put(res, smtInterpol.annotate(unfold(annTerm.getSubterm(), smtInterpol, pfpc), annTerm.getAnnotations()));
-//			return smtInterpol.annotate(unfold(annTerm.getSubterm(), smtInterpol, pfpc), annTerm.getAnnotations());
-//			
-//		} else { 
-//			throw new AssertionError("Error: The Proof-Checker has no routine for the class " + res.getClass() + ".");
-//		}
 	}
 	
 	public Term negate(Term formula, SMTInterpol smtInterpol)
@@ -916,41 +139,42 @@ public class ProofChecker extends SMTInterpol {
 
 	public Term internalRewrite(Term bigTerm, Term oldTerm, Term newTerm, SMTInterpol smtInterpol)
 	{
+		throw new AssertionError("Error: This is old code and shouldn't be reachable!");
 		/* This function will dig into the bigFormula,
 		 * find each occurence of oldTerm and will replace it with newTerm. */
-		if (bigTerm == oldTerm)
-		{
-			return newTerm;
-		}
-		if (bigTerm instanceof AnnotatedTerm)
-		{
-			AnnotatedTerm bigTermAnn = (AnnotatedTerm) bigTerm;
-			
-			return smtInterpol.annotate(
-					internalRewrite(bigTermAnn.getSubterm(), oldTerm, newTerm, smtInterpol), 
-					bigTermAnn.getAnnotations());
-		} 
-		if (bigTerm instanceof ApplicationTerm)
-		{
-			ApplicationTerm bigTermApp = (ApplicationTerm) bigTerm;
-			Term[] paramsRewrite = new Term[bigTermApp.getParameters().length];
-			for (int i = 0; i < paramsRewrite.length; i++)
-			{
-				paramsRewrite[i] = internalRewrite(bigTermApp.getParameters()[i], oldTerm, newTerm, smtInterpol);
-			}			
-			
-			return smtInterpol.term(
-					bigTermApp.getFunction().getApplicationString(),
-					paramsRewrite);
-		}
-		
-		if (bigTerm instanceof ConstantTerm)
-		{
-			return bigTerm;
-		}
-		
-		throw new AssertionError("Error: Couldn't handle the internal rewrite of " + bigTerm.toString() 
-				+ ", because it has the class " + bigTerm.getClass().getName());
+//		if (bigTerm == oldTerm)
+//		{
+//			return newTerm;
+//		}
+//		if (bigTerm instanceof AnnotatedTerm)
+//		{
+//			AnnotatedTerm bigTermAnn = (AnnotatedTerm) bigTerm;
+//			
+//			return smtInterpol.annotate(
+//					internalRewrite(bigTermAnn.getSubterm(), oldTerm, newTerm, smtInterpol), 
+//					bigTermAnn.getAnnotations());
+//		} 
+//		if (bigTerm instanceof ApplicationTerm)
+//		{
+//			ApplicationTerm bigTermApp = (ApplicationTerm) bigTerm;
+//			Term[] paramsRewrite = new Term[bigTermApp.getParameters().length];
+//			for (int i = 0; i < paramsRewrite.length; i++)
+//			{
+//				paramsRewrite[i] = internalRewrite(bigTermApp.getParameters()[i], oldTerm, newTerm, smtInterpol);
+//			}			
+//			
+//			return smtInterpol.term(
+//					bigTermApp.getFunction().getName(),
+//					paramsRewrite);
+//		}
+//		
+//		if (bigTerm instanceof ConstantTerm)
+//		{
+//			return bigTerm;
+//		}
+//		
+//		throw new AssertionError("Error: Couldn't handle the internal rewrite of " + bigTerm.toString() 
+//				+ ", because it has the class " + bigTerm.getClass().getName());
 	}
 	
 	//Does ProgramCounterStuff and unfolding
@@ -982,18 +206,18 @@ public class ProofChecker extends SMTInterpol {
 			//		+ " ist bekannt: " + pcCache.get(res).toStringDirect());
 			//System.out.println("++");
 			stackResults.push(pcCache.get(term));
+			return;
 		}
 				
 		/* Declaration of variables used later */
 		String functionname;
 		//Term params[];
 		//Term paramsCalc[]; //parameters after calculation
-		//Term paramCheck = null; //parameter that is getting checked.
 		//Not nice: Initialization as null.
 		AnnotatedTerm innerAnnTerm;
 		ApplicationTerm innerAppTerm;
 		AnnotatedTerm annTerm;
-		Term pivots[];		
+		//Term pivots[];		
 		
 		/* Look at the class of the term and treat each different */
 		if (term instanceof ApplicationTerm) 
@@ -1018,14 +242,14 @@ public class ProofChecker extends SMTInterpol {
 				 * further, after the pivots are deleted.
 				 */
 				
-				stackWalker.push(new WalkerId(appTerm, "res"));
-				stackWalker.push(new WalkerId(appTerm, "calcParams"));
-				break;
+				stackWalker.push(new WalkerId<Term,String>(appTerm, "res"));
+				calcParams(appTerm);
+				return;
 				
 			case "@eq":
-				stackWalker.push(new WalkerId(appTerm, "eq"));
-				stackWalker.push(new WalkerId(appTerm, "calcParams"));
-				break;
+				stackWalker.push(new WalkerId<Term,String>(appTerm, "eq"));
+				//calcParams(appTerm);
+				return;
 				
 			case "@lemma":
 				System.out.println("Believed as true: " + appTerm.toStringDirect() + " ."); //TODO: Implement rule-reader
@@ -1035,13 +259,12 @@ public class ProofChecker extends SMTInterpol {
 				if (appTerm.getParameters()[0] instanceof AnnotatedTerm)
 				{
 					innerAnnTerm = (AnnotatedTerm) appTerm.getParameters()[0];
-					pcCache.put(term, innerAnnTerm.getSubterm());
-					stackResults.push(innerAnnTerm.getSubterm());
+					stackPush(innerAnnTerm.getSubterm(), term);
 				} else
 				{
 					throw new AssertionError("Expected an annotated term inside any lemma-term, but the following term doesn't have one: " + appTerm.getParameters()[0]);
 				}
-				break;
+				return;
 				
 			case "@tautology":
 				System.out.println("Believed as true: " + appTerm.toStringDirect() + " ."); //TODO: Implement rule-reader
@@ -1051,23 +274,23 @@ public class ProofChecker extends SMTInterpol {
 				if (appTerm.getParameters()[0] instanceof AnnotatedTerm)
 				{
 					innerAnnTerm = (AnnotatedTerm) appTerm.getParameters()[0];
-					pcCache.put(term, innerAnnTerm.getSubterm());
-					stackResults.push(innerAnnTerm.getSubterm());
+					stackPush(innerAnnTerm.getSubterm(), term);					
 				} else
 				{
 					throw new AssertionError("Expected an annotated term inside any tautology-term, but the following term doesn't have one: " + appTerm.getParameters()[0]);
 					//return appTerm.getParameters()[0];
 				}
-				break;
+				return;
 				
 			case "@asserted":
 				System.out.println("Believed as asserted: " + appTerm.getParameters()[0].toStringDirect() + " .");
 				/* Just return the part without @asserted */ 
-				pcCache.put(term, appTerm.getParameters()[0]);
-				stackResults.push(appTerm.getParameters()[0]); 
-				break;
+				stackPush(appTerm.getParameters()[0], term); 
+				return;
 				
 			case "@rewrite":
+				
+				System.out.println("A");
 				
 				/* At this point there is no access to the other arguments, so it
 				 * can't be checked here if the first argument is the same as the last argument of 
@@ -1075,7 +298,7 @@ public class ProofChecker extends SMTInterpol {
 				
 				/* Treatment:
 				 *  - At first check if the rewrite rule was correctly executed.
-				 *  - Secondly, remove the @rewrite and the annotation for later uses in the @eq-function.
+				 *  - OLD: Secondly, remove the @rewrite and the annotation for later uses in the @eq-function.
 				 */
 				
 				/* Get access to the internal terms */
@@ -1093,10 +316,10 @@ public class ProofChecker extends SMTInterpol {
 				{
 					throw new AssertionError("Expected an application term inside the annotated term inside a rewrite-term, but the following term is none: " + innerAnnTerm.getSubterm());					
 				}
-				if (innerAppTerm.getFunction().getApplicationString() != "=")
+				if (innerAppTerm.getFunction().getName() != "=")
 				{
 					System.out.println("A random number: 440358"); // Can be used to differ between two same-sounding errors
-					throw new AssertionError("Error: The following terms should have = as function symbol, but it has: " + innerAppTerm.getFunction().getApplicationString());					
+					throw new AssertionError("Error: The following terms should have = as function symbol, but it has: " + innerAppTerm.getFunction().getName());					
 				}
 				
 				
@@ -1176,9 +399,8 @@ public class ProofChecker extends SMTInterpol {
 			
 				
 				// The second part, cut the @rewrite and the annotation out, both aren't needed for the @eq-function.
-				pcCache.put(term, innerAnnTerm.getSubterm());
-				stackResults.push(innerAnnTerm.getSubterm());				
-				break;
+				//stackPush(innerAnnTerm.getSubterm(), term);			
+				return;
 				
 			case "@intern":
 				
@@ -1187,9 +409,8 @@ public class ProofChecker extends SMTInterpol {
 				 * the last argument. */
 				
 				System.out.println("Believed as alright to be (intern) rewritten: " + appTerm.getParameters()[0].toStringDirect() + " ."); //TODO: Implement rule-reader
-				pcCache.put(term, appTerm.getParameters()[0]);
-				stackResults.push(appTerm.getParameters()[0]);
-				break;
+				stackPush(appTerm.getParameters()[0], term);
+				return;
 				
 			case "@split":
 				// TODO: Check if the first argument contains the second argument
@@ -1201,9 +422,8 @@ public class ProofChecker extends SMTInterpol {
 				//return unfold(appTerm.getParameters()[1], smtInterpol);
 				//System.out.println("Split hat " + appTerm.getParameters().length + " Argumente.");
 				//System.out.println("Splitte " + appTerm.getParameters()[0].toString() + " und nehme " + appTerm.getParameters()[1].toString());
-				pcCache.put(term, appTerm.getParameters()[1]);
-				stackResults.push(appTerm.getParameters()[1]); //Not nice: Kann da auch etwas stehen was eigentlich aufgefaltet werden sollte?
-				break;
+				stackPush(appTerm.getParameters()[1], term); //Not nice: Kann da auch etwas stehen was eigentlich aufgefaltet werden sollte?
+				return;
 				
 			case "@clause":
 				//throw new AssertionError("Error: The routine for the function " + functionname + " is under construction.");
@@ -1218,10 +438,10 @@ public class ProofChecker extends SMTInterpol {
 				}
 								
 
-				stackWalker.push(new WalkerId(term, "clause"));
-				stackWalker.push(new WalkerId(appTerm.getParameters()[1], ""));
-				stackWalker.push(new WalkerId(appTerm.getParameters()[0], ""));
-				break;				
+				stackWalker.push(new WalkerId<Term,String>(term, "clause"));
+				stackWalker.push(new WalkerId<Term,String>(appTerm.getParameters()[1], ""));
+				stackWalker.push(new WalkerId<Term,String>(appTerm.getParameters()[0], ""));
+				return;				
 				
 			default:
 				if (!(functionname.startsWith("@")))
@@ -1231,7 +451,7 @@ public class ProofChecker extends SMTInterpol {
 							+ "the function symbol " + functionname + ". The Proof-Checker will take a step back.");
 					System.out.println("The mysterious term is: " + appTerm.toStringDirect());
 					pcCache.put(term, appTerm);
-					stackWalker.push(new WalkerId(appTerm, ""));
+					stackWalker.push(new WalkerId<Term,String>(appTerm, ""));
 				}
 				
 				throw new AssertionError("Error: The Proof-Checker has no routine for the function " + functionname + "."
@@ -1255,8 +475,8 @@ public class ProofChecker extends SMTInterpol {
 			System.out.println("TempTerm: " + tempTerm.toStringDirect());
 			ApplicationTerm appTerm = (ApplicationTerm) tempTerm;
 			System.out.println("AppTerm: " + appTerm.toStringDirect());*/
-			stackWalker.push(new WalkerId(term,"annot"));
-			stackWalker.push(new WalkerId(annTerm.getSubterm(),""));
+			stackWalker.push(new WalkerId<Term,String>(term,"annot"));
+			stackWalker.push(new WalkerId<Term,String>(annTerm.getSubterm(),""));
 			stackAnnots.push(annTerm.getAnnotations());
 		} else { 
 			throw new AssertionError("Error: The Proof-Checker has no routine for the class " + term.getClass() + ".");
@@ -1268,181 +488,183 @@ public class ProofChecker extends SMTInterpol {
 	public void walkSpecial(Term term, String type, SMTInterpol smtInterpol)
 	{
 		//System.out.println("TermSp: " + term.toStringDirect());
+		// term is just the first term
 		
-		ApplicationTerm appTerm = null;
-		Term[] params = null;
+		ApplicationTerm termApp = null; //The first term casted to an ApplicationTerm
+		Term[] termArgs = null; //The parameters/arguments of the first term
 		if (term instanceof ApplicationTerm)
 		{
-			appTerm = (ApplicationTerm) term;
-			params = appTerm.getParameters();
+			termApp = (ApplicationTerm) term;
+			termArgs = termApp.getParameters();
 		}
 		
 		//Term[] paramsCalc = new Term[params.length]; //The arguments of the resolution function after the unfolding-calculation
-		Term paramCheck = null; //parameter that is getting checked.
+		//Term paramCheck = null; //parameter that is getting checked.
 		//Not nice: Initialization as null.
 		
 		switch (type)
 		{		
-		case "calcParams":			
-			for (int i = 0; i < params.length; i++)
-			{
-				//Calculating in the arguments (of the resolution) proven formulas
-				stackWalker.push(new WalkerId(params[i],""));
-				//System.out.println("Parameter: " + params[i].toStringDirect());
-			}
-			break;
-			
-			
+		case "calcParams":
+			throw new AssertionError("Error: The case \"calcParams\" is old and shouldn't be reached anymore.");
 			
 		case "res":
 
 			//System.out.println("Case: \"res\"");
 			
+			// If one of the non-first parameter is a real disjunction, i.e. a disjunction with
+			// at least 2 disjuncts, the non-pivot-disjunct(s) need to be added to the first parameter.
+			// disjunctsAdd is the list which memorizes those disjuncts, so they can be added later.
 			ArrayList<Term> disjunctsAdd = new ArrayList<Term>();
 			
 			/* Get the arguments and pivots */
-			Term[] pivots = new Term[params.length]; //The zeroth entry has no meaning.
-			AnnotatedTerm innerAnnTerm;
-			
-			for (int i = 0; i < params.length; i++)
+			Term[] pivots = new Term[termArgs.length]; //The zeroth entry has no meaning.
+			AnnotatedTerm termArgsIAnn; // The ith argument of the first term, as an annotated term
+
+			/* get pivot: start */
+			for (int i = 1; i < termArgs.length; i++) //The 0th argument get's resoluted and has therefor no pivot.
 			{
-				/* get pivot: start */
-				if (params[i] instanceof AnnotatedTerm)
+				if (termArgs[i] instanceof AnnotatedTerm)
 				{										
-					innerAnnTerm = (AnnotatedTerm) params[i];
+					termArgsIAnn = (AnnotatedTerm) termArgs[i];
 					
 					/* Check if it is a pivot-annotation */
-					if (innerAnnTerm.getAnnotations()[0].getKey() != ":pivot")
+					if (termArgsIAnn.getAnnotations()[0].getKey() != ":pivot")
 					{
-						throw new AssertionError("Error: The annotation has key " + innerAnnTerm.getAnnotations()[0].getKey() + " instead of :pivot, " 
-								+ "which is required. It's value is: " + innerAnnTerm.getAnnotations()[0].getValue());
+						throw new AssertionError("Error: The annotation has key " + termArgsIAnn.getAnnotations()[0].getKey() + " instead of :pivot, " 
+								+ "which is required. It's value is: " + termArgsIAnn.getAnnotations()[0].getValue());
 					}						
 											
-					/* Just take the first annotation, because it should have exactly one - otherwise the proof-checker throws a warning */
-					if (innerAnnTerm.getAnnotations()[0].getValue() instanceof AnnotatedTerm
-							 ||
-							 innerAnnTerm.getAnnotations()[0].getValue() instanceof ApplicationTerm
-							 ||
-							 innerAnnTerm.getAnnotations()[0].getValue() instanceof ConstantTerm)
+					/* Just take the first annotation, because it should have exactly one - otherwise the proof-checker throws an error */
+					if (termArgsIAnn.getAnnotations()[0].getValue() instanceof Term)
 					{							
-						pivots[i] = (Term) innerAnnTerm.getAnnotations()[0].getValue();
+						pivots[i] = (Term) termArgsIAnn.getAnnotations()[0].getValue();
 						//System.out.println("Das Pivot ist: " + pivots[i].toStringDirect());
 					} else
 					{
 						throw new AssertionError("Error: The following object was supposed to be a known term but isn't: " + 
-								innerAnnTerm.getAnnotations()[0].getValue().toString() + "It is:" + 
-								innerAnnTerm.getAnnotations()[0].getValue().getClass().getCanonicalName());
+								termArgsIAnn.getAnnotations()[0].getValue().toString() + "It is:" + 
+								termArgsIAnn.getAnnotations()[0].getValue().getClass().getCanonicalName());
 					}
 					
-					if (innerAnnTerm.getAnnotations().length > 1)
+					if (termArgsIAnn.getAnnotations().length > 1)
 					{
-						throw new AssertionError("Error: Expected number of annotations was 1, instead it is " + innerAnnTerm.getAnnotations().length + " in this term " + innerAnnTerm);
+						throw new AssertionError("Error: Expected number of annotations was 1, instead it is " + termArgsIAnn.getAnnotations().length + " in this term " + termArgsIAnn);
 					}
+				} else
+				{
+					throw new AssertionError("Error: Expected an annotated term as No." + i + ">0 of a "
+							+ "resolution term");
 				}
-				/* get pivot: end */
 			}
+			/* get pivot: end */
 			
 			/* Check if the pivots are really in the second argument */
-			Term[] paramsCalcRes = new Term[params.length];
-			AnnotatedTerm[] paramsCut = new AnnotatedTerm[paramsCalcRes.length];
 			
-			for (int i = 0; i < paramsCalcRes.length; i++)
+			//The arguments of the first term after the calculation
+			Term[] termArgsCalc = new Term[termArgs.length];
+			//The arguments of the first term after the calculation as AnnotatedTerms
+			AnnotatedTerm[] termArgsCalcAnn = new AnnotatedTerm[termArgsCalc.length];
+			
+			
+			for (int i = 0; i < termArgsCalc.length; i++)
 			{
 				if (!stackResults.isEmpty())
 				{
-					paramsCalcRes[i] = stackResults.pop();					
+					termArgsCalc[i] = stackResults.pop();					
 				} else
 				{
-					throw new AssertionError("Error: The Resolution needs results, but there are none.");
+					throw new AssertionError("Error: The Resolution needs results, but there are not enough.");
 				}
 				
-			}			
-			
-			for (int i = 1; i < params.length; i++)
-			{
-				/* paramsCalc still includes the pivot-annotation. This has to be cutted out */
-				if (paramsCalcRes[i] instanceof AnnotatedTerm)
+				/* termArgsCalc still includes the pivot-annotation. */
+				if (termArgsCalc[i] instanceof AnnotatedTerm)
 				{
-					paramsCut[i] = (AnnotatedTerm) paramsCalcRes[i];
+					termArgsCalcAnn[i] = (AnnotatedTerm) termArgsCalc[i];
 				} else	{
 					throw new AssertionError("Error: This code really shouldn't be reachable! A random number: 23742");
 				}
-				
+			}
+			
+			// Declaration done, now for the real search			
+			for (int i = 1; i < termArgs.length; i++)
+			{
 				// TODO
 				// TODO: Can it be that e.g. pivot 4 deletes a disjunct which pivot 1 added?
 				// TODO
+				
 				/* The search for the pivot in the term with the pivot: */
-				if (paramsCut[i].getSubterm() == pivots[i])
+				if (termArgsCalcAnn[i].getSubterm() == pivots[i])
 				{
 					// The Pivot-term has one disjunct
-					//System.out.println("Konnte das Pivot " + pivots[i] + " in " + paramsCalc[i].toStringDirect() + " finden.");
-					//Term[] disjunctsAdd = new Term[0];  
-				} else if (paramsCut[i].getSubterm() instanceof ApplicationTerm && powLev == 0)
+					//System.out.println("Konnte das Pivot " + pivots[i] + " in " + paramsCalc[i].toStringDirect() + " finden.");					
+				} else if (termArgsCalcAnn[i].getSubterm() instanceof ApplicationTerm && powLev == 0)
 				{
 					// The pivot term has more than one disjunct
-					ApplicationTerm paramsCutIApp = (ApplicationTerm) paramsCut[i].getSubterm();
+					// Of the ith argument of the resolution, the subterm as an ApplicationTerm
+					ApplicationTerm termArgsCalcAnnISubtApp = (ApplicationTerm) termArgsCalcAnn[i].getSubterm();
 					 
-					if (paramsCutIApp.getFunction().getApplicationString() != "or")
+					if (termArgsCalcAnnISubtApp.getFunction().getName() != "or")
 					{
 						throw new AssertionError("Error: Hoped for a disjunction while searching the pivot " 
-								+ pivots[i] + " in " + paramsCalcRes[i].toStringDirect() + ". But found "
-								 + "a function with that symbol: " + paramsCutIApp.getFunction().getApplicationString());
+								+ pivots[i] + " in " + termArgsCalc[i].toStringDirect() + ". But found "
+								 + "a function with that symbol: " + termArgsCalcAnnISubtApp.getFunction().getName());
 					} 
 					
-					//Term[] disjunctsAdd = new Term[paramsCutIApp.getParameters().length-1];
 					// TODO: Is there a need to find out if two terms are the same?
 					
 					// How the following for-loop works:
-					// For disjunct we have to check if it's the pivot, if not it has to be added later.
+					// For each disjunct we have to check if it's the pivot, if not it has to be added later.
 					// If it is, only then k won't be counted up, which avoids the error.
 					// That means if we go out of the loop without an error, we know, that the pivot has been found.
-					int k = 0; // Counts through the disjuncts 
-					for (int j = 0; j < disjunctsAdd.size(); j++)
+					//int k = 0; // Counts through the disjuncts
+					boolean pivotFound = false;
+					
+					for (int j = 0; j < termArgsCalcAnnISubtApp.getParameters().length; j++)
 					{
-						if (paramsCutIApp.getParameters()[j] != pivots[i])
+						if (termArgsCalcAnnISubtApp.getParameters()[j] != pivots[i])
 						{
-							if (k < disjunctsAdd.size())
-							{
-								disjunctsAdd.add(paramsCutIApp.getParameters()[j]);
-								k++;
-							} else
-							{
-								throw new AssertionError("Error: couldn't find the pivot "+ pivots[i].toStringDirect() 
-										+ " in the disjunction " +  paramsCutIApp.toStringDirect());
-							}
-							
+							disjunctsAdd.add(termArgsCalcAnnISubtApp.getParameters()[j]);
 						} else
 						{
 							System.out.println("Found the pivot " + pivots[i].toStringDirect() 
-									+ "in the disjunction" + paramsCutIApp.toStringDirect() + "!");
+									+ "in the disjunction" + termArgsCalcAnnISubtApp.toStringDirect() + "!");
+							pivotFound = true;
 						}
 					}
+					if (!pivotFound)
+					{
+						throw new AssertionError("Error: couldn't find the pivot "+ pivots[i].toStringDirect() 
+								+ " in the disjunction " +  termArgsCalcAnnISubtApp.toStringDirect());
+					}					
 				} else if (powLev > 0)
 				{
 					//System.out.println("Warning: The level of power had an effect.");
 				} else
 				{
-					throw new AssertionError("Error: Konnte das Pivot " + pivots[i] + " NICHT in " + paramsCalcRes[i].toStringDirect() + " finden.");
-					
+					throw new AssertionError("Error: Could NOT find the pivot " + pivots[i] + " in " 
+							+ termArgsCalc[i].toStringDirect() + " finden. Before the calculation the term was "
+							+ termArgs[i].toStringDirect());
 				}
 			}
 			
-			// Not nice: Not tested: Clause has just one disjunct (and therefore no "or")
+			// Now get the disjuncts of the first argument into an array
+			Term termArg0Disjuncts[];
+			// Variables with * in the comment above are just needed if
+			// argument 0 has more than one disjunct.
+			// * The first argument calculated and as an ApplicationTerm
+			ApplicationTerm termArg0CalcApp = null; //Not nice, but it will just be needed when multiDisjunct holds and then it is initialized properly
+			// * The parameters of the calculated first argument
+			//Term termArg0CalcAppParams[];
+			// true iff. argument 0 has more than one disjunct
+			boolean multiDisjunct = false; 
 			
-			Term disjuncts[];
-			Term innerParams[];
-			//String pivotstr = "";
-			//String disjunctstr = "";
-							
-			boolean multiDisjunct = false;
-			ApplicationTerm innerAppTerm = null; //Not nice, but it will just be needed when multiDisjunct holds and then it is initialized properly
-			if (paramsCalcRes[0] instanceof ApplicationTerm)
+			if (termArgsCalc[0] instanceof ApplicationTerm)
 			{
-				innerAppTerm = (ApplicationTerm) paramsCalcRes[0]; //First Term: The one which gets resoluted
+				termArg0CalcApp = (ApplicationTerm) termArgsCalc[0]; //First Term: The one which gets resoluted
 				
 				/* Does the clause have one or more disjuncts? */
 				/* Not nice: Assumption: If there is just one clause it doesn't start with an "or" - is that correct?*/
-				if (innerAppTerm.getFunction().getName() == "or")
+				if (termArg0CalcApp.getFunction().getName() == "or")
 				{
 					multiDisjunct = true;
 				}
@@ -1452,46 +674,52 @@ public class ProofChecker extends SMTInterpol {
 			
 			if (multiDisjunct)
 			{
-				innerParams = innerAppTerm.getParameters();	//His disjuncts (Works just if the clause has more than one disjunct)
-				disjuncts = new Term[innerParams.length];
-				for (int i = 0; i < innerParams.length; i++)
+				// old:
+				//termArg0CalcAppParams = termArg0CalcApp.getParameters();	//His disjuncts (Works just if the clause has more than one disjunct)
+				//termArg0Disjuncts = new Term[termArg0CalcAppParams.length];
+				
+				termArg0Disjuncts = termArg0CalcApp.getParameters();	//His disjuncts (Works just if the clause has more than one disjunct)
+				//termArg0Disjuncts = new Term[termArg0CalcAppParams.length];
+				
+				/*for (int i = 0; i < termArg0CalcAppParams.length; i++)
 				{
-					disjuncts[i] = innerParams[i];
-				}
+					termArg0Disjuncts[i] = termArg0CalcAppParams[i];
+				}*/
 			} else {
-				disjuncts = new Term[1];
-				disjuncts[0] = paramsCalcRes[0];
+				termArg0Disjuncts = new Term[1];
+				termArg0Disjuncts[0] = termArgsCalc[0];
 			}
 			
-			boolean[] disjunctsOK = new boolean[disjuncts.length];
+			// true iff the disjunct is not a negated pivot
+			boolean[] disjunctsNotPivot = new boolean[termArg0Disjuncts.length];
 			
-			if (multiDisjunct)
+			// Initialisation
+//			if (multiDisjunct)
+//			{
+			for (int i = 0; i < termArg0Disjuncts.length; i++)
 			{
-				for (int i = 0; i < disjuncts.length; i++)
-				{
-					disjunctsOK[i] = true;
-				}
-			} else {
-				disjunctsOK[0] = true;
+				disjunctsNotPivot[i] = true;
 			}
-			
-			//if (true)
+//			} else {
+//				disjunctsOK[0] = true;
+//			}
+//			
 				
 			/* Compare all disjuncts with pivots (un-annotated) */
-			for (int i = 0; i < disjuncts.length; i++)
+			for (int i_disj = 0; i_disj < termArg0Disjuncts.length; i_disj++)
 			{
 				
 				/* Delete the disjunct if there is a fitting pivot */
-				for (int j = 1; j < params.length; j++) //Not nice: Expects (j != 0), that the first clause is the one which gets resoluted.
+				for (int j_pivot = 1; j_pivot < termArgs.length; j_pivot++) //Not nice: Expects (j != 0), that the first clause is the one which gets resoluted.
 				{
 					/* Check if one negates the other, if so delete the disjunct */
 					//System.out.println("Vergleiche: " + disjuncts[i].toStringDirect() + " vs. " + pivots[j].toStringDirect());
 					//System.out.println("Mit: " + disjuncts[i].toStringDirect() + " vs. " + negate(pivots[j], smtInterpol).toStringDirect());
 					//System.out.println("Ohne: " + negate(disjuncts[i], smtInterpol) + " vs. " + pivots[j]);					
-					if (disjuncts[i] == negate(pivots[j], smtInterpol))
+					if (termArg0Disjuncts[i_disj] == negate(pivots[j_pivot], smtInterpol))
 					{
 						//System.out.println("Treffer! \n");
-						disjunctsOK[i] = false;
+						disjunctsNotPivot[i_disj] = false;
 					} /*else
 					{
 						System.out.println("Kein Treffer \n");
@@ -1500,16 +728,16 @@ public class ProofChecker extends SMTInterpol {
 			}
 			
 			/* Count the remaining disjuncts */
-			int c = 0;
-			for (int i = 0; i < disjuncts.length; i++)
+			int count_disj = 0;
+			for (int i = 0; i < termArg0Disjuncts.length; i++)
 			{
-				if (disjunctsOK[i])
-					c++;
+				if (disjunctsNotPivot[i])
+					count_disj++;
 			}
 			//System.out.println("Von " + disjuncts.length + " Disjunktionen sind noch "
 			//		+ c + " übrig.");
 			//System.out.println("c = " + c);
-			c += disjunctsAdd.size();
+			count_disj += disjunctsAdd.size();
 			//System.out.println("c = " + c);
 			/*if (disjunctsAdd.size() > 0)
 			{
@@ -1518,33 +746,27 @@ public class ProofChecker extends SMTInterpol {
 			
 			
 			/* Different handling for a different number of conjuncts is needed */
-			switch (c)
+			switch (count_disj)
 			{
 			case 0:	
 				//System.out.println("Red");
-				pcCache.put(appTerm, smtInterpol.term("false"));
-				stackResults.push(smtInterpol.term("false"));
-				break;
+				stackPush(smtInterpol.term("false"), term);
+				return;
 			case 1:
 				//System.out.println("Green");
-				boolean outerBreak = false;
-				for (int i = 0; i < disjuncts.length; i++)
+				for (int i = 0; i < termArg0Disjuncts.length; i++)
 				{
-					if (disjunctsOK.length <= i)
+					if (i >= disjunctsNotPivot.length)
 					{
-						throw new AssertionError("Error: disjunctsOK ist zu kurz: " 
-								+ disjunctsOK.length + " statt " + disjuncts.length + ".");
+						throw new AssertionError("Error: disjunctsNotPivot ist zu kurz: " 
+								+ disjunctsNotPivot.length + " statt " + termArg0Disjuncts.length + ".");
 					}
-					if (disjunctsOK[i])
+					if (disjunctsNotPivot[i])
 					{	
-						pcCache.put(appTerm, disjuncts[i]);
-						stackResults.push(disjuncts[i]);
-						outerBreak = true;
-						break;
+						stackPush(termArg0Disjuncts[i], term);					
+						return;
 					}					
-				}
-				if (outerBreak)
-					break;				
+				}			
 				
 				// So the one element has to be in the list
 				if (disjunctsAdd.size() == 0)
@@ -1552,26 +774,25 @@ public class ProofChecker extends SMTInterpol {
 					throw new AssertionError("Error: Couldn't find the one disjunct I shall return.");
 				}
 				//System.out.println("ReturningB: " + disjunctsAdd.get(0).toStringDirect());
-				
-				pcCache.put(appTerm, disjunctsAdd.get(0));
-				stackResults.push(disjunctsAdd.get(0));
-				break;
+												
+				stackPush(disjunctsAdd.get(0), term);
+				return;
 			default:
 				//System.out.println("Blue");
-				// Note nice: The whole case is untested.
 				
 				//Build an array that contains only the disjuncts, that have to be returned
-				Term[] disjunctsReturn = new Term[c];
-				int d = 0; //Counts through the disjuncts
+				Term[] disjunctsReturn = new Term[count_disj];
+				int i_disjRet = 0; //Counts through the to be returned disjuncts
 				//System.out.println("Counter...");
-				for (int i = 0; i < disjuncts.length; i ++)
+				// i_disjOrig counts through the oiginal disjuncts 
+				for (int i_disjOrig = 0; i_disjOrig < termArg0Disjuncts.length; i_disjOrig ++) 
 				{
-					if (disjunctsOK[i])
+					if (disjunctsNotPivot[i_disjOrig])
 					{
-						if (d < c)
+						if (i_disjRet < count_disj) //Makes sense, since count_disj = disjunctsReturn.length;
 						{
-							disjunctsReturn[d] = disjuncts[i];
-							d++;
+							disjunctsReturn[i_disjRet] = termArg0Disjuncts[i_disjOrig];
+							i_disjRet++;
 						} else {
 							throw new AssertionError("Error: A total unexpected miscalculation occured. Random number: 638402");
 						}
@@ -1580,22 +801,22 @@ public class ProofChecker extends SMTInterpol {
 						System.out.println("| (" + d + "," + i + ")");
 					}*/
 				}
-				if (disjunctsReturn.length - d != disjunctsAdd.size())
+				if (disjunctsReturn.length - i_disjRet != disjunctsAdd.size())
 				{
 					throw new AssertionError("Error: I'd like to fill up the to be returned disjuncts with "
 							+ "the list of \"to be added\"-disjuncts, but the size doesn't fit. The list has "
 							+ "size " + disjunctsAdd.size() + " and there is/are " 
-							+ (disjunctsReturn.length - d) + " = " + disjunctsReturn.length + " - "
-							+ d + " free space(s).");									
+							+ (disjunctsReturn.length - i_disjRet) + " = " + disjunctsReturn.length + " - "
+							+ i_disjRet + " free space(s).");									
 				}
 				
 				// Now add the "to be added"-disjuncts
 				int p = 0; //counts through the list
-				while (d < disjunctsReturn.length)
+				while (i_disjRet < disjunctsReturn.length)
 				{
-					disjunctsReturn[d] = disjunctsAdd.get(p);
+					disjunctsReturn[i_disjRet] = disjunctsAdd.get(p);
 					//disjunctsReturn[d] = disjunctsAdd.remove(0); Could bet more effective, but is untested
-					d++;
+					i_disjRet++;
 					p++;
 				}
 				
@@ -1606,9 +827,8 @@ public class ProofChecker extends SMTInterpol {
 						System.out.println("Returning: " + disjunctsReturn.toString());
 					}
 				}*/
-				pcCache.put(appTerm, smtInterpol.term("or", disjunctsReturn));						
-				stackResults.push(smtInterpol.term("or", disjunctsReturn));
-				break;
+				stackPush(smtInterpol.term("or", disjunctsReturn), term);
+				return;
 			}
 			/*} else
 			{
@@ -1616,11 +836,12 @@ public class ProofChecker extends SMTInterpol {
 				//innerAppTerm = (ApplicationTerm) smtInterpol.term("false");
 			}*/
 			
-			break;
+			//break; //unreachable
 			
 			
 			
 		case "eq":
+			// OLD AND WRONG:
 			/* Expected: The first argument is unary each other argument binary.
 			 * Then for each n>=0 the nth argument describes one term rewritten by an equal new term, 
 			 * where the two terms
@@ -1630,93 +851,143 @@ public class ProofChecker extends SMTInterpol {
 			 *  - nth argument's first argument is rewritten by the equal term's
 			 *    nth argument's second argument. */
 			/* This works just for rewrite, not for intern */
+			
+			// NEW:
+			/* Expected: The first argument is unary each other argument binary.
+			 * Each not-first argument describes a rewrite of a (sub)term of the first term.
+			 * Important is the order, e.g. the rewrite of the second argument has to be executed
+			 * before the rewrite of the third argument! 
+			 */
 
-			ApplicationTerm[] paramsApp = new ApplicationTerm[params.length]; //Parameters of @eq, uncalculated, application terms
-			ApplicationTerm paramsCalcIApp; //The ith parameter of @eq, calculated, application term
-			Term[] paramsCalcEq = new Term[params.length]; //			
+			ApplicationTerm[] termAppParamsApp = new ApplicationTerm[termArgs.length]; //Parameters of @eq, uncalculated, application terms
+			//ApplicationTerm termAppParamsCalcIApp; //The ith parameter of @eq, calculated, application term
+			//Term[] termAppParamsCalc = new Term[termArgs.length]; //
+			Term termEdit; //Term which will be edited end ends in the result 
+			//Term paramCheck = null; //parameter that is getting checked.
+			// The i-th parameter of the first term as AnnotatedTerm, which is
+			// just needed for @rewrite, i.e. just not for @intern.
+			AnnotatedTerm termAppParamsAppIAnn;
+			/* The i-th Parameter of the first term, as ...
+			 *  - @intern: ApplicationTerm
+			 *  - @rewrite: Subterm of the AnnotatedTerm which is an ApplicationTerm
+			 *  ["May" stands for Maybe]
+			 */
+			ApplicationTerm termAppParamsAppIMayAnnApp;
 			
-			for (int i = 0; i < params.length; i++)
+			// Initialisation
+			for (int i = 0; i < termArgs.length; i++)
 			{
-				//pfpc.add(0);
-				if (!stackResults.isEmpty())
+				/*if (stackResults.isEmpty())
 				{
-					paramsCalcEq[i] = stackResults.pop();	//Parameters of @eq, calculated, terms					
-				} else
-				{
-					throw new AssertionError("Error: Eq needs results, but there are none.");
+					throw new AssertionError("Error: Eq needs results, but there are not enough.");										
 				}
+				termAppParamsCalc[i] = stackResults.pop();*/	//Parameters of @eq, calculated, terms
 				
-				//pfpc = afterUnfoldPc(pfpc);
+				if (!(termArgs[i] instanceof ApplicationTerm))
+				{
+					throw new AssertionError("Error: The following terms should be an application term but isn't: " + termArgs[i]);				
+				}
+				termAppParamsApp[i] = (ApplicationTerm) termArgs[i];
 				
-				if (params[i] instanceof ApplicationTerm)
-				{
-					paramsApp[i] = (ApplicationTerm) params[i];
-				} else
-				{
-					throw new AssertionError("Error: The following terms should be an application term but isn't: " + params[i]);
-				}
-				/* The first argument is unary, and requires therefore different treatment */
-				if (i == 0)
-					paramCheck = paramsCalcEq[0];
-				else
-				{
-					/* It has to be an ApplicationTerm with function symbol "=". Everything else should throw an error */
-					if (paramsCalcEq[i] instanceof ApplicationTerm)
-					{
-						paramsCalcIApp = (ApplicationTerm) paramsCalcEq[i];										
-					} else
-					{
-						throw new AssertionError("Expected an application term inside any rewrite-term, but the following term doesn't have one: " + paramsCalcEq[i]);							
-					} 
-											
-					if (paramsCalcIApp.getFunction().getApplicationString() != "=")
-					{
-						System.out.println("A random number: 582046"); // Can be used to differ between two same-sounding errors
-						throw new AssertionError("Error: The following terms should have = as function symbol, but it has: " + paramsCalcIApp.getFunction().getApplicationString() + "\n"
-								 + "Term: " + paramsCalcIApp.toStringDirect() + " calculated from " + params[i].toStringDirect()); 
-					}
-					
-					
-					if (paramsApp[i].getFunction().getName() != "@rewrite" && paramsApp[i].getFunction().getName() != "@intern")
-					{
-						throw new AssertionError("Error: An argument of @eq was neither a @rewrite nor a @intern, it was: " + paramsApp[i].getFunction().getName() + ".");							
-					}
-						
-					//Note: paramCheck was declared in the last for-loop
-					if (paramsApp[i].getFunction().getName() == "@rewrite" && paramCheck != paramsCalcIApp.getParameters()[0])
-					{
-						throw new AssertionError("Error: The following terms should be the same but aren't: " + paramCheck + " vs. " + paramsCalcIApp.getParameters()[0]);
-					} 
-					else if (paramsApp[i].getFunction().getName() == "@rewrite")
-					{
-						/* Preparation for the next comparison */
-						paramCheck = paramsCalcIApp.getParameters()[1];								
-					}
-					else if (paramsApp[i].getFunction().getName() == "@intern") //The equality is not needed 
-					{
-						Term rewrittenTerm = internalRewrite(paramCheck, paramsCalcIApp.getParameters()[0], paramsCalcIApp.getParameters()[1], smtInterpol);
-						
-						if (rewrittenTerm == paramCheck){
-							throw new AssertionError("Error: Couldn't understand the internal rewrite of " + paramCheck.toStringDirect() + " with the rule: " + 
-									paramsCalcIApp.getParameters()[0].toStringDirect() + " --> " + paramsCalcIApp.getParameters()[1].toStringDirect());
-						}
-						
-						//System.out.println("Alter Term: " + paramCheck.toStringDirect());
-						//System.out.println("Gebe zurück: " + rewrittenTerm.toStringDirect());
-						pcCache.put(appTerm, rewrittenTerm);
-						stackResults.push(rewrittenTerm);
-						break;
-					}
-					else
-					{
-						System.out.println("This code shouldn't be reachable, a random number: 473957");
-					}
-				}
+				// Check, if the params are correct for themselves
+				stackWalker.push(new WalkerId<Term,String>(termAppParamsApp[i],""));
+				
 			}
-			pcCache.put(appTerm, paramCheck);
-			stackResults.push(paramCheck);
 			
-			break;
+			termEdit = termAppParamsApp[0];
+			
+			
+			// Editing
+			for (int i = 1; i < termArgs.length; i++)
+			{
+				
+				/* It has to be an ApplicationTerm with function symbol "=". Everything else should throw an error */
+				/*if (!(termAppParamsCalc[i] instanceof ApplicationTerm))
+				{
+					
+					throw new AssertionError("Expected an application term inside any rewrite-term, but the following term doesn't have one: " + termAppParamsCalc[i]);
+				}
+				
+				termAppParamsCalcIApp = (ApplicationTerm) termAppParamsCalc[i];*/
+				
+				
+				if (termAppParamsApp[i].getFunction().getName() != "@rewrite" && termAppParamsApp[i].getFunction().getName() != "@intern")
+				{
+					throw new AssertionError("Error: An argument of @eq was neither a @rewrite nor a @intern, it was: " + termAppParamsApp[i].getFunction().getName() + ".");							
+				}
+				
+				if (termAppParamsApp[i].getFunction().getName() == "@rewrite")
+				{
+					if (!(termAppParamsApp[i].getParameters()[0] instanceof AnnotatedTerm))
+					{
+						throw new AssertionError("Error: Expected an annotated term inside a "
+								+ "rewrite-term. Random number: 47295");
+					}
+					termAppParamsAppIAnn = (AnnotatedTerm) termAppParamsApp[i].getParameters()[0];
+					
+					
+					if (!(termAppParamsAppIAnn.getSubterm() instanceof ApplicationTerm))
+					{
+						throw new AssertionError("Error: Expected an Application-Term inside a "
+								+ "Annotation of a rewrite-term. Random number: 56720");
+					}
+					termAppParamsAppIMayAnnApp = (ApplicationTerm) termAppParamsAppIAnn.getSubterm();
+				} else
+				{
+					// So it's an @intern
+					if (!(termAppParamsApp[i].getParameters()[0] instanceof ApplicationTerm))
+					{
+						throw new AssertionError("Error: Expected an Application-Term inside a "
+								+ "a intern-term. Random number: 20573");
+					}
+					termAppParamsAppIMayAnnApp = (ApplicationTerm) termAppParamsApp[i].getParameters()[0];
+				}
+
+				
+				if (termAppParamsAppIMayAnnApp.getFunction().getName() != "=")
+				{
+					System.out.println("A random number: 582046"); // Can be used to differ between two same-sounding errors
+					throw new AssertionError("Error: The following terms should have = as function symbol, but it has: " + termAppParamsApp[i].getFunction().getName() + "\n"
+							 + "Term: " + termAppParamsApp[i].toStringDirect() + " calculated from " + termArgs[i].toStringDirect()); 
+				}
+				
+				System.out.println("C");
+				termEdit = rewriteTerm(termEdit, termAppParamsAppIMayAnnApp.getParameters()[0], termAppParamsAppIMayAnnApp.getParameters()[1]);
+				System.out.println("Y");			
+				
+//				//Note: paramCheck was declared in the last for-loop
+//				if (termAppParamsApp[i].getFunction().getName() == "@rewrite")
+//				{
+//					if (paramCheck != termAppParamsCalcIApp.getParameters()[0])
+//					{
+//						throw new AssertionError("Error: The following terms should be the same but aren't: " + paramCheck + " vs. " + termAppParamsCalcIApp.getParameters()[0]);
+//					} 
+//					/* Preparation for the next comparison */
+//					paramCheck = termAppParamsCalcIApp.getParameters()[1];								
+//				}
+//				else if (termAppParamsApp[i].getFunction().getName() == "@intern") //The equality is not needed 
+//				{
+//					Term rewrittenTerm = rewriteTerm(paramCheck, termAppParamsCalcIApp.getParameters()[0], termAppParamsCalcIApp.getParameters()[1], smtInterpol);
+//					
+//					if (rewrittenTerm == paramCheck){
+//						throw new AssertionError("Error: Couldn't understand the internal rewrite of " + paramCheck.toStringDirect() + " with the rule: " + 
+//								termAppParamsCalcIApp.getParameters()[0].toStringDirect() + " --> " + termAppParamsCalcIApp.getParameters()[1].toStringDirect());
+//					}
+//					
+//					//System.out.println("Alter Term: " + paramCheck.toStringDirect());
+//					//System.out.println("Gebe zurück: " + rewrittenTerm.toStringDirect());
+//					stackPush(rewrittenTerm, termApp);
+//					return;
+//				}
+//				else
+//				{
+//					System.out.println("This code shouldn't be reachable, a random number: 473957");
+//				}
+			}
+			System.out.println("Z");
+			
+			stackPush(termEdit, term);			
+			return;
 			
 			
 			
@@ -1759,14 +1030,14 @@ public class ProofChecker extends SMTInterpol {
 			paramDisjunct1 = (ApplicationTerm) param1Calc;
 			paramDisjunct2 = (ApplicationTerm) param2Calc;				
 			
-			if (paramDisjunct1.getFunction().getApplicationString() != "or"
-					|| paramDisjunct2.getFunction().getApplicationString() != "or")
+			if (paramDisjunct1.getFunction().getName() != "or"
+					|| paramDisjunct2.getFunction().getName() != "or")
 				{
 					throw new AssertionError("Error: The clause-term has one parameter which isn't a disjunction"
 							+ ". The first parameter " + paramDisjunct1 + " has the function symbol "
-							+ paramDisjunct1.getFunction().getApplicationString() + " and the second paramter " 
+							+ paramDisjunct1.getFunction().getName() + " and the second paramter " 
 							+ paramDisjunct2 + " has the function symbol "
-							+ paramDisjunct2.getFunction().getApplicationString() + ".");							
+							+ paramDisjunct2.getFunction().getName() + ".");							
 				}
 										
 			
@@ -1796,9 +1067,8 @@ public class ProofChecker extends SMTInterpol {
 			}
 			
 											
-			pcCache.put(appTerm, paramDisjunct2);
-			stackResults.push(paramDisjunct2);
-			break;
+			stackPush(paramDisjunct2, termApp);
+			return;
 			
 			
 		case "annot":
@@ -1807,11 +1077,47 @@ public class ProofChecker extends SMTInterpol {
 			// because on layer deeper there's cache-writing
 			//pcCache.put(term, smtInterpolGlobal.annotate(unfold(, smtInterpolGlobal, pfpc), annTerm.getAnnotations()));
 			stackResults.push(smtInterpol.annotate(stackResults.pop(), stackAnnots.pop()));
-			break;			
+			return;			
 			
 		default:
 			throw new AssertionError("Error: Couldn't walk with the key " + type);
 		}
+	}
+	
+	/* */ 
+	public void calcParams(ApplicationTerm appTerm)
+	{
+		Term[] params = appTerm.getParameters();
+		
+		for (int i = 0; i < params.length; i++)
+		{
+			//Calculating in the arguments (of the resolution/equality) proven formulas
+			stackWalker.push(new WalkerId<Term,String>(params[i],""));
+			//System.out.println("Parameter: " + params[i].toStringDirect());
+		}
+	}
+	
+	public void stackPush(Term pushTerm, Term keyTerm)
+	{
+		pcCache.put(keyTerm, pushTerm);
+		stackResults.push(pushTerm);
+	}
+	
+	public Term rewriteTerm(Term termOrig, final Term termDelete, final Term termInsert) {
+
+		return new TermTransformer() {
+			@Override
+			public void convert(Term t) {
+				System.out.println("Endlosschleife");
+				if (t == termDelete)
+				{
+					pushTerm(termInsert);
+				} else
+				{
+					super.convert(t);
+				}
+			}
+		}.transform(termOrig);
 	}
 		
 	
