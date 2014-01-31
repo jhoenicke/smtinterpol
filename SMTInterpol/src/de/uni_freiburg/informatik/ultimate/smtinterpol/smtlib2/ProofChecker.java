@@ -21,7 +21,7 @@ public class ProofChecker extends SMTInterpol {
 	HashMap<Term, Term> pcCache; //Proof Checker Cache
 	// Not nice: The level should be 0
 	// Level of proof-checker-power
-	int powLev = 1;
+	int powLev = 0;
 	//SMTInterpol smtInterpolGlobal;
 	
 	// Declarations for the Walker
@@ -57,6 +57,7 @@ public class ProofChecker extends SMTInterpol {
 		while (!stackWalker.isEmpty())
 		{
 			// Just for debugging
+			/*
 			for (int i = 0; i < stackWalker.size(); i++)
 			{
 				System.out.println("Walker(" + i + "): [" + stackWalker.elementAt(i).t.toStringDirect()
@@ -76,7 +77,7 @@ public class ProofChecker extends SMTInterpol {
 						+ " " + stackAnnots.elementAt(i)[0].getValue());
 			}
 			System.out.println("");
-			System.out.println("");
+			System.out.println("");*/
 			
 			
 			currentWalker = stackWalker.pop();
@@ -106,6 +107,11 @@ public class ProofChecker extends SMTInterpol {
 		{
 			return true;
 		} else {
+			System.out.println("The result-stack has " + stackResults.size() + " elements.");
+			if (stackResults.size() > 0)
+			{
+				System.out.println("And on top is: " + stackResults.pop().toStringDirect());				
+			}
 			return false;
 		}
 		
@@ -290,7 +296,7 @@ public class ProofChecker extends SMTInterpol {
 				
 			case "@rewrite":
 				
-				System.out.println("A");
+				//System.out.println("A");
 				
 				/* At this point there is no access to the other arguments, so it
 				 * can't be checked here if the first argument is the same as the last argument of 
@@ -446,16 +452,18 @@ public class ProofChecker extends SMTInterpol {
 			default:
 				if (!(functionname.startsWith("@")))
 				{
-					// Not nice: The Proof-Checker shouldn't do that
-					System.out.println("Out of mysterious reasons the Proof-Checker made contact with "
-							+ "the function symbol " + functionname + ". The Proof-Checker will take a step back.");
-					System.out.println("The mysterious term is: " + appTerm.toStringDirect());
-					pcCache.put(term, appTerm);
-					stackWalker.push(new WalkerId<Term,String>(appTerm, ""));
+					// The Proof-Checker is so deep, that there is nothing more to unfold
+					//System.out.println("Out of mysterious reasons the Proof-Checker made contact with "
+						//	+ "the function symbol " + functionname + ". The Proof-Checker will take a step back.");
+					//System.out.println("The mysterious term is: " + appTerm.toStringDirect());
+					//pcCache.put(term, appTerm);					
+					//stackWalker.push(new WalkerId<Term,String>(appTerm, ""));
+					stackPush(term, term);
+				} else
+				{
+					throw new AssertionError("Error: The Proof-Checker has no routine for the function " + functionname + "."
+							+ "The error-causing term is " + appTerm);	
 				}
-				
-				throw new AssertionError("Error: The Proof-Checker has no routine for the function " + functionname + "."
-						+ "The error-causing term is " + appTerm);
 			}
 			
 		} else if (term instanceof AnnotatedTerm) {
@@ -569,18 +577,21 @@ public class ProofChecker extends SMTInterpol {
 			{
 				if (!stackResults.isEmpty())
 				{
-					termArgsCalc[i] = stackResults.pop();					
+					termArgsCalc[i] = stackResults.pop();
 				} else
 				{
 					throw new AssertionError("Error: The Resolution needs results, but there are not enough.");
 				}
 				
 				/* termArgsCalc still includes the pivot-annotation. */
-				if (termArgsCalc[i] instanceof AnnotatedTerm)
+				if (i != 0)
 				{
-					termArgsCalcAnn[i] = (AnnotatedTerm) termArgsCalc[i];
-				} else	{
-					throw new AssertionError("Error: This code really shouldn't be reachable! A random number: 23742");
+					if (termArgsCalc[i] instanceof AnnotatedTerm)
+					{
+						termArgsCalcAnn[i] = (AnnotatedTerm) termArgsCalc[i];
+					} else	{
+						throw new AssertionError("Error: This code really shouldn't be reachable! A random number: 23742");
+					}					
 				}
 			}
 			
@@ -625,8 +636,8 @@ public class ProofChecker extends SMTInterpol {
 							disjunctsAdd.add(termArgsCalcAnnISubtApp.getParameters()[j]);
 						} else
 						{
-							System.out.println("Found the pivot " + pivots[i].toStringDirect() 
-									+ "in the disjunction" + termArgsCalcAnnISubtApp.toStringDirect() + "!");
+//							System.out.println("Found the pivot " + pivots[i].toStringDirect() 
+//									+ "in the disjunction" + termArgsCalcAnnISubtApp.toStringDirect() + "!");
 							pivotFound = true;
 						}
 					}
@@ -951,9 +962,9 @@ public class ProofChecker extends SMTInterpol {
 							 + "Term: " + termAppParamsApp[i].toStringDirect() + " calculated from " + termArgs[i].toStringDirect()); 
 				}
 				
-				System.out.println("C");
+				//System.out.println("C");
 				termEdit = rewriteTerm(termEdit, termAppParamsAppIMayAnnApp.getParameters()[0], termAppParamsAppIMayAnnApp.getParameters()[1]);
-				System.out.println("Y");			
+				//System.out.println("Y");			
 				
 //				//Note: paramCheck was declared in the last for-loop
 //				if (termAppParamsApp[i].getFunction().getName() == "@rewrite")
@@ -983,8 +994,7 @@ public class ProofChecker extends SMTInterpol {
 //				{
 //					System.out.println("This code shouldn't be reachable, a random number: 473957");
 //				}
-			}
-			System.out.println("Z");			
+			}			
 			
 			stackPush(termEdit, term);			
 			return;
@@ -994,16 +1004,22 @@ public class ProofChecker extends SMTInterpol {
 		case "clause":
 
 			/* Check if the parameters of clause are two disjunctions (which they should be) */
+					
+			Term termAppParam1Calc = null;
+			Term termAppParam2Calc = null;
 			
-			ApplicationTerm paramDisjunct1; //The first Parameter of clause, which is a disjunct
-			ApplicationTerm paramDisjunct2;
+			//The first Parameter of clause, which is a disjunction, just
+			//needed if there is more than one disjunct.
+			ApplicationTerm termAppParam1CalcApp = null;
+			ApplicationTerm termAppParam2CalcApp = null;
 			
-			Term param1Calc = null;
-			Term param2Calc = null;
+			// The disjuncts of each parameter
+			Term[] termAppParam1CalcDisjuncts = null;
+			Term[] termAppParam2CalcDisjuncts = null;
 			
 			if (!stackResults.isEmpty())
 			{
-				param1Calc = stackResults.pop();
+				termAppParam1Calc = stackResults.pop();
 			} else
 			{
 				throw new AssertionError("Error: Clause1 needs a result, but there is none.");
@@ -1011,49 +1027,65 @@ public class ProofChecker extends SMTInterpol {
 			
 			if (!stackResults.isEmpty())
 			{
-				param2Calc = stackResults.pop();
+				termAppParam2Calc = stackResults.pop();
 			} else
 			{
 				throw new AssertionError("Error: Clause1 needs a result, but there is none.");
 			}
 			
-			if (!(param1Calc instanceof ApplicationTerm)
-				|| !(param2Calc instanceof ApplicationTerm))
-			{
-				throw new AssertionError("Error: The clause-term has one parameter which isn't an application"
-						+ "term. The first parameter " + param1Calc + " is of the class"
-						+ param1Calc.getClass().getName() + " and the second paramter " 
-						+ param2Calc + " is of the class "
-						+ param2Calc.getClass().getName() + ".");							
-			}
+			boolean multiDisjunct1 = false; // true iff parameter 1 has more than one disjunct
+			boolean multiDisjunct2 = false; // true iff parameter 2 has more than one disjunct
 			
-			paramDisjunct1 = (ApplicationTerm) param1Calc;
-			paramDisjunct2 = (ApplicationTerm) param2Calc;				
 			
-			if (paramDisjunct1.getFunction().getName() != "or"
-					|| paramDisjunct2.getFunction().getName() != "or")
+			if (termAppParam1Calc instanceof ApplicationTerm)				
+			{	
+				termAppParam1CalcApp = (ApplicationTerm) termAppParam1Calc;
+				if (termAppParam1CalcApp.getFunction().getName() != "or")
 				{
-					throw new AssertionError("Error: The clause-term has one parameter which isn't a disjunction"
-							+ ". The first parameter " + paramDisjunct1 + " has the function symbol "
-							+ paramDisjunct1.getFunction().getName() + " and the second paramter " 
-							+ paramDisjunct2 + " has the function symbol "
-							+ paramDisjunct2.getFunction().getName() + ".");							
+					multiDisjunct1 = true;				
 				}
-										
+			}
+
+			if (termAppParam2Calc instanceof ApplicationTerm)				
+			{	
+				termAppParam2CalcApp = (ApplicationTerm) termAppParam2Calc;	
+				if (termAppParam2CalcApp.getFunction().getName() != "or")
+				{
+					multiDisjunct2 = true;					
+				}
+			} 		
+				
+			// Initialize the disjuncts			 			
 			
+			if (multiDisjunct1)
+			{
+				termAppParam1CalcDisjuncts = termAppParam1CalcApp.getParameters(); //Just needed to fasten things up.
+			} else
+			{
+				termAppParam1CalcDisjuncts = new Term[1];
+				termAppParam1CalcDisjuncts[0] = termAppParam1Calc;
+			}
+			
+			if (multiDisjunct2)
+			{
+				termAppParam2CalcDisjuncts = termAppParam2CalcApp.getParameters(); //Just needed to fasten things up.
+			} else
+			{
+				termAppParam2CalcDisjuncts = new Term[1];
+				termAppParam2CalcDisjuncts[0] = termAppParam2Calc;
+			}
+			
+
 			/* Check if the clause operation was correct. Each later disjunct has to be in the first disjunction.
 			 *  Actually more has to hold, but this is enough for the proof to be correct.
 			 */
 			
-			Term[] paramDisjunct1Disjuncts = paramDisjunct1.getParameters(); //Just needed to fasten things up.
-			Term[] paramDisjunct2Disjuncts = paramDisjunct2.getParameters();
-			
-			for (int i = 0; i < paramDisjunct2Disjuncts.length; i++)
+			for (int i = 0; i < termAppParam2CalcDisjuncts.length; i++)
 			{
 				boolean found = false;
-				for (int j = 0; j < paramDisjunct1Disjuncts.length; j++)
+				for (int j = 0; j < termAppParam1CalcDisjuncts.length; j++)
 				{
-					if (paramDisjunct1Disjuncts[j] == paramDisjunct2Disjuncts[i])
+					if (termAppParam1CalcDisjuncts[j] == termAppParam2CalcDisjuncts[i])
 					{
 						found = true;
 					}
@@ -1061,13 +1093,13 @@ public class ProofChecker extends SMTInterpol {
 				if (!found)
 				{
 					throw new AssertionError("Error: Couldn't find the disjunct " 
-							+ paramDisjunct2Disjuncts[i].toString() + " in the disjunction "
-							+ paramDisjunct1.toString() + ".");
+							+ termAppParam2CalcDisjuncts[i].toString() + " in the disjunction "
+							+ termAppParam1CalcApp.toString() + ".");
 				}
 			}
 			
 											
-			stackPush(paramDisjunct2, termApp);
+			stackPush(termAppParam2Calc, term);
 			return;
 			
 			
@@ -1110,11 +1142,11 @@ public class ProofChecker extends SMTInterpol {
 			@Override
 			public void convert(Term t) {
 				//System.out.println(termOrig.toStringDirect() + ", " + termDelete.toStringDirect() + ", "+ termInsert.toStringDirect() + ", " + t.toStringDirect());
-				System.out.println("Endlosschleife: " + t.toStringDirect());
+				//System.out.println("Endlosschleife: " + t.toStringDirect());
 				if (t == termDelete)
 				{
 					//System.out.println(t.toStringDirect() + " = " + termDelete.toStringDirect());
-					pushTerm(termInsert);
+					setResult(termInsert);
 				} else
 				{
 					super.convert(t);
