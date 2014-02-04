@@ -1088,7 +1088,6 @@ public class SMTInterpol extends NoopScript {
 				System.out.println("The proof-checker couldn't find a mistake.");
 			} else {
 				throw new AssertionError("Error: The proof-checker couldn't verify the proof.");
-				//System.out.println("Der Beweispruefer hat einen Fehler gefunden!");
 			}
 			System.out.print("\n\n");
 			/* End Proof-Checker */
