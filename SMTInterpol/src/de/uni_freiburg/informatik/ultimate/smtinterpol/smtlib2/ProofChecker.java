@@ -3,6 +3,7 @@ package de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2;
 import de.uni_freiburg.informatik.ultimate.logic.AnnotatedTerm;
 import de.uni_freiburg.informatik.ultimate.logic.Annotation;
 import de.uni_freiburg.informatik.ultimate.logic.ApplicationTerm;
+import de.uni_freiburg.informatik.ultimate.logic.Rational;
 //import de.uni_freiburg.informatik.ultimate.logic.ConstantTerm; //May not be needed
 //import de.uni_freiburg.informatik.ultimate.logic.FormulaUnLet;
 //import de.uni_freiburg.informatik.ultimate.logic.SMTLIBException;
@@ -10,6 +11,7 @@ import de.uni_freiburg.informatik.ultimate.logic.Term;
 import de.uni_freiburg.informatik.ultimate.logic.TermTransformer;
 //import de.uni_freiburg.informatik.ultimate.logic.TermVariable;
 //import de.uni_freiburg.informatik.ultimate.logic.Script.LBool;
+import de.uni_freiburg.informatik.ultimate.smtinterpol.convert.SMTAffineTerm;
 
 //import java.util.ArrayList;
 //import java.util.HashMap;
@@ -157,21 +159,23 @@ public class ProofChecker extends SMTInterpol {
 		/* Declaration of variables used later */
 		String functionname;
 		//Not nice: Initialization as null.
-		AnnotatedTerm innerAnnTerm;
-		ApplicationTerm innerAppTerm;
+		AnnotatedTerm termAppInnerAnn;
 		AnnotatedTerm annTerm;
 		
 		/* Look at the class of the term and treat each different */
 		if (term instanceof ApplicationTerm) 
 		{			
 			/* It is an ApplicationTerm */
-			ApplicationTerm appTerm = (ApplicationTerm) term;
+			ApplicationTerm termApp = (ApplicationTerm) term;
 			
 			/* Get the function and parameters */
-			functionname = appTerm.getFunction().getName();
+			functionname = termApp.getFunction().getName();
 			
 			/* Just for debugging */
 			//System.out.println("Currently looking at: " + functionname);
+			
+			// A global initialization for rewrite and intern:
+			ApplicationTerm termEqApp; // The ApplicationTerm with the equality
 			
 			/* Look at the function of the application-term and treat each different */
 			switch (functionname)
@@ -181,122 +185,120 @@ public class ProofChecker extends SMTInterpol {
 				 * further, after the pivots are deleted.
 				 */
 				
-				stackWalker.push(new WalkerId<Term,String>(appTerm, "res"));
-				calcParams(appTerm);
+				stackWalker.push(new WalkerId<Term,String>(termApp, "res"));
+				calcParams(termApp);
 				return;
 				
 			case "@eq":
-				stackWalker.push(new WalkerId<Term,String>(appTerm, "eq"));
-				calcParams(appTerm);
+				stackWalker.push(new WalkerId<Term,String>(termApp, "eq"));
+				calcParams(termApp);
 				return;
 				
 			case "@lemma":
-				System.out.println("Believed as true: " + appTerm.toStringDirect() + " ."); //TODO: Implement rule-reader
+				System.out.println("Believed as true: " + termApp.toStringDirect() + " ."); //TODO: Implement rule-reader
 				
 				// If possible return the un-annotated version
 				// Warning: Code duplicates (Random number: 498255) 
-				if (appTerm.getParameters()[0] instanceof AnnotatedTerm)
+				if (termApp.getParameters()[0] instanceof AnnotatedTerm)
 				{
-					innerAnnTerm = (AnnotatedTerm) appTerm.getParameters()[0];
-					stackPush(innerAnnTerm.getSubterm(), term);
+					termAppInnerAnn = (AnnotatedTerm) termApp.getParameters()[0];
+					stackPush(termAppInnerAnn.getSubterm(), term);
 				} else
 				{
-					throw new AssertionError("Expected an annotated term inside any lemma-term, but the following term doesn't have one: " + appTerm.getParameters()[0]);
+					throw new AssertionError("Expected an annotated term inside any lemma-term, but the following term doesn't have one: " + termApp.getParameters()[0]);
 				}
 				return;
 				
 			case "@tautology":
-				System.out.println("Believed as true: " + appTerm.toStringDirect() + " ."); //TODO: Implement rule-reader
+				System.out.println("Believed as true: " + termApp.toStringDirect() + " ."); //TODO: Implement rule-reader
 				
 				// If possible return the un-annotated version
 				// Warning: Code duplicates (Random number: 498255)
-				if (appTerm.getParameters()[0] instanceof AnnotatedTerm)
+				if (termApp.getParameters()[0] instanceof AnnotatedTerm)
 				{
-					innerAnnTerm = (AnnotatedTerm) appTerm.getParameters()[0];
-					stackPush(innerAnnTerm.getSubterm(), term);
+					termAppInnerAnn = (AnnotatedTerm) termApp.getParameters()[0];
+					stackPush(termAppInnerAnn.getSubterm(), term);
 				} else
 				{
-					throw new AssertionError("Expected an annotated term inside any tautology-term, but the following term doesn't have one: " + appTerm.getParameters()[0]);
+					throw new AssertionError("Expected an annotated term inside any tautology-term, but the following term doesn't have one: " + termApp.getParameters()[0]);
 				}
 				return;
 				
 			case "@asserted":
-				System.out.println("Believed as asserted: " + appTerm.getParameters()[0].toStringDirect() + " .");
-				/* Just return the part without @asserted */ 
-				stackPush(appTerm.getParameters()[0], term); 
+				System.out.println("Believed as asserted: " + termApp.getParameters()[0].toStringDirect() + " .");
+				/* Just return the part without @asserted */
+				stackPush(termApp.getParameters()[0], term);
 				return;
 				
 			case "@rewrite":
-				
-				/* At this point there is no access to the other arguments, so it
-				 * can't be checked here if the first argument is the same as the last argument of 
-				 * the last argument. */
 				
 				/* Treatment:
 				 *  - At first check if the rewrite rule was correctly executed.
 				 *  - OLD: Secondly, remove the @rewrite and the annotation for later uses in the @eq-function.
 				 */
 				
+				//ApplicationTerm termEqApp;
 				/* Get access to the internal terms */
-				if (appTerm.getParameters()[0] instanceof AnnotatedTerm)
+				if (termApp.getParameters()[0] instanceof AnnotatedTerm)
 				{
-					innerAnnTerm = (AnnotatedTerm) appTerm.getParameters()[0]; //The annotated term inside the rewrite-term
+					termAppInnerAnn = (AnnotatedTerm) termApp.getParameters()[0]; //The annotated term inside the rewrite-term
 				} else
 				{
-					throw new AssertionError("Expected an annotated term inside any rewrite-term, but the following term doesn't have one: " + appTerm.getParameters()[0]);					
+					throw new AssertionError("Expected an annotated term inside any rewrite-term, but the following term doesn't have one: " + termApp.getParameters()[0]);
 				}
-				if (innerAnnTerm.getSubterm() instanceof ApplicationTerm)
+				if (termAppInnerAnn.getSubterm() instanceof ApplicationTerm)
 				{
-					innerAppTerm = (ApplicationTerm) innerAnnTerm.getSubterm(); //The application term inside the annotated term inside the rewrite-term
+					termEqApp = (ApplicationTerm) termAppInnerAnn.getSubterm(); //The application term inside the annotated term inside the rewrite-term
 				} else
 				{
-					throw new AssertionError("Expected an application term inside the annotated term inside a rewrite-term, but the following term is none: " + innerAnnTerm.getSubterm());					
+					throw new AssertionError("Expected an application term inside the annotated term inside a rewrite-term, but the following term is none: " + termAppInnerAnn.getSubterm());
 				}
-				if (innerAppTerm.getFunction().getName() != "=")
+				if (termEqApp.getFunction().getName() != "=")
 				{
 					System.out.println("A random number: 440358"); // Can be used to differ between two same-sounding errors
-					throw new AssertionError("Error: The following terms should have = as function symbol, but it has: " + innerAppTerm.getFunction().getName());					
+					throw new AssertionError("Error: The following terms should have = as function symbol, but it has: " + termEqApp.getFunction().getName());
 				}
 				
 				//System.out.println("Rule: " + innerAnnTerm.getAnnotations()[0].getKey());
 				//System.out.println("Term: " + term.toStringDirect());
 				
 				/* Read the rule and handle each differently */
-				if (innerAnnTerm.getAnnotations()[0].getKey() == ":strip")
+				String rewriteRule = termAppInnerAnn.getAnnotations()[0].getKey();
+				if (rewriteRule == ":strip")
 				{
-					if (innerAppTerm.getParameters()[0] instanceof AnnotatedTerm)
+					if (termEqApp.getParameters()[0] instanceof AnnotatedTerm)
 					{
-						AnnotatedTerm stripAnnTerm = (AnnotatedTerm) innerAppTerm.getParameters()[0]; //Term which has to be stripped, annotated term
-						if (stripAnnTerm.getSubterm() != innerAppTerm.getParameters()[1])
+						AnnotatedTerm stripAnnTerm = (AnnotatedTerm) termEqApp.getParameters()[0]; //Term which has to be stripped, annotated term
+						if (stripAnnTerm.getSubterm() != termEqApp.getParameters()[1])
 						{
 							throw new AssertionError("Error: Couldn't verify a strip-rewrite. Those two terms should be the same but arent" 
-									+ stripAnnTerm.getSubterm() + "vs. " + innerAppTerm.getParameters()[1] + ".");
+									+ stripAnnTerm.getSubterm() + "vs. " + termEqApp.getParameters()[1] + ".");
 						}
 					} else
 					{
 						throw new AssertionError("Error: The first argument of a rewrite equality was expected to be " 
-								+ "an annotated term, because the rule is strip. The error-causing term is" + innerAppTerm.getParameters()[0] + ".");
+								+ "an annotated term, because the rule is strip. The error-causing term is" + termEqApp.getParameters()[0] + ".");
 					}
-				} else if (innerAnnTerm.getAnnotations()[0].getKey() == ":notSimp")
+				} else if (rewriteRule == ":notSimp")
 				{
 					// The first argument of the rewrite has to be the double-negated version of the second argument
 					ApplicationTerm innerAppTermFirstNeg; //The first negation inside the first argument
 					ApplicationTerm innerAppTermSecondNeg; //The second negation inside the first argument
 					
 					// Check syntactical correctness
-					if (!(innerAppTerm.getParameters()[0] instanceof ApplicationTerm))
+					if (!(termEqApp.getParameters()[0] instanceof ApplicationTerm))
 					{
-						throw new AssertionError("Error: " + innerAppTerm.getParameters()[0].toString() 
+						throw new AssertionError("Error: " + termEqApp.getParameters()[0].toString()
 								+ " should be a double-negated ApplicationTerm but isn't even an ApplicationTerm. "
-								+ "It's of the class: " + innerAppTerm.getParameters()[0].getClass().getName());
+								+ "It's of the class: " + termEqApp.getParameters()[0].getClass().getName());
 					}
 					
-					innerAppTermFirstNeg = (ApplicationTerm) innerAppTerm.getParameters()[0];
+					innerAppTermFirstNeg = (ApplicationTerm) termEqApp.getParameters()[0];
 					
 					if (!((innerAppTermFirstNeg.getParameters()[0] instanceof ApplicationTerm) 
 							&& (innerAppTermFirstNeg.getFunction().getName() == "not")))
 					{
-						throw new AssertionError("Error: " + innerAppTerm.getParameters()[0].toString() 
+						throw new AssertionError("Error: " + termEqApp.getParameters()[0].toString()
 								+ " should be a double-negated ApplicationTerm, it is an ApplicationTerm, but "
 								+ "either the the function isn't \"not\" or the inside is no ApplicationTerm. "
 								+ "The function is " + innerAppTermFirstNeg.getFunction().getName() + " and the "
@@ -311,15 +313,15 @@ public class ProofChecker extends SMTInterpol {
 					{
 						// Not nice: Use of strings
 						if (!(innerAppTermSecondNeg.getFunction().getName() == "false" && 
-								innerAppTerm.getParameters()[1] == smtInterpol.term("true"))
+								termEqApp.getParameters()[1] == smtInterpol.term("true"))
 							&&
 							!(innerAppTermSecondNeg.getFunction().getName() == "true" && 
-								innerAppTerm.getParameters()[1] == smtInterpol.term("false")))
+								termEqApp.getParameters()[1] == smtInterpol.term("false")))
 						{
 							System.out.println(innerAppTermSecondNeg.getFunction().getName() + " and "
-									+ innerAppTerm.getParameters()[1].toStringDirect());
+									+ termEqApp.getParameters()[1].toStringDirect());
 							System.out.println("The term: " + term.toStringDirect());
-							throw new AssertionError("Error: " + innerAppTerm.getParameters()[0].toString() 
+							throw new AssertionError("Error: " + termEqApp.getParameters()[0].toString()
 									+ " should be a double-negated ApplicationTerm, but it is just once negated. The inner"
 									+ " isn't \"not\", it's " + innerAppTermSecondNeg.getFunction().getName() + ".");							
 						} else
@@ -329,20 +331,171 @@ public class ProofChecker extends SMTInterpol {
 					}
 					
 					// Check if the rule was executed correctly
-					if (!simpleTransf && innerAppTermSecondNeg.getParameters()[0] != innerAppTerm.getParameters()[1])
+					if (!simpleTransf && innerAppTermSecondNeg.getParameters()[0] != termEqApp.getParameters()[1])
 					{
 						throw new AssertionError("Error: The rule \"notSimp\" couldn't be verified, because the following "
 								+ "two terms aren't the same: " + innerAppTermSecondNeg.getParameters()[0].toString() 
-								+ " and " + innerAppTerm.getParameters()[1].toStringDirect() + ".\n"
-								+ "The original term was: " + appTerm.toStringDirect());
+								+ " and " + termEqApp.getParameters()[1].toStringDirect() + ".\n"
+								+ "The original term was: " + termApp.toStringDirect());
 					}
 					// Important: The return is done later, the following is false: 
 					// return innerAppTerm.getParameters()[1];
+				} else if (rewriteRule == ":gtToLeq0" || rewriteRule == ":geqToLeq0"
+						|| rewriteRule == ":ltToLeq0" || rewriteRule == ":leqToLeq0")
+				{
+					ApplicationTerm termOldApp; //termBeforeRewrite
+					ApplicationTerm termNewApp;
+					ApplicationTerm termNewIneqApp; //the inequality of termAfterRewrite
 					
+					// Checking of syntactical correctness
+					if (!(termEqApp.getParameters()[0] instanceof ApplicationTerm
+							&& termEqApp.getParameters()[1] instanceof ApplicationTerm))
+					{
+						throw new AssertionError("Error: Expected two ApplicationTerms as rewrite-Terms "
+								+ " for the rule " + rewriteRule + ", but one of them is not.\n"
+								+ "Term 1: " + termEqApp.getParameters()[0] + "\n"
+								+ "Term 2: " + termEqApp.getParameters()[1]);
+					}
+					termOldApp = (ApplicationTerm) termEqApp.getParameters()[0];
+					termNewApp = (ApplicationTerm) termEqApp.getParameters()[1];
+
+					if (rewriteRule == ":gtToLeq0" && termOldApp.getFunction().getName() != ">")
+					{
+						throw new AssertionError ("Expected not the function symbol "
+								+ termOldApp.getFunction().getName() + " for the rule "
+								+ rewriteRule + ". \n The term is: " + termEqApp.toString());
+					}
+					if (rewriteRule == ":geqToLeq0" && termOldApp.getFunction().getName() != ">=")
+					{
+						throw new AssertionError ("Expected not the function symbol "
+								+ termOldApp.getFunction().getName() + " for the rule "
+								+ rewriteRule + ". \n The term is: " + termEqApp.toString());
+					}
+					if (rewriteRule == ":ltToLeq0" && termOldApp.getFunction().getName() != "<")
+					{
+						throw new AssertionError ("Expected not the function symbol "
+								+ termOldApp.getFunction().getName() + " for the rule "
+								+ rewriteRule + ". \n The term is: " + termEqApp.toString());
+					}
+					if (rewriteRule == ":leqToLeq0" && termOldApp.getFunction().getName() != "<=")
+					{
+						throw new AssertionError ("Expected not the function symbol "
+								+ termOldApp.getFunction().getName() + " for the rule "
+								+ rewriteRule + ". \n The term is: " + termEqApp.toString());
+					}
+					
+					//SMTAffineTerm termT1 = (SMTAffineTerm) termOldApp.getParameters()[0]; //t_1 and t_2 as in the documentation proof.pdf
+					//SMTAffineTerm termT2 = (SMTAffineTerm) termOldApp.getParameters()[1];
+					Term termT1 = termOldApp.getParameters()[0]; //t_1 and t_2 as in the documentation proof.pdf
+					Term termT2 = termOldApp.getParameters()[1];
+					
+					// The second term may be a negation
+					if (rewriteRule == ":ltToLeq0" || rewriteRule == ":gtToLeq0")
+					{
+						if (termNewApp.getFunction().getName() != "not")
+						{
+							throw new AssertionError("Error: Expected a Negation in the second term of "
+									+ "a rewrite-term with the rule " + rewriteRule + ".\n The "
+									+ "term was " + termEqApp.toString());
+						}
+						if (!(termNewApp.getParameters()[0] instanceof ApplicationTerm))
+						{
+							throw new AssertionError("Error: There's no ApplicationTerm in the negation!?!: "
+									+ termNewApp.toStringDirect() + "\n The term was " + termEqApp.toString());
+						}
+						
+						termNewIneqApp = (ApplicationTerm) termNewApp.getParameters()[0];
+						
+					} else
+					{
+						termNewIneqApp = termNewApp;
+					}
+					
+					if (termNewIneqApp.getFunction().getName() != "<="
+							|| termNewIneqApp.getParameters()[1].toStringDirect() != "0")
+					{
+						throw new AssertionError("Error: Expected an Inequality ... <= 0 as a result "
+								+ "of the rule " + rewriteRule + ", but the result is " + termNewApp.toString());
+					}
+					
+					SMTAffineTerm leftside = calculateTerm(termNewIneqApp.getParameters()[0]);
+					
+					/*if (!(termNewIneqApp.getParameters()[0] instanceof ApplicationTerm))
+					{
+						throw new AssertionError("Error: The first term of the inequality of the second argument "
+								+ "of the rewrite-term with the rule " + rewriteRule + " is not an ApplicationTerm!?! "
+								+ "The term was " + termEqApp.toStringDirect());
+					}*/
+					
+					// The new sum of t_1 and t_2 on the left side of the inequality
+					/*ApplicationTerm termNewSumApp = (ApplicationTerm) termNewIneqApp.getParameters()[0];
+					
+					if (termNewSumApp.getFunction().getName() != "+")
+					{
+						throw new AssertionError("Error: Expected a sum on the left side of the inequality of "
+								+ "the new term of a rewrite-term with the rule " + rewriteRule + ". \n"
+								+ "The symbol is " + termNewSumApp.getFunction().getName()
+								+ " and the term was " + termEqApp.toString());
+					}
+					
+					if (!(termNewSumApp.getParameters()[1] instanceof ApplicationTerm))
+					{
+						throw new AssertionError("Error: Second summand isn't an ApplicationTerm."
+								+ "Very strange... \n Term: " + termEqApp.toStringDirect());
+					}
+					
+					// The second summand, which is an additive Inversion as ApplicationTerm
+					ApplicationTerm termNewSumAppInvApp = (ApplicationTerm) termNewSumApp.getParameters()[1];
+					
+					if (termNewSumAppInvApp.getFunction().getName() != "-")
+					{
+						throw new AssertionError("Error: The second summand should be negated");
+					}*/
+					//TODO: Was bei 0?? -0? Konstanten?? zB -3
+					SMTAffineTerm termT1Aff = SMTAffineTerm.create(termT1);
+					SMTAffineTerm termT2Aff = SMTAffineTerm.create(termT2);
+					
+					if (rewriteRule == ":gtToLeq0" || rewriteRule == ":leqToLeq0")
+					{
+						if (!leftside.equals(termT1Aff.add(termT2Aff.negate())))
+						{
+							throw new AssertionError("Error: Wrong term on the left side of "
+									+ "the new inequality. The term was: " + termEqApp.toStringDirect() + "\n"
+									+ "Same should be " + leftside.toStringDirect()
+									+ " and " + termT1Aff.add(termT2Aff.negate()).toStringDirect() + "\n"
+									+ "Random number: 02653");
+						}
+						/*
+						if(termT1 != termNewSumApp.getParameters()[0]
+								|| termT2 != termNewSumAppInvApp.getParameters()[0])
+						{
+							throw new AssertionError("Error: Wrong term on the left side of "
+									+ "the new inequality. The term was: " + termEqApp.toStringDirect());
+						}*/
+						// Then the rule was correctly executed
+					} else
+					{
+						if (!leftside.equals(termT2Aff.add(termT1Aff.negate())))
+						{
+							throw new AssertionError("Error: Wrong term on the left side of "
+									+ "the new inequality. The term was: " + termEqApp.toStringDirect() + "\n"
+									+ "Same should be " + leftside.toStringDirect()
+									+ " and " + termT2Aff.add(termT1Aff.negate()).toStringDirect() + "\n"
+									+ "Random number: 20472");
+						}
+						/*
+						if(termT2 != termNewSumApp.getParameters()[0]
+								|| termT1 != termNewSumAppInvApp.getParameters()[0])
+						{
+							throw new AssertionError("Error: Wrong term on the left side of "
+									+ "the new inequality. The term was: " + termEqApp.toStringDirect());
+						}*/
+						// Then the rule was correctly executed
+					}
 				} else
 				{
-					System.out.println("Can't handle the following rule " + innerAnnTerm.getAnnotations()[0].getKey() + ", therefore...");
-					System.out.println("...believed as alright to be rewritten: " + appTerm.getParameters()[0].toStringDirect() + " ."); //Not nice: Too few rules
+					System.out.println("Can't handle the following rule " + termAppInnerAnn.getAnnotations()[0].getKey() + ", therefore...");
+					System.out.println("...believed as alright to be rewritten: " + termApp.getParameters()[0].toStringDirect() + " ."); //Not nice: Too few rules
 				}				
 			
 				// The second part, cut the @rewrite and the annotation out, both aren't needed for the @eq-function.
@@ -350,12 +503,48 @@ public class ProofChecker extends SMTInterpol {
 				return;
 				
 			case "@intern":
+				//TODO: Implement rule-reader
 				
-				/* At this point there is no access to the other arguments, so it
-				 * can't be checked here if the first argument is the same as the last argument of 
-				 * the last argument. */
+				// Trying to get the rewrite:
+				// First the syntactical check
+				//termEqApp; // One step deeper, the ApplicationTerm with the equality
+				if (!(termApp.getParameters()[0] instanceof ApplicationTerm))
+				{
+					throw new AssertionError("Error: Expected an ApplicationTerm inside any rewrite-term. "
+							+ "The term was " + termApp.toString());
+				}
+				termEqApp = (ApplicationTerm) termApp.getParameters()[0];
+				if (termEqApp.getFunction().getName() != "=")
+				{
+					throw new AssertionError("Error: Expected an ApplicationTerm with \"=\" inside "
+							+ "any rewrite-term. The term is an ApplicationTerm, but has the function "
+							+ "symbol " + termEqApp.getFunction().getName() + ". The term was " + termApp.toString());
+				}
+				Term termBeforeRewrite = termEqApp.getParameters()[0]; //The subterm which gets rewritten
+				Term termAfterRewrite  = termEqApp.getParameters()[1]; //The new subterm, which will replace the old one
 				
-				System.out.println("Believed as alright to be (intern) rewritten: " + appTerm.getParameters()[0].toStringDirect() + " ."); //TODO: Implement rule-reader
+				boolean understoodInternalRewrite = false;
+				if (termAfterRewrite instanceof AnnotatedTerm)
+				{
+					AnnotatedTerm termAfterRewriteAnn = (AnnotatedTerm) termAfterRewrite;
+					if (termAfterRewriteAnn.getSubterm() == termBeforeRewrite
+							&& termAfterRewriteAnn.getAnnotations().length == 1
+							&& termAfterRewriteAnn.getAnnotations()[0].getKey() == ":quoted")
+					{
+						understoodInternalRewrite = true;
+					}
+				}
+				
+				if (!understoodInternalRewrite)
+				{
+					System.out.println("Believed as alright to be (intern) rewritten: "
+							+ termApp.getParameters()[0].toStringDirect() + " .");
+				} /*else {
+					System.out.println("Understood internal rewrite.");
+				}*/
+				
+				
+				
 				//stackPush(appTerm.getParameters()[0], term);
 				return;
 				
@@ -366,20 +555,20 @@ public class ProofChecker extends SMTInterpol {
 				 * can't be checked here if the first argument is the same as the last argument of 
 				 * the last argument. */
 				
-				stackPush(appTerm.getParameters()[1], term); //Not nice: Kann da auch etwas stehen was eigentlich aufgefaltet werden sollte?
+				stackPush(termApp.getParameters()[1], term); //Not nice: Kann da auch etwas stehen was eigentlich aufgefaltet werden sollte?
 				return;
 				
 			case "@clause":
 				
-				if (appTerm.getParameters().length != 2)
+				if (termApp.getParameters().length != 2)
 				{
 					throw new AssertionError("Error: The clause term has not 2 parameters, it has " 
-							+ appTerm.getParameters().length + ". The term is " + appTerm.toString());
+							+ termApp.getParameters().length + ". The term is " + termApp.toString());
 				}
 
 				stackWalker.push(new WalkerId<Term,String>(term, "clause"));
-				stackWalker.push(new WalkerId<Term,String>(appTerm.getParameters()[1], ""));
-				stackWalker.push(new WalkerId<Term,String>(appTerm.getParameters()[0], ""));
+				stackWalker.push(new WalkerId<Term,String>(termApp.getParameters()[1], ""));
+				stackWalker.push(new WalkerId<Term,String>(termApp.getParameters()[0], ""));
 				return;				
 				
 			default:
@@ -390,7 +579,7 @@ public class ProofChecker extends SMTInterpol {
 				} else
 				{
 					throw new AssertionError("Error: The Proof-Checker has no routine for the function " + functionname + "."
-							+ "The error-causing term is " + appTerm);	
+							+ "The error-causing term is " + termApp);
 				}
 			}
 			
@@ -966,9 +1155,9 @@ public class ProofChecker extends SMTInterpol {
 	}
 	
 	/* For each parameter create a Walker, which calculates it */
-	public void calcParams(ApplicationTerm appTerm)
+	public void calcParams(ApplicationTerm termApp)
 	{
-		Term[] params = appTerm.getParameters();
+		Term[] params = termApp.getParameters();
 		
 		for (int i = params.length - 1; i >= 0; i--)
 		{			
@@ -1038,6 +1227,44 @@ public class ProofChecker extends SMTInterpol {
 		    this.t = t; 
 		    this.s = s; 
 		  } 
+	}
+	
+	// Calculate an SMTAffineTerm
+	SMTAffineTerm calculateTerm(Term term)
+	{
+		if (term instanceof ApplicationTerm)
+		{
+			ApplicationTerm termApp = (ApplicationTerm) term;
+			if (termApp.getFunction().getName() == "+")
+			{
+				return (calculateTerm(termApp.getParameters()[0]).add(
+						calculateTerm(termApp.getParameters()[1])));
+			}
+			if (termApp.getFunction().getName() == "-")
+			{
+				if (termApp.getParameters().length == 1)
+					return (calculateTerm(termApp.getParameters()[0]).negate());
+				
+				throw new AssertionError("Error: The term with a \"-\" didn't have 1 argument. The term was "
+						+ term.toStringDirect());
+			}
+			if (termApp.getFunction().getName() == "*")
+			{
+				throw new AssertionError("Error: Can't deal with multiplications. The term was "
+							+ term.toStringDirect());
+			}
+			if (termApp.getFunction().getName() == "/")
+			{
+				throw new AssertionError("Error: Can't deal with multiplications. The term was "
+							+ term.toStringDirect());
+			}
+			//throw new AssertionError("Error: The term-calculator can't deal with " + termApp.getFunction().getName());
+						
+		}
+		//else
+		//{
+		return SMTAffineTerm.create(term);
+		//}
 	}
 }
 
