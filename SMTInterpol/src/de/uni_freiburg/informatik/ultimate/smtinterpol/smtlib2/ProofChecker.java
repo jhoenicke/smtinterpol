@@ -384,8 +384,6 @@ public class ProofChecker extends SMTInterpol {
 								+ rewriteRule + ". \n The term is: " + termEqApp.toString());
 					}
 					
-					//SMTAffineTerm termT1 = (SMTAffineTerm) termOldApp.getParameters()[0]; //t_1 and t_2 as in the documentation proof.pdf
-					//SMTAffineTerm termT2 = (SMTAffineTerm) termOldApp.getParameters()[1];
 					Term termT1 = termOldApp.getParameters()[0]; //t_1 and t_2 as in the documentation proof.pdf
 					Term termT2 = termOldApp.getParameters()[1];
 					
@@ -418,40 +416,8 @@ public class ProofChecker extends SMTInterpol {
 								+ "of the rule " + rewriteRule + ", but the result is " + termNewApp.toString());
 					}
 					
-					SMTAffineTerm leftside = calculateTerm(termNewIneqApp.getParameters()[0]);
-					
-					/*if (!(termNewIneqApp.getParameters()[0] instanceof ApplicationTerm))
-					{
-						throw new AssertionError("Error: The first term of the inequality of the second argument "
-								+ "of the rewrite-term with the rule " + rewriteRule + " is not an ApplicationTerm!?! "
-								+ "The term was " + termEqApp.toStringDirect());
-					}*/
-					
-					// The new sum of t_1 and t_2 on the left side of the inequality
-					/*ApplicationTerm termNewSumApp = (ApplicationTerm) termNewIneqApp.getParameters()[0];
-					
-					if (termNewSumApp.getFunction().getName() != "+")
-					{
-						throw new AssertionError("Error: Expected a sum on the left side of the inequality of "
-								+ "the new term of a rewrite-term with the rule " + rewriteRule + ". \n"
-								+ "The symbol is " + termNewSumApp.getFunction().getName()
-								+ " and the term was " + termEqApp.toString());
-					}
-					
-					if (!(termNewSumApp.getParameters()[1] instanceof ApplicationTerm))
-					{
-						throw new AssertionError("Error: Second summand isn't an ApplicationTerm."
-								+ "Very strange... \n Term: " + termEqApp.toStringDirect());
-					}
-					
-					// The second summand, which is an additive Inversion as ApplicationTerm
-					ApplicationTerm termNewSumAppInvApp = (ApplicationTerm) termNewSumApp.getParameters()[1];
-					
-					if (termNewSumAppInvApp.getFunction().getName() != "-")
-					{
-						throw new AssertionError("Error: The second summand should be negated");
-					}*/
-					//TODO: Was bei 0?? -0? Konstanten?? zB -3
+					SMTAffineTerm leftside = calculateTerm(termNewIneqApp.getParameters()[0]);					
+
 					SMTAffineTerm termT1Aff = SMTAffineTerm.create(termT1);
 					SMTAffineTerm termT2Aff = SMTAffineTerm.create(termT2);
 					
@@ -465,13 +431,6 @@ public class ProofChecker extends SMTInterpol {
 									+ " and " + termT1Aff.add(termT2Aff.negate()).toStringDirect() + "\n"
 									+ "Random number: 02653");
 						}
-						/*
-						if(termT1 != termNewSumApp.getParameters()[0]
-								|| termT2 != termNewSumAppInvApp.getParameters()[0])
-						{
-							throw new AssertionError("Error: Wrong term on the left side of "
-									+ "the new inequality. The term was: " + termEqApp.toStringDirect());
-						}*/
 						// Then the rule was correctly executed
 					} else
 					{
@@ -483,13 +442,6 @@ public class ProofChecker extends SMTInterpol {
 									+ " and " + termT2Aff.add(termT1Aff.negate()).toStringDirect() + "\n"
 									+ "Random number: 20472");
 						}
-						/*
-						if(termT2 != termNewSumApp.getParameters()[0]
-								|| termT1 != termNewSumAppInvApp.getParameters()[0])
-						{
-							throw new AssertionError("Error: Wrong term on the left side of "
-									+ "the new inequality. The term was: " + termEqApp.toStringDirect());
-						}*/
 						// Then the rule was correctly executed
 					}
 				} else
@@ -1261,10 +1213,7 @@ public class ProofChecker extends SMTInterpol {
 			//throw new AssertionError("Error: The term-calculator can't deal with " + termApp.getFunction().getName());
 						
 		}
-		//else
-		//{
 		return SMTAffineTerm.create(term);
-		//}
 	}
 }
 
