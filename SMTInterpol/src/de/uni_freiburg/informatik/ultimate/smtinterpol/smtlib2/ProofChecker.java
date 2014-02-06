@@ -265,8 +265,9 @@ public class ProofChecker extends SMTInterpol {
 				/* Read the rule and handle each differently */
 				String rewriteRule = termAppInnerAnn.getAnnotations()[0].getKey();
 				if (false)
-				{} else if (rewriteRule == ":distinctSame")
-				{							
+				{} else if (rewriteRule == ":trueNotFalse")
+				{
+					System.out.println("\n \n \n Now finally tested: " + rewriteRule); //TODO
 					// Not nice: Could be in an external function
 					// Warning: Code duplicates 59374b
 					if (!(termEqApp.getParameters()[0] instanceof ApplicationTerm)
@@ -274,6 +275,217 @@ public class ProofChecker extends SMTInterpol {
 					{
 						throw new AssertionError("Error: The first argument of a rewrite of the rule " 
 								+ rewriteRule + " should be an ApplicationTerm and the second true, but at least one isn't.\n"
+								+ "The term was " + termEqApp.toString());
+					}
+					
+					ApplicationTerm termOldApp = (ApplicationTerm) termEqApp.getParameters()[0];
+					
+					if (termOldApp.getFunction().getName() != "=")
+						throw new AssertionError("Error in the rule " + rewriteRule + "!\n The term was " + term.toStringDirect());
+															
+					boolean foundTrue = false;
+					boolean foundFalse = false;
+					
+					for (Term subterm : termOldApp.getParameters())
+					{
+						if (subterm == smtInterpol.term("false"))
+						{
+							foundFalse = true;
+						}
+						if (subterm == smtInterpol.term("true"))
+						{
+							foundTrue = true;
+						}
+						
+						if (foundFalse && foundTrue)
+							return;
+					}
+					
+					throw new AssertionError("Error at the end of rule " + rewriteRule
+							+ "!\n The term was " + term.toStringDirect());
+					
+				} else if (rewriteRule == ":eqTrue")
+				{
+					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO
+					// Not nice: Could be in an external function
+					// Warning: Code duplicates 59374
+					if (!(termEqApp.getParameters()[0] instanceof ApplicationTerm)
+							|| !(termEqApp.getParameters()[1] instanceof ApplicationTerm))
+					{
+						throw new AssertionError("Error: Each argument of a rewrite of the rule "
+								+ rewriteRule + " should be an ApplicationTerm, but at least one isn't.\n"
+								+ "The term was " + termEqApp.toString());
+					}
+					
+					ApplicationTerm termOldApp = (ApplicationTerm) termEqApp.getParameters()[0];
+					ApplicationTerm termNewApp = (ApplicationTerm) termEqApp.getParameters()[1];
+
+					if (termOldApp.getFunction().getName() != "="
+							|| termNewApp.getFunction().getName() != "and")
+						throw new AssertionError("Error 1 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
+					
+					
+					// Assumption: All "true"-terms are left out
+					// Assumption: Doubled terms stay doubled
+					// Assumption: No permutation
+					boolean trueFound = false;
+					int j = 0; //Counts through the conjuncts in the new term
+					Term[] arrayOld = termOldApp.getParameters();
+					Term[] arrayNew = termNewApp.getParameters();
+					
+					for (int i = 0; i < arrayOld.length; i++)
+					{
+						if (arrayOld[i] == smtInterpol.term("true"))
+						{
+							trueFound = true;
+							continue;
+						}
+						
+						if (j >= arrayNew.length)
+							throw new AssertionError("Error 2 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
+						
+						if (arrayOld[i] != arrayNew[j])
+							throw new AssertionError("Error 3 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
+						
+						j++;
+					}
+					
+					if (j != arrayNew.length)
+						throw new AssertionError("Error 4 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
+
+					if (!trueFound)
+						throw new AssertionError("Error 5 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
+					
+				} else if (rewriteRule == ":eqFalse")
+				{
+					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO
+					// Not nice: Could be in an external function
+					// Warning: Code duplicates 59374
+					if (!(termEqApp.getParameters()[0] instanceof ApplicationTerm)
+							|| !(termEqApp.getParameters()[1] instanceof ApplicationTerm))
+					{
+						throw new AssertionError("Error: Each argument of a rewrite of the rule "
+								+ rewriteRule + " should be an ApplicationTerm, but at least one isn't.\n"
+								+ "The term was " + termEqApp.toString());
+					}
+					
+					ApplicationTerm termOldApp = (ApplicationTerm) termEqApp.getParameters()[0];
+					ApplicationTerm termNewApp = (ApplicationTerm) termEqApp.getParameters()[1];
+
+					if (termOldApp.getFunction().getName() != "="
+							|| !(termNewApp.getParameters()[0] instanceof ApplicationTerm)
+							|| termNewApp.getFunction().getName() != "not")
+						throw new AssertionError("Error 1 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
+					
+					ApplicationTerm termNewAppInnerApp = (ApplicationTerm) termNewApp.getParameters()[0];
+					
+					if (termNewAppInnerApp.getFunction().getName() != "or")
+						throw new AssertionError("Error 2 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
+										
+					// Assumption: All "true"-terms are left out
+					// Assumption: Doubled terms stay doubled
+					// Assumption: No permutation
+					boolean falseFound = false;
+					int j = 0; //Counts through the conjuncts in the new term
+					Term[] arrayOld = termOldApp.getParameters();
+					Term[] arrayNew = termNewAppInnerApp.getParameters();
+					
+					for (int i = 0; i < arrayOld.length; i++)
+					{
+						if (arrayOld[i] == smtInterpol.term("false"))
+						{
+							falseFound = true;
+							continue;
+						}
+						
+						if (j >= arrayNew.length)
+							throw new AssertionError("Error 3 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
+						
+						if (arrayOld[i] != arrayNew[j])
+							throw new AssertionError("Error 4 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
+						
+						j++;
+					}
+					
+					if (j != arrayNew.length)
+						throw new AssertionError("Error 5 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
+
+					if (!falseFound)
+						throw new AssertionError("Error 6 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
+				
+				} else if (rewriteRule == ":eqSame")
+				{
+					System.out.println("\n \n \n Now finally tested: " + rewriteRule); //TODO
+					// Not nice: Could be in an external function
+					// Warning: Code duplicates 59374b
+					if (!(termEqApp.getParameters()[0] instanceof ApplicationTerm)
+							|| !(termEqApp.getParameters()[1] == smtInterpol.term("true")))
+					{
+						throw new AssertionError("Error: The first argument of a rewrite of the rule "
+								+ rewriteRule + " should be an ApplicationTerm and the second true, but at least one isn't.\n"
+								+ "The term was " + termEqApp.toString());
+					}
+					
+					ApplicationTerm termOldApp = (ApplicationTerm) termEqApp.getParameters()[0];
+					
+					if (termOldApp.getFunction().getName() != "=")
+						throw new AssertionError("Error 1 at rule " + rewriteRule + "!\n The term was " + term.toStringDirect());
+															
+					Term termComp = termOldApp.getParameters()[0]; //compare-term
+					for (Term subterm : termOldApp.getParameters())
+						if (subterm != termComp)
+							throw new AssertionError("Error 2 at rule " + rewriteRule + "!\n The term was " + term.toStringDirect());
+				
+				} else if (rewriteRule == ":eqSimp")
+				{
+					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO
+					// Not nice: Could be in an external function
+					// Warning: Code duplicates 59374
+					if (!(termEqApp.getParameters()[0] instanceof ApplicationTerm)
+							|| !(termEqApp.getParameters()[1] instanceof ApplicationTerm))
+					{
+						throw new AssertionError("Error: Each argument of a rewrite of the rule "
+								+ rewriteRule + " should be an ApplicationTerm, but at least one isn't.\n"
+								+ "The term was " + termEqApp.toString());
+					}
+					
+					ApplicationTerm termOldApp = (ApplicationTerm) termEqApp.getParameters()[0];
+					ApplicationTerm termNewApp = (ApplicationTerm) termEqApp.getParameters()[1];
+
+					if (termOldApp.getFunction().getName() != "="
+							|| termNewApp.getFunction().getName() != "=")
+						throw new AssertionError("Error 1 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
+					
+					
+					// Assumption: No deletion of true-terms
+					
+					Term[] arrayOld = termOldApp.getParameters();
+					Term[] arrayNew = termNewApp.getParameters();
+					
+					// The rule holds iff each subterm of the old term is in the new term.
+					boolean found = false;
+					for (Term subtermOld :arrayOld)
+					{
+						found = false;
+						for (Term subtermNew :arrayNew)
+						{
+							if (subtermOld == subtermNew)
+								found = true; break;
+						}
+						
+						if (!found)
+							throw new AssertionError("Error 2 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
+					}
+				} else if (rewriteRule == ":distinctSame")
+				{
+					System.out.println("\n \n \n Now finally tested: " + rewriteRule); //TODO
+					// Not nice: Could be in an external function
+					// Warning: Code duplicates 59374b
+					if (!(termEqApp.getParameters()[0] instanceof ApplicationTerm)
+							|| !(termEqApp.getParameters()[1] == smtInterpol.term("false")))
+					{
+						throw new AssertionError("Error: The first argument of a rewrite of the rule "
+								+ rewriteRule + " should be an ApplicationTerm and the second false, but at least one isn't.\n"
 								+ "The term was " + termEqApp.toString());
 					}
 					
@@ -305,22 +517,7 @@ public class ProofChecker extends SMTInterpol {
 					
 					ApplicationTerm termOldApp = (ApplicationTerm) termEqApp.getParameters()[0];
 					ApplicationTerm termNewApp = (ApplicationTerm) termEqApp.getParameters()[1];
-					
-//					// Currently no handling of more than 2 arguments
-//					if (termOldApp.getParameters().length > 2)
-//					{
-//						throw new AssertionError("Error: The Proof-Checker can't deal with a " + rewriteRule
-//								+ "-rule with more than 2 distinct terms");
-//					}
-//					
-//					if (!(termEqApp.getParameters()[0] instanceof ApplicationTerm)
-//							|| !(termEqApp.getParameters()[1] instanceof ApplicationTerm))
-//					{
-//						throw new AssertionError("Error: Each argument of a rewrite of the rule " 
-//								+ rewriteRule + " should be an ApplicationTerm, but at least one isn't.\n"
-//								+ "The term was " + termEqApp.toString());
-//					}
-//					
+
 					if (termNewApp.getFunction().getName() != "not"
 							|| !(termNewApp.getParameters()[0] instanceof ApplicationTerm)
 							|| termOldApp.getFunction().getName() != "distinct")
@@ -336,18 +533,7 @@ public class ProofChecker extends SMTInterpol {
 					Term[] arrayNewEq = null;
 					Term[] arrayOldTerm = termOldApp.getParameters(); 
 					ApplicationTerm termNewAppInnerApp = (ApplicationTerm) termNewApp.getParameters()[0];
-					// Of the new (=overwrite) part of the term, the inner equality and of that the inner disjunction
-					//ApplicationTerm termNewAppEqAppMayDisj;
-					
-					//boolean multidisjunct = false;
-//					if (termNewAppEqApp.getFunction().getName() != "="
-//							&& termNewAppEqApp.getFunction().getName() != "or")
-//					{
-//						throw new AssertionError("Wrong application of the " + rewriteRule + "-rule. "
-//								+ "Couldn't find \"or\" or \"=\" in the second argument. \n"
-//								+ "The term was " + termEqApp.toStringDirect());
-//					}
-					
+				
 					if (termNewAppInnerApp.getFunction().getName() == "or")
 					{
 						arrayNewEq = termNewAppInnerApp.getParameters(); 					 
@@ -407,23 +593,6 @@ public class ProofChecker extends SMTInterpol {
 							throw new AssertionError("Error: Coulnd't associate the equality " + arrayNewEq[i] + "\n. The term was " + term.toStringDirect());
 					
 					// So it is correct
-					
-//					if (termOldApp.getParameters().length != termNewAppEqApp.getParameters().length)
-//					{
-//						throw new AssertionError("Error: Wrong application of the " + rewriteRule + "-rule. "
-//								+ "The numbers of distincts resp. disjuncts are different. \n"
-//								+ "The term was " + termEqApp.toString());
-//					}
-//					
-//					for (int i = 0; i < termOldApp.getParameters().length; i++)
-//					{
-//						if (termOldApp.getParameters()[i] != termNewAppEqApp.getParameters()[i])
-//						{
-//							throw new AssertionError("Error: Was trying to verify the equality of subterms "
-//									+ "in a " + rewriteRule + "-rewrite, but at number " + i + " they are not "
-//									+ "the same. \n The term was " + termEqApp.toStringDirect());
-//						}
-//					}
 				} else if (rewriteRule == ":notSimp")
 				{
 					// The first argument of the rewrite has to be the double-negated version of the second argument
@@ -744,8 +913,7 @@ public class ProofChecker extends SMTInterpol {
 					if (disjNew != termNewApp.getParameters().length)
 						throw new AssertionError("Error 6 in the rule " + rewriteRule + "!\n The term was " + term.toStringDirect());
 					
-					// Check if they are the same
-					// Assumption: No Permutation
+				
 				} else
 				{
 					System.out.println("Can't handle the following rule " + termAppInnerAnn.getAnnotations()[0].getKey() + ", therefore...");
@@ -761,7 +929,6 @@ public class ProofChecker extends SMTInterpol {
 				
 				// Trying to get the rewrite:
 				// First the syntactical check
-				//termEqApp; // One step deeper, the ApplicationTerm with the equality
 				if (!(termApp.getParameters()[0] instanceof ApplicationTerm))
 				{
 					throw new AssertionError("Error: Expected an ApplicationTerm inside any rewrite-term. "
@@ -841,10 +1008,6 @@ public class ProofChecker extends SMTInterpol {
 			/* res is an AnnotatedTerm */
 			
 			/* Annotations no more get just removed, this was incorrect */
-			
-			/* OLD: Assumption: There is no need to unfold stuff HERE inside an annotation 
-			 * (because if that's needed the function on the outside will take care */
-			/* This assumption may be wrong! */
 			
 			annTerm = (AnnotatedTerm) term;
 			
@@ -1522,8 +1685,3 @@ public class ProofChecker extends SMTInterpol {
 		return SMTAffineTerm.create(term);
 	}
 }
-
-
-
-
-
