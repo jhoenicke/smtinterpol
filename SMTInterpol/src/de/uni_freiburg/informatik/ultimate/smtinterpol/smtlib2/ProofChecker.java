@@ -3,7 +3,8 @@ package de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2;
 import de.uni_freiburg.informatik.ultimate.logic.AnnotatedTerm;
 import de.uni_freiburg.informatik.ultimate.logic.Annotation;
 import de.uni_freiburg.informatik.ultimate.logic.ApplicationTerm;
-import de.uni_freiburg.informatik.ultimate.logic.Rational;
+import de.uni_freiburg.informatik.ultimate.logic.FormulaUnLet;
+//import de.uni_freiburg.informatik.ultimate.logic.Rational;
 //import de.uni_freiburg.informatik.ultimate.logic.ConstantTerm; //May not be needed
 //import de.uni_freiburg.informatik.ultimate.logic.FormulaUnLet;
 //import de.uni_freiburg.informatik.ultimate.logic.SMTLIBException;
@@ -13,6 +14,7 @@ import de.uni_freiburg.informatik.ultimate.logic.TermTransformer;
 //import de.uni_freiburg.informatik.ultimate.logic.Script.LBool;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.convert.SMTAffineTerm;
 
+
 //import java.util.ArrayList;
 //import java.util.HashMap;
 import java.util.*;
@@ -21,9 +23,6 @@ public class ProofChecker extends SMTInterpol {
 	
 	// Not nice: returns are spread over the code, all could be in the end
 	HashMap<Term, Term> pcCache; //Proof Checker Cache
-	// Not nice: The level should be 0
-	// Level of proof-checker-power
-	int powLev = 2; //Not nice: Best is 0
 	
 	// Declarations for the Walker
 	Stack<WalkerId<Term,String>> stackWalker = new Stack<WalkerId<Term,String>>();
@@ -39,7 +38,7 @@ public class ProofChecker extends SMTInterpol {
 		
 		Term resCalc;
 		// Now non-recursive:
-		stackWalker.push(new WalkerId<Term,String>(res,""));
+		stackWalker.push(new WalkerId<Term,String>(new FormulaUnLet().unlet(res),""));
 		WalkerId<Term,String> currentWalker;
 		
 		
@@ -237,7 +236,6 @@ public class ProofChecker extends SMTInterpol {
 				 *  - OLD: Secondly, remove the @rewrite and the annotation for later uses in the @eq-function.
 				 */
 				
-				//ApplicationTerm termEqApp;
 				/* Get access to the internal terms */
 				if (termApp.getParameters()[0] instanceof AnnotatedTerm)
 				{
@@ -268,20 +266,19 @@ public class ProofChecker extends SMTInterpol {
 				{} else if (rewriteRule == ":trueNotFalse")
 				{
 					System.out.println("\n \n \n Now finally tested: " + rewriteRule); //TODO
-					// Not nice: Could be in an external function
 					// Warning: Code duplicates 59374b
-					if (!(termEqApp.getParameters()[0] instanceof ApplicationTerm)
-							|| !(termEqApp.getParameters()[1] == smtInterpol.term("false")))
+					if (!(termEqApp.getParameters()[1] == smtInterpol.term("false")))
 					{
-						throw new AssertionError("Error: The first argument of a rewrite of the rule " 
-								+ rewriteRule + " should be an ApplicationTerm and the second true, but at least one isn't.\n"
+						throw new AssertionError("Error: The second argument of a rewrite of the rule " 
+								+ rewriteRule + " should be true, but isn't.\n"
 								+ "The term was " + termEqApp.toString());
 					}
 					
-					ApplicationTerm termOldApp = (ApplicationTerm) termEqApp.getParameters()[0];
+					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
+					pm_func(termOldApp,"=");
 					
-					if (termOldApp.getFunction().getName() != "=")
-						throw new AssertionError("Error in the rule " + rewriteRule + "!\n The term was " + term.toStringDirect());
+//					if (termOldApp.getFunction().getName() != "=")
+//						throw new AssertionError("Error in the rule " + rewriteRule + "!\n The term was " + term.toStringDirect());
 															
 					boolean foundTrue = false;
 					boolean foundFalse = false;
@@ -478,7 +475,6 @@ public class ProofChecker extends SMTInterpol {
 					}
 				} else if (rewriteRule == ":distinctSame")
 				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule); //TODO
 					// Not nice: Could be in an external function
 					// Warning: Code duplicates 59374b
 					if (!(termEqApp.getParameters()[0] instanceof ApplicationTerm)
@@ -1047,7 +1043,7 @@ public class ProofChecker extends SMTInterpol {
 			// If one of the non-first parameter is a real disjunction, i.e. a disjunction with
 			// at least 2 disjuncts, the non-pivot-disjunct(s) need to be added to the first parameter.
 			// disjunctsAdd is the list which memorizes those disjuncts, so they can be added later.
-			ArrayList<Term> disjunctsAdd = new ArrayList<Term>();
+			HashSet<Term> allDisjuncts = new HashSet<Term>();
 			
 			/* Get the arguments and pivots */
 			Term[] pivots = new Term[termArgs.length]; //The zeroth entry has no meaning.
@@ -1063,7 +1059,8 @@ public class ProofChecker extends SMTInterpol {
 					/* Check if it is a pivot-annotation */
 					if (termArgsIAnn.getAnnotations()[0].getKey() != ":pivot")
 					{
-						throw new AssertionError("Error: The annotation has key " + termArgsIAnn.getAnnotations()[0].getKey() + " instead of :pivot, " 
+						throw new AssertionError("Error: The annotation has key " 
+								+ termArgsIAnn.getAnnotations()[0].getKey() + " instead of :pivot, " 
 								+ "which is required. It's value is: " + termArgsIAnn.getAnnotations()[0].getValue());
 					}						
 											
@@ -1073,9 +1070,9 @@ public class ProofChecker extends SMTInterpol {
 						pivots[i] = (Term) termArgsIAnn.getAnnotations()[0].getValue();
 					} else
 					{
-						throw new AssertionError("Error: The following object was supposed to be a known term but isn't: " + 
-								termArgsIAnn.getAnnotations()[0].getValue().toString() + "It is:" + 
-								termArgsIAnn.getAnnotations()[0].getValue().getClass().getCanonicalName());
+						throw new AssertionError("Error: The following object was supposed to be a known term but isn't: " 
+								+ termArgsIAnn.getAnnotations()[0].getValue().toString() + "It is:" 
+								+ termArgsIAnn.getAnnotations()[0].getValue().getClass().getCanonicalName());
 					}
 					
 					if (termArgsIAnn.getAnnotations().length > 1)
@@ -1084,7 +1081,7 @@ public class ProofChecker extends SMTInterpol {
 					}
 				} else
 				{
-					throw new AssertionError("Error: Expected an annotated term as No." + i + ">0 of a "
+					throw new AssertionError("Error: Expected an annotated term as parameter No." + i + ">0 of a "
 							+ "resolution term");
 				}
 			}
@@ -1121,69 +1118,8 @@ public class ProofChecker extends SMTInterpol {
 			}
 			
 			// Declaration done, now for the real search			
-			for (int i = 1; i < termArgs.length; i++)
-			{
-				// TODO
-				// TODO: Can it be that e.g. pivot 4 deletes a disjunct which pivot 1 added?
-				// TODO
-				
-				/* The search for the pivot in the term with the pivot: */
-				if (termArgsCalcAnn[i].getSubterm() == pivots[i])
-				{
-					// The Pivot-term has one disjunct
-				} else if (termArgsCalcAnn[i].getSubterm() instanceof ApplicationTerm && powLev == 0)
-				{
-					// The pivot term has more than one disjunct
 
-					// Of the ith argument of the resolution, the subterm as an ApplicationTerm
-					ApplicationTerm termArgsCalcAnnISubtApp = (ApplicationTerm) termArgsCalcAnn[i].getSubterm();
-					 
-					if (termArgsCalcAnnISubtApp.getFunction().getName() != "or")
-					{
-						throw new AssertionError("Error: Hoped for a disjunction while searching the pivot " 
-								+ pivots[i] + " in " + termArgsCalc[i].toStringDirect() + ". But found "
-								 + "a function with that symbol: " + termArgsCalcAnnISubtApp.getFunction().getName());
-					} 
-					
-					// TODO: Is there a need to find out if two terms are the same?
-					
-					// How the following for-loop works:
-					// For each disjunct we have to check if it's the pivot, if not it has to be added later.
-					// If it is, only then k won't be counted up, which avoids the error.
-					// That means if we go out of the loop without an error, we know, that the pivot has been found.
-					//int k = 0; // Counts through the disjuncts
-					boolean pivotFound = false;
-					
-					//System.out.print("Size(" + i + "/" + termArgs.length + "): " + disjunctsAdd.size());
-					for (int j = 0; j < termArgsCalcAnnISubtApp.getParameters().length; j++)
-					{
-						if (termArgsCalcAnnISubtApp.getParameters()[j] != pivots[i])
-						{
-							disjunctsAdd.add(termArgsCalcAnnISubtApp.getParameters()[j]);
-						} else
-						{
-							pivotFound = true;
-						}
-					}
-					//System.out.println(" -> " + disjunctsAdd.size());
-					if (!pivotFound)
-					{
-						throw new AssertionError("Error: couldn't find the pivot "+ pivots[i].toStringDirect() 
-								+ " in the disjunction " +  termArgsCalcAnnISubtApp.toStringDirect());
-					}					
-				} else if (powLev > 0)
-				{
-					//System.out.println("Warning: The level of power had an effect.");
-				} else
-				{
-					throw new AssertionError("Error: Could NOT find the pivot " + pivots[i] + " in " 
-							+ termArgsCalc[i].toStringDirect() + " finden. Before the calculation the term was "
-							+ termArgs[i].toStringDirect());
-				}
-			}
-			
-			// Now get the disjuncts of the first argument into an array
-			Term termArg0Disjuncts[];
+			// Now get the disjuncts of the first argument into the hash set
 			
 			// The first argument calculated and as an ApplicationTerm
 			// this is just needed if argument 0 has more than one disjunct.
@@ -1203,137 +1139,84 @@ public class ProofChecker extends SMTInterpol {
 				}
 			}
 			
-			/* Initialization of the disjunct(s) */
-			
+			/* Initialization of the disjunct(s) */			
 			if (multiDisjunct)
 			{
 				//His disjuncts (Works just if the clause has more than one disjunct)
-				termArg0Disjuncts = termArg0CalcApp.getParameters();
+				allDisjuncts.addAll(Arrays.asList(termArg0CalcApp.getParameters()));
 			} else {
-				termArg0Disjuncts = new Term[1];
-				termArg0Disjuncts[0] = termArgsCalc[0];
+				allDisjuncts.add(termArgsCalc[0]);
 			}
 			
-			// true iff the disjunct is not a negated pivot
-			boolean[] disjunctsNotPivot = new boolean[termArg0Disjuncts.length];
 			
-			// Initialization
+			for (int i = 1; i < termArgs.length; i++)
+			{
+				// Remove the negated pivot from allDisjuncts
+				
+				if (! allDisjuncts.remove(negate(pivots[i], smtInterpol))) {
+					throw new AssertionError("Error: couldn't find the negated pivot "+ pivots[i].toStringDirect() 
+							+ " in the intermediate disjunction " +  allDisjuncts.toString());
+					
+				}
 
-			for (int i = 0; i < termArg0Disjuncts.length; i++)
-			{
-				disjunctsNotPivot[i] = true;
-			}
-				
-			/* Compare all disjuncts with pivots (un-annotated) */
-			for (int i_disj = 0; i_disj < termArg0Disjuncts.length; i_disj++)
-			{
-				
-				/* Delete the disjunct if there is a fitting pivot */
-				for (int j_pivot = 1; j_pivot < termArgs.length; j_pivot++) //Not nice: Expects (j != 0), that the first clause is the one which gets resoluted.
+				/* The search for the pivot in the term with the pivot: */
+				if (termArgsCalcAnn[i].getSubterm() == pivots[i])
 				{
-					/* Check if one negates the other, if so delete the disjunct */
-					//System.out.println("Vergleiche: " + disjuncts[i].toStringDirect() + " vs. " + pivots[j].toStringDirect());
-					//System.out.println("Mit: " + disjuncts[i].toStringDirect() + " vs. " + negate(pivots[j], smtInterpol).toStringDirect());
-					if (termArg0Disjuncts[i_disj] == negate(pivots[j_pivot], smtInterpol))
+					// The Pivot-term has one disjunct
+				} else if (termArgsCalcAnn[i].getSubterm() instanceof ApplicationTerm)
+				{
+					// The pivot term has more than one disjunct
+
+					// Of the ith argument of the resolution, the subterm as an ApplicationTerm
+					ApplicationTerm termArgsCalcAnnISubtApp = (ApplicationTerm) termArgsCalcAnn[i].getSubterm();
+					 
+					if (termArgsCalcAnnISubtApp.getFunction().getName() != "or")
 					{
-						//System.out.println("Treffer! \n");
-						disjunctsNotPivot[i_disj] = false;
-					} /*else
+						throw new AssertionError("Error: Hoped for a disjunction while searching the pivot " 
+								+ pivots[i] + " in " + termArgsCalc[i].toStringDirect() + ". But found "
+								 + "a function with that symbol: " + termArgsCalcAnnISubtApp.getFunction().getName());
+					} 
+					
+					// For each disjunct we have to check if it's the pivot, if not it has to be added later.
+					boolean pivotFound = false;
+					for (int j = 0; j < termArgsCalcAnnISubtApp.getParameters().length; j++)
 					{
-						System.out.println("Kein Treffer \n");
-					}	*/						
-				}						
+						if (termArgsCalcAnnISubtApp.getParameters()[j] != pivots[i])
+						{
+							allDisjuncts.add(termArgsCalcAnnISubtApp.getParameters()[j]);
+						} else
+						{
+							pivotFound = true;
+						}
+					}
+					
+					if (!pivotFound)
+					{
+						throw new AssertionError("Error: couldn't find the pivot "+ pivots[i].toStringDirect() 
+								+ " in the disjunction " +  termArgsCalcAnnISubtApp.toStringDirect());
+					}					
+				} else 
+				{
+					throw new AssertionError("Error: Could NOT find the pivot " + pivots[i] + " in " 
+							+ termArgsCalc[i].toStringDirect() + " finden. Before the calculation the term was "
+							+ termArgs[i].toStringDirect());
+				}
 			}
-			
-			/* Count the remaining disjuncts */
-			int count_disj = 0;
-			for (int i = 0; i < termArg0Disjuncts.length; i++)
-			{
-				if (disjunctsNotPivot[i])
-					count_disj++;
-			}
-			
-//			if (disjunctsAdd.size() > 0)
-//			{
-//				System.out.print("count_disj: " + count_disj);
-//			}
-			count_disj += disjunctsAdd.size();
-//			if (disjunctsAdd.size() > 0)
-//			{
-//				System.out.println(" -> " + count_disj);
-//			}
 			
 			
 			/* Different handling for a different number of conjuncts is needed */
-			switch (count_disj)
+			switch (allDisjuncts.size())
 			{
 			case 0:	
-				//System.out.println("Red");
 				stackPush(smtInterpol.term("false"), term);
 				return;
-			case 1:
-				//System.out.println("Green");
-				for (int i = 0; i < termArg0Disjuncts.length; i++)
-				{
-					if (i >= disjunctsNotPivot.length)
-					{
-						throw new AssertionError("Error: disjunctsNotPivot ist zu kurz: " 
-								+ disjunctsNotPivot.length + " statt " + termArg0Disjuncts.length + ".");
-					}
-					if (disjunctsNotPivot[i])
-					{	
-						stackPush(termArg0Disjuncts[i], term);					
-						return;
-					}					
-				}			
-				
-				// So the one element has to be in the list
-				if (disjunctsAdd.size() == 0)
-				{
-					throw new AssertionError("Error: Couldn't find the one disjunct I shall return.");
-				}
-												
-				stackPush(disjunctsAdd.get(0), term);
+			case 1:;
+				stackPush(allDisjuncts.iterator().next(), term);
 				return;
-			default:
-				//System.out.println("Blue");
-				
+			default:				
 				//Build an array that contains only the disjuncts, that have to be returned
-				Term[] disjunctsReturn = new Term[count_disj];
-				int i_disjRet = 0; //Counts through the to be returned disjuncts
-				
-				// i_disjOrig counts through the original disjuncts
-				for (int i_disjOrig = 0; i_disjOrig < termArg0Disjuncts.length; i_disjOrig ++) 
-				{
-					if (disjunctsNotPivot[i_disjOrig])
-					{
-						if (i_disjRet < count_disj) //Makes sense, since count_disj = disjunctsReturn.length;
-						{
-							disjunctsReturn[i_disjRet] = termArg0Disjuncts[i_disjOrig];
-							i_disjRet++;
-						} else {
-							throw new AssertionError("Error: A total unexpected miscalculation occured. Random number: 638402");
-						}
-					}
-				}
-				if (disjunctsReturn.length - i_disjRet != disjunctsAdd.size())
-				{
-					throw new AssertionError("Error: I'd like to fill up the to be returned disjuncts with "
-							+ "the list of \"to be added\"-disjuncts, but the size doesn't fit. The list has "
-							+ "size " + disjunctsAdd.size() + " and there is/are " 
-							+ (disjunctsReturn.length - i_disjRet) + " = " + disjunctsReturn.length + " - "
-							+ i_disjRet + " free space(s).");									
-				}
-				
-				// Now add the "to be added"-disjuncts
-				int p = 0; //counts through the list
-				while (i_disjRet < disjunctsReturn.length)
-				{
-					disjunctsReturn[i_disjRet] = disjunctsAdd.get(p);
-					//disjunctsReturn[d] = disjunctsAdd.remove(0); Could bet more effective, but is untested
-					i_disjRet++;
-					p++;
-				}
+				Term[] disjunctsReturn = allDisjuncts.toArray(new Term[allDisjuncts.size()]);
+
 				stackPush(smtInterpol.term("or", disjunctsReturn), term);
 				return;
 			}
@@ -1439,8 +1322,11 @@ public class ProofChecker extends SMTInterpol {
 			ApplicationTerm termAppParam2CalcApp = null;
 			
 			// The disjuncts of each parameter
-			Term[] termAppParam1CalcDisjuncts = null;
-			Term[] termAppParam2CalcDisjuncts = null;
+			//Term[] termAppParam1CalcDisjuncts = null;
+			//Term[] termAppParam2CalcDisjuncts = null;			
+
+			HashSet<Term> param1Disjuncts = new HashSet<Term>();
+			HashSet<Term> param2Disjuncts = new HashSet<Term>();
 			
 			// Important: It's correct, that at first the second parameter is read and then the first.
 			if (!stackResults.isEmpty())
@@ -1484,28 +1370,40 @@ public class ProofChecker extends SMTInterpol {
 			
 			if (multiDisjunct1)
 			{
-				termAppParam1CalcDisjuncts = termAppParam1CalcApp.getParameters(); //Just needed to fasten things up.
+				param1Disjuncts.addAll(Arrays.asList(termAppParam1CalcApp.getParameters()));
+				//termAppParam1CalcDisjuncts = termAppParam1CalcApp.getParameters(); //Just needed to fasten things up.
 			} else
 			{
-				termAppParam1CalcDisjuncts = new Term[1];
-				termAppParam1CalcDisjuncts[0] = termAppParam1Calc;
+				if (termAppParam1Calc != smtInterpol.term("false"))
+						param1Disjuncts.add(termAppParam1Calc);
+				//termAppParam1CalcDisjuncts = new Term[1];
+				//termAppParam1CalcDisjuncts[0] = termAppParam1Calc;
 			}
 			
 			if (multiDisjunct2)
 			{
-				termAppParam2CalcDisjuncts = termAppParam2CalcApp.getParameters(); //Just needed to fasten things up.
+				param2Disjuncts.addAll(Arrays.asList(termAppParam2CalcApp.getParameters()));
+				//termAppParam2CalcDisjuncts = termAppParam2CalcApp.getParameters(); //Just needed to fasten things up.
 			} else
 			{
-				termAppParam2CalcDisjuncts = new Term[1];
-				termAppParam2CalcDisjuncts[0] = termAppParam2Calc;
+				if (termAppParam2Calc != smtInterpol.term("false"))
+					param2Disjuncts.add(termAppParam2Calc);
+				//termAppParam2CalcDisjuncts = new Term[1];
+				//termAppParam2CalcDisjuncts[0] = termAppParam2Calc;
 			}
 			
 
-			/* Check if the clause operation was correct. Each later disjunct has to be in the first disjunction.
-			 *  OLD: Actually more has to hold, but this is enough for the proof to be correct.
-			 *  TODO: That must be wrong, it's a permutation!
+			/* Check if the clause operation was correct. Each later disjunct has to be in 
+			 * the first disjunction and reverse.
 			 */
 			
+			if (!param1Disjuncts.equals(param2Disjuncts))
+			{
+				throw new AssertionError("Error: The clause-operation didn't permutate correctly!");
+			}
+			
+			
+			/*
 			boolean found;
 			boolean[] foundArray = new boolean[termAppParam1CalcDisjuncts.length];
 			for (int j = 0; j < termAppParam1CalcDisjuncts.length; j++)
@@ -1532,7 +1430,7 @@ public class ProofChecker extends SMTInterpol {
 						//break; Not needed, because of the condition in the for-loop
 					}
 				}
-				if (!found && powLev < 2)
+				if (!found)
 				{
 					throw new AssertionError("Error: Couldn't find the disjunct " 
 							+ termAppParam2CalcDisjuncts[i].toStringDirect() + " in the disjunction "
@@ -1546,13 +1444,13 @@ public class ProofChecker extends SMTInterpol {
 			// TODO: Is this really necessary?
 			for (int j = 0; j < termAppParam1CalcDisjuncts.length; j++)
 			{
-				if (!foundArray[j]  && powLev < 1)
+				if (!foundArray[j])
 				{
 					throw new AssertionError("Error: Couldn't reverse-find the disjunct " 
 							+ termAppParam1CalcDisjuncts[j].toStringDirect() + " in the disjunction "
 							+ termAppParam2Calc.toStringDirect() + ".");
 				}
-			}
+			}*/
 											
 			stackPush(termAppParam2Calc, term);
 			return;
@@ -1621,13 +1519,27 @@ public class ProofChecker extends SMTInterpol {
 	public Term rewriteTerm(final Term termOrig, final Term termDelete, final Term termInsert) {
 		
 		return new TermTransformer() {
+			
+			private boolean isQuoted(Term t) {
+				
+				if (t instanceof AnnotatedTerm) {
+					AnnotatedTerm annot = (AnnotatedTerm) t;
+					for (Annotation a : annot.getAnnotations()) {
+						if (a.getKey().equals(":quoted"))
+							return true;
+					}
+				}
+				return false;
+			}
+			
 			@Override
 			public void convert(Term t) {
 				if (t == termDelete)
 				{
 					setResult(termInsert);
-				} else
-				{
+				} else if (isQuoted(t)) {
+					setResult(t);
+				} else {
 					super.convert(t);
 				}
 			}
@@ -1669,10 +1581,12 @@ public class ProofChecker extends SMTInterpol {
 			{
 				SMTAffineTerm factor1 = SMTAffineTerm.create(termApp.getParameters()[0]);
 				SMTAffineTerm factor2 = SMTAffineTerm.create(termApp.getParameters()[1]);
-				if (factor1.isConstant())
-					//return SMTAffineTerm.create(factor1, factor2);
-				throw new AssertionError("Error: Can't deal with multiplications. The term was "
-							+ term.toStringDirect());
+				if (factor1.isConstant())					
+					return SMTAffineTerm.create(factor1.getConstant(), factor2);
+				if (factor2.isConstant())					
+					return SMTAffineTerm.create(factor2.getConstant(), factor1);
+				throw new AssertionError("Error: Couldn't find the constant in the SMTAffineTerm multiplications. "
+						+ "The term was " + term.toStringDirect());
 			}
 			if (termApp.getFunction().getName() == "/")
 			{
@@ -1684,4 +1598,43 @@ public class ProofChecker extends SMTInterpol {
 		}
 		return SMTAffineTerm.create(term);
 	}
+	
+	ApplicationTerm convertApp (Term term)
+	{
+		if (!(term instanceof ApplicationTerm))
+		{
+			throw new AssertionError("Error: The following term should be an ApplicationTerm, "
+					+ "but is of the class " + term.getClass().getName() + ".\n"
+					+ "The term was: " + term.toString());
+		}
+		
+		return (ApplicationTerm) term;
+	}
+	
+	AnnotatedTerm convertAnn (Term term)
+	{
+		if (!(term instanceof AnnotatedTerm))
+		{
+			throw new AssertionError("Error: The following term should be an AnnotatedTerm, "
+					+ "but is of the class " + term.getClass().getName() + ".\n"
+					+ "The term was: " + term.toString());
+		}
+		
+		return (AnnotatedTerm) term;
+	}
+	
+	// Now some pattern-match-functions. They throw an error if the pattern doesn't match
+	
+	void pm_func(ApplicationTerm termApp, String pattern)
+	{
+		if (termApp.getFunction().getName() != pattern)
+			throw new AssertionError("Error: The pattern " + pattern 
+					+ " was supposed to be the function symbol of " + termApp.toString() + "\n"
+					+ "Instead it was " + termApp.getFunction().getName());
+	}
+	
+	
+	
+	
+	
 }
