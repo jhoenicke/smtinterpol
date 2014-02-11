@@ -4,8 +4,8 @@ import de.uni_freiburg.informatik.ultimate.logic.AnnotatedTerm;
 import de.uni_freiburg.informatik.ultimate.logic.Annotation;
 import de.uni_freiburg.informatik.ultimate.logic.ApplicationTerm;
 import de.uni_freiburg.informatik.ultimate.logic.FormulaUnLet;
-//import de.uni_freiburg.informatik.ultimate.logic.Rational;
-//import de.uni_freiburg.informatik.ultimate.logic.ConstantTerm; //May not be needed
+import de.uni_freiburg.informatik.ultimate.logic.Rational;
+import de.uni_freiburg.informatik.ultimate.logic.ConstantTerm; //May not be needed
 //import de.uni_freiburg.informatik.ultimate.logic.FormulaUnLet;
 //import de.uni_freiburg.informatik.ultimate.logic.SMTLIBException;
 import de.uni_freiburg.informatik.ultimate.logic.Term;
@@ -13,6 +13,7 @@ import de.uni_freiburg.informatik.ultimate.logic.TermTransformer;
 //import de.uni_freiburg.informatik.ultimate.logic.TermVariable;
 //import de.uni_freiburg.informatik.ultimate.logic.Script.LBool;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.convert.SMTAffineTerm;
+import de.uni_freiburg.informatik.ultimate.smtinterpol.util.SymmetricPair;
 
 
 //import java.util.ArrayList;
@@ -20,6 +21,8 @@ import de.uni_freiburg.informatik.ultimate.smtinterpol.convert.SMTAffineTerm;
 import java.util.*;
 
 public class ProofChecker extends SMTInterpol {
+	
+	HashSet<String> debug = new HashSet<String>(); // Just for debugging
 	
 	// Not nice: returns are spread over the code, all could be in the end
 	HashMap<Term, Term> pcCache; //Proof Checker Cache
@@ -33,9 +36,16 @@ public class ProofChecker extends SMTInterpol {
 	
 	public boolean check(Term res, SMTInterpol smtInterpol) {
 		
+		// Just for debugging
+		//debug.add("currently");
+		//debug.add("passt");
+		//debug.add("hardTerm");
+		//debug.add("LemmaLAadd");
+		//debug.add("calculateTerm");
+		
 		// Initializing the proof-checker-cache
 		pcCache = new HashMap<Term, Term>();
-		
+				
 		Term resCalc;
 		// Now non-recursive:
 		stackWalker.push(new WalkerId<Term,String>(new FormulaUnLet().unlet(res),""));
@@ -171,7 +181,8 @@ public class ProofChecker extends SMTInterpol {
 			functionname = termApp.getFunction().getName();
 			
 			/* Just for debugging */
-			//System.out.println("Currently looking at: " + functionname);
+			if (debug.contains("currently"))
+				System.out.println("Currently looking at: " + functionname);
 			
 			// A global initialization for rewrite and intern:
 			ApplicationTerm termEqApp; // The ApplicationTerm with the equality
@@ -194,18 +205,281 @@ public class ProofChecker extends SMTInterpol {
 				return;
 				
 			case "@lemma":
-				System.out.println("Believed as true: " + termApp.toStringDirect() + " ."); //TODO: Implement rule-reader
+				//TODO: Implement rule-reader
 				
 				// If possible return the un-annotated version
-				// Warning: Code duplicates (Random number: 498255) 
-				if (termApp.getParameters()[0] instanceof AnnotatedTerm)
+				// Warning: Code duplicates (Random number: 498255)
+				if (termApp.getParameters()[0] instanceof ApplicationTerm)
+					System.out.println("");
+				termAppInnerAnn = convertAnn(termApp.getParameters()[0]);
+				
+				if (termAppInnerAnn.getAnnotations()[0].getKey() == ":LA")
 				{
-					termAppInnerAnn = (AnnotatedTerm) termApp.getParameters()[0];
-					stackPush(termAppInnerAnn.getSubterm(), term);
+					ApplicationTerm termLemmaApp = convertApp(termAppInnerAnn.getSubterm());
+					
+					pm_func(termLemmaApp,"or");
+					
+					int arrayLength = termLemmaApp.getParameters().length;
+					ApplicationTerm[] termLemmaAppNegApp = new ApplicationTerm[arrayLength];
+					AnnotatedTerm[] termLemmaAppNegAppInnerAnn = new AnnotatedTerm[arrayLength];
+					ApplicationTerm[] termLemmaEq = new ApplicationTerm[arrayLength];
+					SMTAffineTerm[] termLemmaCheck = new SMTAffineTerm[arrayLength];
+					
+					//Now get the numbers:
+					Term[] numbers = (Term[]) termAppInnerAnn.getAnnotations()[0].getValue();
+					Rational[] numbersSMT = new Rational[numbers.length];
+					
+					for (int i = 0; i < numbers.length; i++)
+						numbersSMT[i] = calculateTerm(numbers[i], smtInterpol).getConstant();
+					
+					//boolean foundGe = false; // found greater-equal (>=)
+					//boolean foundGt = false; // found greater-than (>)
+					boolean foundLe = false; // found lower-equal (<=)
+					boolean foundLt = false; // found lower-than (<)
+					boolean foundNeg = false; // has the i-th component a negation?
+					for (int i = 0; i < arrayLength; i++)
+					{
+						// Maybe there's no negation
+						foundNeg = (termLemmaApp.getParameters()[i] instanceof ApplicationTerm);
+						
+						//Syntactical correctness
+						if (foundNeg)
+						{
+							termLemmaAppNegApp[i] = convertApp(termLemmaApp.getParameters()[i]);
+							if (termLemmaAppNegApp[i].getParameters()[0] instanceof ApplicationTerm)
+								System.out.println("");
+							termLemmaAppNegAppInnerAnn[i] = convertAnn(termLemmaAppNegApp[i].getParameters()[0]);
+						}
+						else
+						{
+							if (termLemmaApp.getParameters()[i] instanceof ApplicationTerm)
+								System.out.println("");
+							termLemmaAppNegAppInnerAnn[i] = convertAnn(termLemmaApp.getParameters()[i]);
+						}
+
+						if (!(termLemmaAppNegAppInnerAnn[i].getSubterm() instanceof ApplicationTerm))
+							System.out.println("");
+						termLemmaEq[i] = convertApp(termLemmaAppNegAppInnerAnn[i].getSubterm());
+						termLemmaCheck[i] = calculateTerm(termLemmaEq[i].getParameters()[0], smtInterpol);
+						
+						if (foundNeg)
+							pm_func(termLemmaAppNegApp[i],"not");
+						pm_annot(termLemmaAppNegAppInnerAnn[i],":quoted");
+						
+						// Semantical correctness
+						if (foundNeg)
+						{
+							//Important: foundGe = ...< is correct, since >= \equiv (not <)
+							/*if (//foundGe && pm_func_weak(termLemmaEq[i],">") ||
+									foundLe && pm_func_weak(termLemmaEq[i],"<"))
+								throw new AssertionError("Error 1 in @lemma_:LA");*/
+							
+							//foundGe = foundGe || pm_func_weak(termLemmaEq[i],"<");
+							//foundLe = foundLe || pm_func_weak(termLemmaEq[i],">");
+							if (pm_func_weak(termLemmaEq[i],"<="))
+							{
+								//The inequality must be inverted, but not here
+								if(numbersSMT[i].isNegative())
+									throw new AssertionError("Error 2c in @lemma_:LA");
+								//termLemmaCheck[i] = termLemmaCheck[i].negate(); //WRONG! Wird implizit über die Koeffizienten negiert
+								//numbersSMT[i] = SMTAffineTerm.create( //WRONG!!
+									//	numbersSMT[i], SMTAffineTerm.create(smtInterpol.numeral("-1"))).getConstant();
+								foundLe = true;
+								continue;
+							}
+
+							if (pm_func_weak(termLemmaEq[i],"<"))
+							{
+								if(numbersSMT[i].isNegative())
+									throw new AssertionError("Error 2e in @lemma_:LA");
+								foundLt = true;
+								continue;
+							}
+							
+							pm_func(termLemmaEq[i],"=");
+						}
+						else
+						{
+							/*if (//foundGe && pm_func_weak(termLemmaEq[i],"<=") ||
+									foundLe && pm_func_weak(termLemmaEq[i],">="))
+								throw new AssertionError("Error 2a in @lemma_:LA");*/
+							
+							// foundGe = foundGe || pm_func_weak(termLemmaEq[i],">=");
+							// foundLe = foundLe || pm_func_weak(termLemmaEq[i],"<=");
+							
+							//The inequality must be inverted
+							if(!numbersSMT[i].isNegative())
+								throw new AssertionError("Error 2d in @lemma_:LA");
+							
+							if (pm_func_weak(termLemmaEq[i],"<="))
+							{
+								foundLt = true;
+								continue;
+							}
+							if (pm_func_weak(termLemmaEq[i],"<"))
+							{
+								foundLe = true;
+								continue;
+							}
+							
+							throw new AssertionError("Error 2b in @lemma_:LA");
+						}
+					}
+					
+					//if((foundLe || foundLt && (foundGt || foundGe))
+					//	throw new AssertionError("Error 3a in @lemma_:LA");
+					
+					for(ApplicationTerm equality : termLemmaEq)
+					{
+						// Not nice: Use of "0+0=0" (Important: Needs to take care of both 0 and 0.0)
+						// Warning: Code almost-duplicates (Random number: 29364)
+						SMTAffineTerm termAffTemp = calculateTerm(equality.getParameters()[1],smtInterpol);
+						if (!(termAffTemp.equals(termAffTemp.add(termAffTemp))))
+							throw new AssertionError("Error 3b in @lemma_:LA: " + equality.getParameters()[1].toStringDirect());
+					}
+					
+					SMTAffineTerm result = termLemmaCheck[0].mul(numbersSMT[0]);
+					//System.out.println("Result: " + result.toStringDirect());
+					
+					for (int i = 1; i < numbersSMT.length; i++)
+					{
+						if (debug.contains("LemmaLAadd"))
+						{
+							System.out.println("Term ohne mult: " + termLemmaCheck[i].toStringDirect());
+							System.out.println("mult: " + numbersSMT[i]);
+							System.out.println("Term mit mult: " + termLemmaCheck[i].mul(numbersSMT[i]).toStringDirect());
+						}
+						result = result.add(termLemmaCheck[i].mul(numbersSMT[i]));
+						if(debug.contains("LemmaLAadd"))
+							System.out.println("Result: " + result.toStringDirect());
+					}
+					
+					if (!result.isConstant())
+						throw new AssertionError("Error 4 in @lemma_:LA!: " + result.toStringDirect());
+					
+					// Explanation of how the logic behind the lemmata works:
+					// It's a proof via contradiction, i.e. the negation of the whole lemma leads to a contradiction.
+					// Since it's a disjunction, it's negation will be a conjunction of the negated disjuncts.
+					// That means we can argue, that every negated disjunct has to hold, and this leads to a disjunction.
+					// We just want terms with =0, <0 or <=0 which results in:
+					//  * not a < 0	<=>	a >= 0	<=> -a <= 0
+					//  * not a <= 0	<=>	a > 0	<=> -a < 0
+					// Then we multiply each equation with an integer and sum them all up, which should lead to this contradiction
+					// (x = 0) + (y <= 0) --> x+y <= 0
+					// (x <= 0) + (y < 0) --> x+y < 0
+					// So, e.g., if we have a (x < 0)-term, the proof is correct, if x+... is at least 0, this will lead to a contradiction
+					
+					// Not nice: Laborious if-condition: result = 0
+					if (!foundLe && !foundLt && result.add(result).equals(result))
+						throw new AssertionError("Error 5 in @lemma_:LA!");
+					
+					// Not nice: Result > 0 	<=> not result <= 0
+					if (!foundLt && foundLe
+							&& (result.getConstant().isNegative()
+							|| result.add(result).equals(result)))
+						throw new AssertionError("Error 6 in @lemma_:LA!");
+					
+					// Not nice: Result >= 0		<=> not result < 0
+					if (foundLt
+							&& result.getConstant().isNegative())
+						throw new AssertionError("Error 7 in @lemma_:LA!");
+					
+					// Result < 0
+//					if (foundNeg && (foundGe || foundGt)
+//							&& result.getConstant().isNegative())
+//						throw new AssertionError("Error 7 in @lemma_:LA!");
+					
+					if (debug.contains("passt"))
+					{
+						//if (foundGe)
+							//System.out.println("Passt, da " + result + " !< 0");
+						//else
+						if (foundLe)
+							System.out.println("Passt, da " + result + " !> 0");
+						else
+							System.out.println("Passt, da " + result + " != 0");
+					}
+					
+					
+				} else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":CC")
+				{
+					//Syntactical correctness
+					ApplicationTerm termLemmaApp = convertApp(termAppInnerAnn.getSubterm());
+					
+					pm_func(termLemmaApp,"or");
+					
+					int arrayLength = termLemmaApp.getParameters().length;
+					
+					ApplicationTerm[] termLemmaAppIApp = new ApplicationTerm[arrayLength];
+					termLemmaAppIApp[0] = null; //The first component has no meaning
+					for (int i = 1; i < arrayLength; i++)
+					{
+						termLemmaAppIApp[i] = convertApp(termLemmaApp.getParameters()[i]);
+						pm_func(termLemmaAppIApp[i],"not");
+					}
+					
+					// Get the equalities, the annotations are ignored
+					// The first equality is the goal, the others are the premises
+					ApplicationTerm[] termLemmaEqApp = new ApplicationTerm[arrayLength];
+					termLemmaEqApp[0] = convertApp_hard(termLemmaApp.getParameters()[0]);
+					pm_func(termLemmaEqApp[0],"=");
+					for (int i = 1; i < arrayLength; i++)
+					{
+						termLemmaEqApp[i] = convertApp_hard(termLemmaAppIApp[i].getParameters()[0]);
+						pm_func(termLemmaEqApp[i],"=");
+					}
+					
+					Object[] annotValues = (Object[]) termAppInnerAnn.getAnnotations()[0].getValue();
+					
+					if (!annotValues[0].equals(termLemmaEqApp[0]))
+						throw new AssertionError("Error 1 in lemma_:CC");
+					
+					// Get the subpaths
+					HashMap<SymmetricPair<Term>, Term[]> subpaths =
+							new HashMap<SymmetricPair<Term>,Term[]>();
+					
+					for (int i = 1; i < annotValues.length; i++)
+					{
+						if (annotValues[i] instanceof String)
+							if (annotValues[i] == ":subpath")
+								continue;
+						
+						if (annotValues[i] instanceof Term[])
+						{
+							Term[] arrayTemp = (Term[]) annotValues[i];
+							SymmetricPair<Term> pairTemp =
+									new SymmetricPair<Term>(arrayTemp[0],arrayTemp[arrayTemp.length-1]);
+
+							subpaths.put(pairTemp, arrayTemp);
+						}
+					}
+					
+					// Get the premises
+					HashMap<SymmetricPair<Term>, Term[]> premises =
+							new HashMap<SymmetricPair<Term>,Term[]>();
+					
+					for (int i = 1; i < arrayLength; i++)
+					{
+						SymmetricPair<Term> pairTemp = new SymmetricPair<Term>(
+								termLemmaEqApp[i].getParameters()[0],termLemmaEqApp[i].getParameters()[1]);
+						premises.put(pairTemp,termLemmaEqApp[i].getParameters());
+					}
+					
+					// Now for the pathfinding
+					Term termStart = termLemmaEqApp[0].getParameters()[0];
+					Term termEnd = termLemmaEqApp[0].getParameters()[1];
+					
+					if (!pathFind(subpaths,premises,termStart,termEnd))
+						throw new AssertionError("Error at the end of lemma_:CC");
 				} else
 				{
-					throw new AssertionError("Expected an annotated term inside any lemma-term, but the following term doesn't have one: " + termApp.getParameters()[0]);
+					System.out.println("Can't deal with lemmas of type "
+							+ termAppInnerAnn.getAnnotations()[0].getKey() + ", therefor...");
+					System.out.println("Believed as true: " + termApp.toStringDirect() + " .");
 				}
+				
+				
+				stackPush(termAppInnerAnn.getSubterm(), term);
 				return;
 				
 			case "@tautology":
@@ -213,14 +487,11 @@ public class ProofChecker extends SMTInterpol {
 				
 				// If possible return the un-annotated version
 				// Warning: Code duplicates (Random number: 498255)
-				if (termApp.getParameters()[0] instanceof AnnotatedTerm)
-				{
-					termAppInnerAnn = (AnnotatedTerm) termApp.getParameters()[0];
-					stackPush(termAppInnerAnn.getSubterm(), term);
-				} else
-				{
-					throw new AssertionError("Expected an annotated term inside any tautology-term, but the following term doesn't have one: " + termApp.getParameters()[0]);
-				}
+				if (termApp.getParameters()[0] instanceof ApplicationTerm)
+					System.out.println("");
+				termAppInnerAnn = convertAnn(termApp.getParameters()[0]);
+				
+				stackPush(termAppInnerAnn.getSubterm(), term);
 				return;
 				
 			case "@asserted":
@@ -259,8 +530,10 @@ public class ProofChecker extends SMTInterpol {
 				
 				/* Read the rule and handle each differently */
 				String rewriteRule = termAppInnerAnn.getAnnotations()[0].getKey();
-				//System.out.println("Rule: " + rewriteRule);
-				//System.out.println("Term: " + term.toStringDirect());
+				if (debug.contains("currently"))
+					System.out.println("Rule: " + rewriteRule);
+				if (debug.contains("hardTerm"))
+					System.out.println("Term: " + term.toStringDirect());
 				if (false)
 				{} else if (rewriteRule == ":trueNotFalse")
 				{
@@ -591,6 +864,8 @@ public class ProofChecker extends SMTInterpol {
 				} else if (rewriteRule == ":strip")
 				{
 					//Term which has to be stripped, annotated term
+//					if (termEqApp.getParameters()[0] instanceof ApplicationTerm)
+//						System.out.println("");
 					AnnotatedTerm stripAnnTerm = convertAnn(termEqApp.getParameters()[0]);
 					if (stripAnnTerm.getSubterm() != termEqApp.getParameters()[1])
 					{
@@ -632,17 +907,17 @@ public class ProofChecker extends SMTInterpol {
 					}
 					
 					pm_func(termNewIneqApp, "<=");
-					// Not nice: Use of string
-					if (termNewIneqApp.getParameters()[1].toStringDirect() != "0")
-					{
+					// Not nice: Use of "0+0=0" (Important: Needs to take care of both 0 and 0.0)
+					// Warning: Code almost-duplicates (Random number: 29364)
+					SMTAffineTerm termAffTemp = calculateTerm(termNewIneqApp.getParameters()[1],smtInterpol);
+					if (!(termAffTemp.equals(termAffTemp.add(termAffTemp))))
 						throw new AssertionError("Error: Expected an Inequality ... <= 0 as a result "
 								+ "of the rule " + rewriteRule + ", but the result is " + termNewApp.toString());
-					}
 					
-					SMTAffineTerm leftside = calculateTerm(termNewIneqApp.getParameters()[0]);					
+					SMTAffineTerm leftside = calculateTerm(termNewIneqApp.getParameters()[0], smtInterpol);
 
-					SMTAffineTerm termT1Aff = calculateTerm(termT1);
-					SMTAffineTerm termT2Aff = calculateTerm(termT2);
+					SMTAffineTerm termT1Aff = calculateTerm(termT1, smtInterpol);
+					SMTAffineTerm termT2Aff = calculateTerm(termT2, smtInterpol);
 					
 					if (rewriteRule == ":gtToLeq0" || rewriteRule == ":leqToLeq0")
 					{
@@ -706,45 +981,111 @@ public class ProofChecker extends SMTInterpol {
 				
 				// Trying to get the rewrite:
 				// First the syntactical check
-				if (!(termApp.getParameters()[0] instanceof ApplicationTerm))
-				{
-					throw new AssertionError("Error: Expected an ApplicationTerm inside any rewrite-term. "
-							+ "The term was " + termApp.toString());
-				}
-				termEqApp = (ApplicationTerm) termApp.getParameters()[0];
-				if (termEqApp.getFunction().getName() != "=")
-				{
-					throw new AssertionError("Error: Expected an ApplicationTerm with \"=\" inside "
-							+ "any rewrite-term. The term is an ApplicationTerm, but has the function "
-							+ "symbol " + termEqApp.getFunction().getName() + ". The term was " + termApp.toString());
-				}
-				Term termBeforeRewrite = termEqApp.getParameters()[0]; //The subterm which gets rewritten
-				Term termAfterRewrite  = termEqApp.getParameters()[1]; //The new subterm, which will replace the old one
 				
-				boolean understoodInternalRewrite = false;
-				if (termAfterRewrite instanceof AnnotatedTerm)
+				termEqApp = convertApp(termApp.getParameters()[0]);
+				
+				pm_func(termEqApp,"=");
+				
+//				Term termBeforeRewrite = termEqApp.getParameters()[0]; //The subterm which gets rewritten
+//				Term termAfterRewrite  = termEqApp.getParameters()[1]; //The new subterm, which will replace the old one
+				
+				boolean firstNeg = false;
+				boolean secondNeg = false;
+				
+				if (termEqApp.getParameters()[0] instanceof ApplicationTerm)
+					if (((ApplicationTerm) termEqApp.getParameters()[0]).getFunction().getName() == "not")
+						firstNeg = true;
+				
+				if (termEqApp.getParameters()[1] instanceof ApplicationTerm)
+					if (((ApplicationTerm) termEqApp.getParameters()[1]).getFunction().getName() == "not")
+						secondNeg = true;
+				
+				ApplicationTerm termOldComp;
+				ApplicationTerm termNewComp;
+				// The annotations are not important for the correctness-check
+				if (firstNeg)
+					termOldComp = convertApp_hard(
+							((ApplicationTerm) termEqApp.getParameters()[0]).getParameters()[0]);
+				else
+					termOldComp = convertApp_hard(termEqApp.getParameters()[0]);
+				
+				if(secondNeg)
+					termNewComp = convertApp_hard(
+							((ApplicationTerm) termEqApp.getParameters()[1]).getParameters()[0]);
+				else
+					termNewComp = convertApp_hard(termEqApp.getParameters()[1]);
+				
+				//System.out.println("BothOrig" + termEqApp.toStringDirect());
+				//System.out.println("NewConvert" + termNewComp.toStringDirect());
+				
+				//<->
+				if ((firstNeg && secondNeg)		||		(!firstNeg && !secondNeg))
+					if(!calculateTerm(termOldComp,smtInterpol).equals(
+						calculateTerm(termNewComp,smtInterpol)))
+						System.out.println("Sadly, I couldn't understand the internal rewrite: "
+						+ termApp.getParameters()[0].toStringDirect() + " .");
+					else
+						return;
+				
+				//xor
+				if ((pm_func_weak(termOldComp,"<=") && pm_func_weak(termNewComp,"<"))
+						|| (pm_func_weak(termOldComp,"<") && pm_func_weak(termNewComp,"<=")))
 				{
-					AnnotatedTerm termAfterRewriteAnn = (AnnotatedTerm) termAfterRewrite;
-					if (termAfterRewriteAnn.getSubterm() == termBeforeRewrite
-							&& termAfterRewriteAnn.getAnnotations().length == 1
-							&& termAfterRewriteAnn.getAnnotations()[0].getKey() == ":quoted")
+					if ((calculateTerm(termOldComp.getParameters()[0],smtInterpol).mul(
+							calculateTerm(smtInterpol.numeral("-1"),smtInterpol).getConstant())).equals(
+									calculateTerm(termNewComp.getParameters()[0],smtInterpol))
+						&& termOldComp.getParameters()[1] == termNewComp.getParameters()[1])
+						return;
+					// If it's an integer-logic, it could be a x <= 0  <--> -x < 1 transformation
+					// Not nice: Use of Strings
+					if (term.getTheory().getLogic().toString() == "QF_LIA")
 					{
-						understoodInternalRewrite = true;
+						String addNumber = "";
+						if (firstNeg)
+							addNumber = "1";
+						else
+							addNumber = "-1";
+				
+						if (((calculateTerm(termOldComp.getParameters()[0],smtInterpol).add(
+										calculateTerm(smtInterpol.numeral(addNumber),smtInterpol)).mul(
+												calculateTerm(smtInterpol.numeral("-1"),smtInterpol).getConstant()))).equals(
+										calculateTerm(termNewComp.getParameters()[0],smtInterpol))
+							&& termOldComp.getParameters()[1] == termNewComp.getParameters()[1])
+							return;
 					}
 				}
 				
-				if (!understoodInternalRewrite)
-				{
-					System.out.println("Believed as alright to be (intern) rewritten: "
-							+ termApp.getParameters()[0].toStringDirect() + " .");
-				} /*else {
-					System.out.println("Understood internal rewrite.");
-				}*/
+				System.out.println("Sadly, I had to believe the following internal rewrite: "
+						+ termApp.getParameters()[0].toStringDirect() + " .");
+				return;
+				
+				
+				//throw new AssertionError("Error at the end of intern!");
+				
+//				boolean understoodInternalRewrite = false;
+//				if (termAfterRewrite instanceof AnnotatedTerm)
+//				{
+//					AnnotatedTerm termAfterRewriteAnn = (AnnotatedTerm) termAfterRewrite;
+//					if (termAfterRewriteAnn.getSubterm() == termBeforeRewrite
+//							&& termAfterRewriteAnn.getAnnotations().length == 1
+//							&& termAfterRewriteAnn.getAnnotations()[0].getKey() == ":quoted")
+//					{
+//						understoodInternalRewrite = true;
+//					}
+//				}
+//				
+//				if (!understoodInternalRewrite)
+//				{
+//					System.out.println("Believed as alright to be (intern) rewritten: "
+//							+ termApp.getParameters()[0].toStringDirect() + " .");
+//				} /*else {
+//					System.out.println("Understood internal rewrite.");
+//				}*/
 				
 				
 				
 				//stackPush(appTerm.getParameters()[0], term);
-				return;
+				//return;
 				
 			case "@split":
 				// TODO: Check if the first argument contains the second argument
@@ -1281,44 +1622,110 @@ public class ProofChecker extends SMTInterpol {
 	}
 	
 	// Calculate an SMTAffineTerm
-	SMTAffineTerm calculateTerm(Term term)
+	SMTAffineTerm calculateTerm(Term term, SMTInterpol smtInterpol)
 	{
+		if (debug.contains("calculateTerm"))
+			System.out.println("Calculate the term: " + term.toStringDirect());
 		if (term instanceof ApplicationTerm)
 		{
 			ApplicationTerm termApp = (ApplicationTerm) term;
+			SMTAffineTerm resultTerm;
 			if (termApp.getFunction().getName() == "+")
 			{
-				return (calculateTerm(termApp.getParameters()[0]).add(
-						calculateTerm(termApp.getParameters()[1])));
+				if (termApp.getParameters().length < 1)
+					throw new AssertionError("Error 1 in add in calculateTerm with term " + term.toStringDirect());
+				resultTerm = SMTAffineTerm.create(smtInterpol.numeral("0"));
+				for (Term summand : termApp.getParameters())
+					resultTerm = resultTerm.add(calculateTerm(summand, smtInterpol));
+				return resultTerm;
 			}
-			if (termApp.getFunction().getName() == "-")
+			
+			else if (termApp.getFunction().getName() == "-")
 			{
 				if (termApp.getParameters().length == 1)
-					return (calculateTerm(termApp.getParameters()[0]).negate());
+					return (calculateTerm(termApp.getParameters()[0], smtInterpol).negate());
 				
 				throw new AssertionError("Error: The term with a \"-\" didn't have 1 argument. The term was "
 						+ term.toStringDirect());
 			}
-			if (termApp.getFunction().getName() == "*")
+			
+			else if (termApp.getFunction().getName() == "*")
 			{
-				SMTAffineTerm factor1 = SMTAffineTerm.create(termApp.getParameters()[0]);
-				SMTAffineTerm factor2 = SMTAffineTerm.create(termApp.getParameters()[1]);
+				if (termApp.getParameters().length != 2)
+					throw new AssertionError("Error in mul in calculateTerm with term " + term.toStringDirect());
+				
+				SMTAffineTerm factor1 = calculateTerm(termApp.getParameters()[0], smtInterpol);
+				SMTAffineTerm factor2 = calculateTerm(termApp.getParameters()[1], smtInterpol);
 				if (factor1.isConstant())					
 					return SMTAffineTerm.create(factor1.getConstant(), factor2);
 				if (factor2.isConstant())					
 					return SMTAffineTerm.create(factor2.getConstant(), factor1);
-				throw new AssertionError("Error: Couldn't find the constant in the SMTAffineTerm multiplications. "
-						+ "The term was " + term.toStringDirect());
+				throw new AssertionError("Error: Couldn't find the constant in the SMTAffineTerm multiplication. "
+						+ "The term was " + termApp.toStringDirect());
 			}
-			if (termApp.getFunction().getName() == "/")
+			
+			else if (termApp.getFunction().getName() == "/")
 			{
-				throw new AssertionError("Error: Can't deal with multiplications. The term was "
-							+ term.toStringDirect());
+				if (termApp.getParameters().length != 2)
+					throw new AssertionError("Error 1 in div in calculateTerm with term " + term.toStringDirect());
+				SMTAffineTerm divident = calculateTerm(termApp.getParameters()[0], smtInterpol);
+				SMTAffineTerm divisor = calculateTerm(termApp.getParameters()[1], smtInterpol);
+				
+				if (divisor.isConstant())
+					return divident.div(divisor.getConstant());
+				
+				throw new AssertionError("Error: Couldn't find the constant in the SMTAffineTerm division. "
+						+ "The term was " + termApp.toStringDirect());
 			}
-			//throw new AssertionError("Error: The term-calculator can't deal with " + termApp.getFunction().getName());
+			
+			else if (termApp.getFunction().getName() == "="
+					|| termApp.getFunction().getName() == "<="
+					|| termApp.getFunction().getName() == "<"
+					|| termApp.getFunction().getName() == ">"
+					|| termApp.getFunction().getName() == ">=")
+			{
+				if (termApp.getParameters().length != 2)
+					throw new AssertionError("Error 1 in = in calculateTerm with term " + term.toStringDirect());
+				
+				SMTAffineTerm leftSide = calculateTerm(termApp.getParameters()[0],smtInterpol);
+				SMTAffineTerm rightSide = calculateTerm(termApp.getParameters()[1],smtInterpol);
+				
+				SMTAffineTerm leftSideNew =  leftSide.add(rightSide.negate());
+				SMTAffineTerm rightSideNew =  rightSide.add(rightSide.negate()); //=0
+				SMTAffineTerm[]	sides = new SMTAffineTerm[2];
+				try {
+					sides[0] = leftSideNew.div(leftSideNew.getGcd());
+				} catch (NoSuchElementException var)
+				{
+					sides[0] = leftSideNew;
+				}
+
+				try {
+					sides[1] = rightSideNew.div(rightSideNew.getGcd());
+				} catch (NoSuchElementException var)
+				{
+					sides[1] = rightSideNew;
+				}
+
+				return SMTAffineTerm.create(smtInterpol.term(termApp.getFunction().getName(), sides));
+			
+			} else
+			{
+				//Throwing an Error would be wrong, because of self-defined functions.
+				Term[] termAppParamsCalc = new Term[termApp.getParameters().length];
+				for (int i = 0; i < termApp.getParameters().length; i++)
+					termAppParamsCalc[i] = calculateTerm(termApp.getParameters()[i], smtInterpol);
+				
+				return SMTAffineTerm.create(smtInterpol.term(termApp.getFunction().getName(),
+						termAppParamsCalc));
+			}
+		
+		
 						
-		}
-		return SMTAffineTerm.create(term);
+		} else if (term instanceof ConstantTerm)
+			return SMTAffineTerm.create(term);
+		else
+			throw new AssertionError("Error 3 in calculateTerm with term " + term.toStringDirect());
 	}
 	
 	ApplicationTerm convertApp (Term term)
@@ -1326,11 +1733,19 @@ public class ProofChecker extends SMTInterpol {
 		if (!(term instanceof ApplicationTerm))
 		{
 			throw new AssertionError("Error: The following term should be an ApplicationTerm, "
-					+ "but is of the class " + term.getClass().getName() + ".\n"
+					+ "but is of the class " + term.getClass().getSimpleName() + ".\n"
 					+ "The term was: " + term.toString());
 		}
 		
 		return (ApplicationTerm) term;
+	}
+	
+	ApplicationTerm convertApp_hard (Term term)
+	{
+		if (term instanceof AnnotatedTerm)
+			return convertApp(((AnnotatedTerm) term).getSubterm());
+		
+		return convertApp(term);
 	}
 	
 	AnnotatedTerm convertAnn (Term term)
@@ -1338,7 +1753,7 @@ public class ProofChecker extends SMTInterpol {
 		if (!(term instanceof AnnotatedTerm))
 		{
 			throw new AssertionError("Error: The following term should be an AnnotatedTerm, "
-					+ "but is of the class " + term.getClass().getName() + ".\n"
+					+ "but is of the class " + term.getClass().getSimpleName() + ".\n"
 					+ "The term was: " + term.toString());
 		}
 		
@@ -1352,7 +1767,7 @@ public class ProofChecker extends SMTInterpol {
 	{
 		if (termApp.getFunction().getName() != pattern)
 			throw new AssertionError("Error: The pattern \"" + pattern
-					+ "\" was supposed to be the function symbol of " + termApp.toString() + "\n"
+					+ "\" was supposed to be the function symbol of " + termApp.toStringDirect() + "\n"
 					+ "Instead it was " + termApp.getFunction().getName());
 	}
 	
@@ -1363,5 +1778,78 @@ public class ProofChecker extends SMTInterpol {
 		return true;
 	}
 	
+	void pm_annot(AnnotatedTerm termAnn, String pattern)
+	{
+		if (termAnn.getAnnotations()[0].getKey() != pattern)
+			throw new AssertionError("Error: The pattern \"" + pattern
+					+ "\" was supposed to be the annotation of " + termAnn.toString() + "\n"
+					+ "Instead it was " + termAnn.getAnnotations()[0].toString());
+		if (termAnn.getAnnotations().length != 1)
+			throw new AssertionError("Error: A term has " + termAnn.getAnnotations().length + " annotations,"
+					+ ", but was supposed to have just one.");
 	
+	}
+	
+	
+	boolean pathFind(HashMap<SymmetricPair<Term>,Term[]> subpaths, HashMap<SymmetricPair<Term>,Term[]> premises,
+			Term termStart, Term termEnd)
+	{
+	
+		System.out.println("Searching for a way from " + termStart.toStringDirect()
+				+ " to " + termEnd.toStringDirect());
+//		if (termStart == termEnd)
+//			return true;
+		
+		SymmetricPair<Term> searchPair = new SymmetricPair<Term>(termStart, termEnd);
+		
+		/* The reason for checking the premises before the subpaths is,
+		 * that the subpaths may contain the same equality as the premises, which
+		 * could lead to infinite loops.
+		 */
+		if(premises.containsKey(searchPair))
+			return true;
+		
+		if(subpaths.containsKey(searchPair))
+		{
+			Term[] path = subpaths.remove(searchPair);
+			Term nextStep = path[1];
+			Term[] pathCut = new Term[path.length-1];
+			for (int i = 0; i < pathCut.length; i++)
+				pathCut[i] = path[i+1];
+			subpaths.put(new SymmetricPair<Term>(nextStep,termEnd), pathCut);
+			if (pathFind(subpaths,premises,termStart,nextStep))
+				return pathFind(subpaths,premises,nextStep,termEnd);
+			else
+				return false;
+		}
+		
+		/* So the pair can't be found, then
+		 * it must be a pair of two functions with the same
+		 * function symbol and parameters which can be found.
+		 */
+		
+		// Syntactical correctness
+		ApplicationTerm termStartApp = convertApp(termStart);
+		ApplicationTerm termEndApp = convertApp(termEnd);
+		
+		pm_func(termStartApp,termEndApp.getFunction().getName());
+		
+		if (termStartApp.getParameters().length == 0
+				|| termStartApp.getParameters().length != termEndApp.getParameters().length)
+			throw new AssertionError("Error 1 in pathfinding");
+		
+		// Semantical Correctness
+		
+		boolean returnVal = true;
+		
+		for (int i = 0; i < termStartApp.getParameters().length; i++)
+		{
+			returnVal = returnVal &&
+					pathFind(subpaths, premises, termStartApp.getParameters()[i], termEndApp.getParameters()[i]);
+		}
+		
+		return returnVal;
+		//throw new AssertionError("Error in lemma_:CC: I have no idea how to get from "
+		//	+ termStart.toStringDirect() + " to " + termEnd.toStringDirect());
+	}
 }
