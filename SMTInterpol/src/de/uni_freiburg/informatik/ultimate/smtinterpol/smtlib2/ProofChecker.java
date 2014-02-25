@@ -364,7 +364,7 @@ public class ProofChecker extends SMTInterpol {
 					// Explanation of how the logic behind the lemmata works:
 					// It's a proof via contradiction, i.e. the negation of the whole lemma leads to a contradiction.
 					// Since it's a disjunction, it's negation will be a conjunction of the negated disjuncts.
-					// That means we can argue, that every negated disjunct has to hold, and this leads to a disjunction.
+					// That means we can argue, that if every negated disjunct has to hold, and this leads to a contradiction.
 					// We just want terms with =0, <0 or <=0 which results in:
 					//  * not a < 0	<=>	a >= 0	<=> -a <= 0
 					//  * not a <= 0	<=>	a > 0	<=> -a < 0
@@ -731,6 +731,16 @@ public class ProofChecker extends SMTInterpol {
 					
 					pm_func(termOldApp, "=");
 					pm_func(termNewApp, "not");
+					
+					// Is it a binary equality?
+					if (termOldApp.getParameters().length == 2)
+					{
+						pm_func(termNewAppInnerApp, "not");
+						if (termOldApp != termNewAppInnerApp.getParameters()[0])
+							throw new AssertionError("Error A in " + rewriteRule);
+						return;
+					}
+					
 					pm_func(termNewAppInnerApp, "or");
 					
 					// The array which contains the equalities
