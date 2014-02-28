@@ -45,6 +45,7 @@ public class ProofChecker extends SMTInterpol {
 		//debug.add("WalkerPath");
 		//debug.add("LemmaCC");
 		debug.add("newRules");
+		//debug.add("convertAppID");
 		
 		// Initializing the proof-checker-cache
 		pcCache = new HashMap<Term, Term>();
@@ -171,7 +172,6 @@ public class ProofChecker extends SMTInterpol {
 				
 		/* Declaration of variables used later */
 		String functionname;
-		//Not nice: Initialization as null.
 		AnnotatedTerm termAppInnerAnn;
 		AnnotatedTerm annTerm;
 		
@@ -229,12 +229,17 @@ public class ProofChecker extends SMTInterpol {
 					ApplicationTerm[] termLemmaEq = new ApplicationTerm[arrayLength];
 					SMTAffineTerm[] termLemmaCheck = new SMTAffineTerm[arrayLength];
 					
-					//Now get the numbers:
+					// Now get the factors:
 					Term[] numbers = (Term[]) termAppInnerAnn.getAnnotations()[0].getValue();
 					Rational[] numbersSMT = new Rational[numbers.length];
 					
 					for (int i = 0; i < numbers.length; i++)
 						numbersSMT[i] = calculateTerm(numbers[i], smtInterpol).getConstant();
+					
+					// New: Transform all to ... <= 0 if possible, otherwise to ... <= 0 and ... < 0 
+					
+					// Step 1: Uniformize the terms //TODO
+					
 					
 					//boolean foundGe = false; // found greater-equal (>=)
 					//boolean foundGt = false; // found greater-than (>)
@@ -380,7 +385,7 @@ public class ProofChecker extends SMTInterpol {
 					// Not nice: Result > 0 	<=> not result <= 0
 					if (!foundLt && foundLe
 							&& (result.getConstant().isNegative()
-							|| result.add(result).equals(result)))
+									|| result.add(result).equals(result)))
 						throw new AssertionError("Error 6 in @lemma_:LA!");
 					
 					// Not nice: Result >= 0		<=> not result < 0
@@ -1487,7 +1492,7 @@ public class ProofChecker extends SMTInterpol {
 						throw new AssertionError("Error 2 at " + rewriteRule);
 					
 					SMTAffineTerm termTemp = calculateTerm(termOldApp.getParameters()[1],smtInterpol);
-					// Not nice: Uses 0+0 = 0
+					// Not nice: Uses 0+0 = 0					
 					if (!(termTemp.add(termTemp).equals(termTemp)))
 						throw new AssertionError("Error 3 at " + rewriteRule);
 					
@@ -2098,7 +2103,7 @@ public class ProofChecker extends SMTInterpol {
 				} else
 				{
 					System.out.println("Can't handle the following rule " + termAppInnerAnn.getAnnotations()[0].getKey() + ", therefore...");
-					System.out.println("...believed as alright to be rewritten: " + termApp.getParameters()[0].toStringDirect() + " ."); //Not nice: Too few rules
+					System.out.println("...believed as alright to be rewritten: " + termApp.getParameters()[0].toStringDirect() + " .");
 				}				
 			
 				// The second part, cut the @rewrite and the annotation out, both aren't needed for the @eq-function.
@@ -2106,18 +2111,22 @@ public class ProofChecker extends SMTInterpol {
 				return;
 				
 			case "@intern":
-				//TODO: Implement rule-reader
+				// TODO: Better quota
 				
-				// Trying to get the rewrite:
-				// First the syntactical check
+				// Step 1: The syntactical check				
 				
 				termEqApp = convertApp(termApp.getParameters()[0]);
 				
 				pm_func(termEqApp,"=");
 				
-//				Term termBeforeRewrite = termEqApp.getParameters()[0]; //The subterm which gets rewritten
-//				Term termAfterRewrite  = termEqApp.getParameters()[1]; //The new subterm, which will replace the old one
+				// Step 1,5: Maybe the internal rewrite is just an addition of :quoted
+				if (convertApp_hard(termEqApp.getParameters()[0]) ==
+						convertApp_hard(termEqApp.getParameters()[1]))
+					return;
+				// Not nice: Not checked if the annotation really is quoted, but otherwise
+				// it's still correct.
 				
+				// Step 2: Find out if one is negated
 				boolean firstNeg = false;
 				boolean secondNeg = false;
 				
@@ -2129,60 +2138,176 @@ public class ProofChecker extends SMTInterpol {
 					if (pm_func_weak(termEqApp.getParameters()[1], "not"))
 						secondNeg = true;
 				
-				ApplicationTerm termOldComp;
-				ApplicationTerm termNewComp;
-				// The annotations are not important for the correctness-check
+				// Step 3: Get the (in)equalities, that have to be compared.
+				ApplicationTerm termOldRel; // Rel stands for relation, which is used as a generic term for in-/equality
+				ApplicationTerm termNewRel;
+				
+				// The outmost annotation is not important for the correctness-check				
 				if (firstNeg)
-					termOldComp = convertApp_hard(
+					termOldRel = convertApp_hard(
 							((ApplicationTerm) termEqApp.getParameters()[0]).getParameters()[0]);
 				else
-					termOldComp = convertApp_hard(termEqApp.getParameters()[0]);
+					termOldRel = convertApp_hard(termEqApp.getParameters()[0]);
 				
 				if(secondNeg)
-					termNewComp = convertApp_hard(
+					termNewRel = convertApp_hard(
 							((ApplicationTerm) termEqApp.getParameters()[1]).getParameters()[0]);
 				else
-					termNewComp = convertApp_hard(termEqApp.getParameters()[1]);
+					termNewRel = convertApp_hard(termEqApp.getParameters()[1]);
 				
 				//System.out.println("BothOrig" + termEqApp.toStringDirect());
 				//System.out.println("NewConvert" + termNewComp.toStringDirect());
 				
-				// <->
-				if ((firstNeg && secondNeg)		||		(!firstNeg && !secondNeg))
-					if(!calculateTerm(termOldComp,smtInterpol).equals(
-						calculateTerm(termNewComp,smtInterpol)))
-						System.out.println("Sadly, I couldn't understand the internal rewrite: "
-						+ termApp.getParameters()[0].toStringDirect() + " .");
-					else
-						return;
+				/* Step 4: Get the terms which have to be compared
+				 * For this, the (in)equality-term has to be transformed,
+				 * depending on the relation-symbol
+				 */
 				
-				// xor
-				if ((pm_func_weak(termOldComp,"<=") && pm_func_weak(termNewComp,"<"))
-						|| (pm_func_weak(termOldComp,"<") && pm_func_weak(termNewComp,"<=")))
+				//Term termOldComp;
+				//Term termNewComp;
+								
+				if (pm_func_weak(termOldRel,"="))
 				{
-					if ((calculateTerm(termOldComp.getParameters()[0],smtInterpol).mul(
-							calculateTerm(smtInterpol.numeral("-1"),smtInterpol).getConstant())).equals(
-									calculateTerm(termNewComp.getParameters()[0],smtInterpol))
-						&& termOldComp.getParameters()[1] == termNewComp.getParameters()[1])
+					// Case 4.1: It's an equality
+					if ((firstNeg && !secondNeg)		||		(!firstNeg && secondNeg))
+						throw new AssertionError("Error 4.1.1 in " + functionname);
+					
+					// term_compare = Left Side - Right Side
+					SMTAffineTerm termOldCompAff =
+							calculateTerm(termOldRel.getParameters()[0],smtInterpol).add(
+									calculateTerm(termOldRel.getParameters()[1],smtInterpol).negate());
+
+					SMTAffineTerm termNewCompAff =
+							calculateTerm(termNewRel.getParameters()[0],smtInterpol).add(
+									calculateTerm(termNewRel.getParameters()[1],smtInterpol).negate());
+					
+					// Precheck for better runtime - Warning: Code duplicates start here - a random number: 589354
+					if (termOldCompAff.equals(termNewCompAff))
 						return;
-					// If it's an integer-logic, it could be a x <= 0  <--> -x < 1 transformation
-					// Not nice: Use of Strings
-					if (term.getTheory().getLogic().toString() == "QF_LIA")
+					
+					// Check for a multiplication with a rational
+					Rational constOld = termOldCompAff.getConstant();
+					Rational constNew = termNewCompAff.getConstant();
+					
+					if (constOld.equals(Rational.ZERO) && constNew.equals(Rational.ZERO))
 					{
-						String addNumber = "";
-						if (firstNeg)
-							addNumber = "1";
-						else
-							addNumber = "-1";
-				
-						if (((calculateTerm(termOldComp.getParameters()[0],smtInterpol).add(
-										calculateTerm(smtInterpol.numeral(addNumber),smtInterpol)).mul(
-												calculateTerm(smtInterpol.numeral("-1"),smtInterpol).getConstant()))).equals(
-										calculateTerm(termNewComp.getParameters()[0],smtInterpol))
-							&& termOldComp.getParameters()[1] == termNewComp.getParameters()[1])
+						if (termOldCompAff.equals(termNewCompAff.negate())) // Last try
 							return;
+						System.out.println("Sadly1, I couldn't find a factorial constant in the internal rewrite: "
+								+ termApp.getParameters()[0].toStringDirect() + " .");
+						return;
 					}
+										
+					if (constOld.equals(Rational.ZERO) || constNew.equals(Rational.ZERO))
+						throw new AssertionError("Error 4.1.2 in " + functionname);
+					
+					// Calculate the factors
+					Rational constGcd = constOld.gcd(constNew); // greatest common divisor
+					Rational constLcm = constOld.mul(constNew).div(constGcd); // least common multiple
+					Rational constOldFactor = constLcm.div(constOld);
+					Rational constNewFactor = constLcm.div(constNew);
+					
+					termOldCompAff = termOldCompAff.mul(constOldFactor);
+					termNewCompAff = termNewCompAff.mul(constNewFactor);
+					
+					if (termOldCompAff.equals(termNewCompAff))
+						return;
+					
+					System.out.println("Sadly1, I couldn't understand the internal rewrite: "
+							+ termApp.getParameters()[0].toStringDirect() + " .");
+					// Warning: Code duplicates end here - a random number: 589354
+				} else
+				{
+					// Case 4.2: Then both have to be brought to either ... < 0 or ... <= 0
+					//System.out.println("Term: " + term.toStringDirect());
+					//System.out.println("Term2: " + termEqApp.toStringDirect());
+					ApplicationTerm termOldComp = uniformizeInequality(convertApp_hard(termEqApp.getParameters()[0]), smtInterpol);
+					ApplicationTerm termNewComp = uniformizeInequality(convertApp_hard(termEqApp.getParameters()[1]), smtInterpol);
+					
+					if (termOldComp.getFunction().getName() != termNewComp.getFunction().getName())
+						throw new AssertionError("Error 4.2.2 in " + functionname);
+					
+					if (!pm_func_weak(termOldComp,"<=") && !pm_func_weak(termOldComp,"<"))
+						throw new AssertionError("Error 4.2.3 in " + functionname);
+										
+					if (!pm_func_weak(termNewComp,"<=") && !pm_func_weak(termNewComp,"<"))
+						throw new AssertionError("Error 4.2.4 in " + functionname);
+					
+					// Just the left side of the inequality
+					SMTAffineTerm termOldCompAff = calculateTerm(termOldComp.getParameters()[0],smtInterpol);
+					SMTAffineTerm termNewCompAff = calculateTerm(termNewComp.getParameters()[0],smtInterpol);
+					
+					// Precheck for better runtime - Warning: Code duplicates start here - a random number: 589354
+					if (termOldCompAff.equals(termNewCompAff))
+						return;
+					
+					// Check for a multiplication with a rational
+					Rational constOld = termOldCompAff.getConstant();
+					Rational constNew = termNewCompAff.getConstant();
+					
+					if (constOld.equals(Rational.ZERO) && constNew.equals(Rational.ZERO))
+					{
+						System.out.println("Sadly2, I couldn't find a factorial constant in the internal rewrite: "
+								+ termApp.getParameters()[0].toStringDirect() + " .");
+						return;
+					}
+					
+					if (constOld.equals(Rational.ZERO) || constNew.equals(Rational.ZERO))
+						throw new AssertionError("Error 4.2.5 in " + functionname);
+					
+					// Calculate the factors
+					Rational constGcd = constOld.gcd(constNew); // greatest common divisor
+					Rational constLcm = constOld.mul(constNew).div(constGcd); // least common multiple
+					Rational constOldFactor = constLcm.div(constOld);
+					Rational constNewFactor = constLcm.div(constNew);
+					
+					termOldCompAff = termOldCompAff.mul(constOldFactor);
+					termNewCompAff = termNewCompAff.mul(constNewFactor);
+					
+					if (termOldCompAff.equals(termNewCompAff))
+						return;
+					
+					System.out.println("Sadly2, I couldn't understand the internal rewrite: "
+							+ termApp.getParameters()[0].toStringDirect() + " .");
+					// Warning: Code duplicates end here - a random number: 589354
 				}
+				
+//				// <->
+//				if ((firstNeg && secondNeg)		||		(!firstNeg && !secondNeg))
+//					if(!calculateTerm(termOldRel,smtInterpol).equals(
+//						calculateTerm(termNewRel,smtInterpol)))
+//						System.out.println("Sadly, I couldn't understand the internal rewrite: "
+//						+ termApp.getParameters()[0].toStringDirect() + " .");
+//					else
+//						return;
+//				
+//				// xor
+//				if ((pm_func_weak(termOldRel,"<=") && pm_func_weak(termNewRel,"<"))
+//						|| (pm_func_weak(termOldRel,"<") && pm_func_weak(termNewRel,"<=")))
+//				{
+//					if ((calculateTerm(termOldRel.getParameters()[0],smtInterpol).mul(
+//							calculateTerm(smtInterpol.numeral("-1"),smtInterpol).getConstant())).equals(
+//									calculateTerm(termNewRel.getParameters()[0],smtInterpol))
+//						&& termOldRel.getParameters()[1] == termNewRel.getParameters()[1])
+//						return;
+//					// If it's an integer-logic, it could be a x <= 0  <--> -x < 1 transformation
+//					// Not nice: Use of Strings
+//					if (term.getTheory().getLogic().toString() == "QF_LIA")
+//					{
+//						String addNumber = "";
+//						if (firstNeg)
+//							addNumber = "1";
+//						else
+//							addNumber = "-1";
+//				
+//						if (((calculateTerm(termOldRel.getParameters()[0],smtInterpol).add(
+//										calculateTerm(smtInterpol.numeral(addNumber),smtInterpol)).mul(
+//												calculateTerm(smtInterpol.numeral("-1"),smtInterpol).getConstant()))).equals(
+//										calculateTerm(termNewRel.getParameters()[0],smtInterpol))
+//							&& termOldRel.getParameters()[1] == termNewRel.getParameters()[1])
+//							return;
+//					}
+//				}
 				
 				System.out.println("Sadly, I had to believe the following internal rewrite: "
 						+ termApp.getParameters()[0].toStringDirect() + " .");
@@ -2496,7 +2621,7 @@ public class ProofChecker extends SMTInterpol {
 
 				pm_func(termAppParamsAppIMayAnnApp, "=");
 				
-				// Not nice: Question: Can it be, that one has to calculate termDelete or termInsert first?
+				// Not nice: Can it be, that one has to calculate termDelete or termInsert first?
 				termEdit = rewriteTerm(termEdit, termAppParamsAppIMayAnnApp.getParameters()[0], termAppParamsAppIMayAnnApp.getParameters()[1]);
 			}
 			
@@ -2847,12 +2972,25 @@ public class ProofChecker extends SMTInterpol {
 						
 		} else if (term instanceof ConstantTerm)
 			return SMTAffineTerm.create(term);
+		else if (term instanceof SMTAffineTerm)
+			return (SMTAffineTerm) term;
 		else
 			throw new AssertionError("Error 3 in calculateTerm with term " + term.toStringDirect());
 	}
 	
+	ApplicationTerm convertApp (Term term, String debugString)
+	{
+		if (debug.contains("convertApp"))
+			System.out.println("Der untere Aufruf hat die ID: " + debugString);
+		
+		return convertApp(term);
+	}
+	
 	ApplicationTerm convertApp (Term term)
 	{
+		if (debug.contains("convertApp"))
+			System.out.println("Aufruf");
+		
 		if (!(term instanceof ApplicationTerm))
 		{
 			throw new AssertionError("Error: The following term should be an ApplicationTerm, "
@@ -2866,9 +3004,9 @@ public class ProofChecker extends SMTInterpol {
 	ApplicationTerm convertApp_hard (Term term)
 	{
 		if (term instanceof AnnotatedTerm)
-			return convertApp(((AnnotatedTerm) term).getSubterm());
+			return convertApp(((AnnotatedTerm) term).getSubterm(), "annot");
 		
-		return convertApp(term);
+		return convertApp(term, "hard");
 	}
 	
 	AnnotatedTerm convertAnn (Term term)
@@ -3002,4 +3140,123 @@ public class ProofChecker extends SMTInterpol {
 		//throw new AssertionError("Error in lemma_:CC: I have no idea how to get from "
 		//	+ termStart.toStringDirect() + " to " + termEnd.toStringDirect());
 	}
+	
+	ApplicationTerm uniformizeInequality(ApplicationTerm termApp, SMTInterpol smtInterpol)
+	{
+		ApplicationTerm termIneq;
+		boolean negated = pm_func_weak(termApp, "not");
+		
+		if (!pm_func_weak(termApp, "<=")
+				&& !pm_func_weak(termApp, "<")
+				&& !pm_func_weak(termApp, ">=")
+				&& !pm_func_weak(termApp, ">")
+				&& !pm_func_weak(termApp, "=")
+				&& !pm_func_weak(termApp, "not"))
+			throw new AssertionError("Error 0 in uniformizeInequality");
+		
+		// Get the inequality
+		if (negated)
+			termIneq = convertApp_hard(termApp.getParameters()[0]);
+		else
+			termIneq = termApp;
+		
+		String relation = termIneq.getFunction().getName();
+		checkNumber(termIneq.getParameters(),2);
+		
+		// Take everything to the left side
+		
+		SMTAffineTerm termLeft = calculateTerm(termIneq.getParameters()[0], smtInterpol);
+		SMTAffineTerm termRight = calculateTerm(termIneq.getParameters()[1], smtInterpol);
+		SMTAffineTerm termLeftNew = termLeft.add(termRight.negate());
+		
+		// Convert the negation into the inequality
+		if (negated)
+			if (relation == "<=")
+				relation = ">";
+			else if (relation == ">=")
+				relation = "<";
+			else if (relation == "<")
+				relation = ">=";
+			else if (relation == ">")
+				relation = "<=";
+			else
+				throw new AssertionError("Error 1 in uniformizeInequality");
+		
+		// Convert: >= to <= and > to <
+		if (relation == ">=")
+		{
+			termLeftNew = termLeftNew.negate();
+			relation = "<=";
+		} else if (relation == ">")
+		{
+			termLeftNew = termLeftNew.negate();
+			relation = "<";
+		}
+		
+		// Extra-Case for Integers
+		if (onlyInts(termLeftNew) && relation == "<")
+		{
+			termLeftNew = termLeftNew.add(Rational.ONE);
+			relation = "<=";
+		}
+		
+		// Now build the to-be-returned term
+		Term[] params = new Term[2];
+		params[0] = termLeftNew;
+		
+		if (!termLeftNew.getSort().isNumericSort())
+			throw new AssertionError("Error 2 in uniformizeInequality");
+		
+		params[1] = (Rational.ZERO).toTerm(termLeftNew.getSort());		
+		
+		return convertApp(smtInterpol.term(relation, params), "unif2");
+	}
+	
+	boolean onlyInts(Term term)
+	{
+		if (term instanceof AnnotatedTerm)
+			return onlyInts(((AnnotatedTerm) term).getSubterm());
+		else if (term instanceof ApplicationTerm)
+		{
+			ApplicationTerm termApp = convertApp(term);
+			for (Term param : termApp.getParameters())
+				if (!onlyInts(param))
+					return false;
+			return true;
+		} 
+		else if (term instanceof SMTAffineTerm)
+		{
+			SMTAffineTerm termAff = (SMTAffineTerm) term;
+			
+//			System.out.println("Gebe zurück: " + termAff.isIntegral() 
+//					+ " für " + termAff.toStringDirect());
+			return termAff.isIntegral();
+		} else
+		{
+			// So the term is constant
+//			if (!(term instanceof ConstantTerm))
+//				throw new AssertionError("Error in onlyInts");
+			
+			ConstantTerm termConst = convertConst(term);
+			
+			System.out.println("Class: " + term.getClass().getName());
+			System.out.println("Sort: " + term.getSort().getName());
+			
+			return false;				
+		}
+			
+	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
