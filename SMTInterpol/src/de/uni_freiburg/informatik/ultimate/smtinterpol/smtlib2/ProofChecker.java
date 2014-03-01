@@ -209,7 +209,6 @@ public class ProofChecker extends SMTInterpol {
 				return;
 				
 			case "@lemma":
-				//TODO: Implement rule-reader
 				
 				// If possible return the un-annotated version
 				// Warning: Code duplicates (Random number: 498255)
@@ -225,16 +224,12 @@ public class ProofChecker extends SMTInterpol {
 					pm_func(termLemmaDisj,"or");
 					
 					int arrayLength = termLemmaDisj.getParameters().length;
-//					ApplicationTerm[] termLemmaAppNegApp = new ApplicationTerm[arrayLength];
-//					AnnotatedTerm[] termLemmaAppNegAppInnerAnn = new AnnotatedTerm[arrayLength];
-//					ApplicationTerm[] termLemmaEq = new ApplicationTerm[arrayLength];
-//					SMTAffineTerm[] termLemmaCheck = new SMTAffineTerm[arrayLength];
 					ApplicationTerm[] termMultDisj = new ApplicationTerm[arrayLength]; // multiplied [negated] disjuncts
 					ApplicationTerm[] termNegDisj = new ApplicationTerm[arrayLength]; // negated disjuncts
+					ApplicationTerm[] termNegDisjMayDeep = new ApplicationTerm[arrayLength]; // negated disjuncts maybe one level deeper
 					ApplicationTerm[] termTurnDisj = new ApplicationTerm[arrayLength]; // disjuncts with potentially turned <=/</>=/>
 					ApplicationTerm[] termNegDisjUnif = new ApplicationTerm[arrayLength];
 					ApplicationTerm[] termNegDisjInv = new ApplicationTerm[arrayLength];
-//;					SMTAffineTerm[] termSummands = new SMTAffineTerm[arrayLength];
 					
 					// Now get the factors:
 					Term[] numbers = (Term[]) termAppInnerAnn.getAnnotations()[0].getValue();
@@ -259,23 +254,30 @@ public class ProofChecker extends SMTInterpol {
 						termNegDisj[i] = convertApp_hard(negate(convertApp_hard(termLemmaDisj.getParameters()[i]), smtInterpol));
 						
 						// Get rid of each negation
-						String relation = termNegDisj[i].getFunction().getName();
-						if (relation == "not")
+						String prerelation = termNegDisj[i].getFunction().getName();
+						String relation;
+						if (prerelation == "not")
 						{
 							// Dig one level deeper
-							termNegDisj[i] = convertApp_hard(termNegDisj[i].getParameters()[0]);
+							termNegDisjMayDeep[i] = convertApp_hard(termNegDisj[i].getParameters()[0]);
 														
-							relation = termNegDisj[i].getFunction().getName();
+							prerelation = termNegDisjMayDeep[i].getFunction().getName();
 							
 							//Turn the relation around
-							if (relation == "<=")
+							if (prerelation == "<=")
 								relation = ">";
-							else if (relation == ">=")
+							else if (prerelation == ">=")
 								relation = "<";
-							else if (relation == "<")
+							else if (prerelation == "<")
 								relation = ">=";
-							else if (relation == ">")
+							else if (prerelation == ">")
 								relation = "<=";
+							else
+								relation = prerelation;
+						} else
+						{
+							termNegDisjMayDeep[i] = termNegDisj[i];
+							relation = prerelation;
 						}
 						
 						// If the factor is negative switch the function symbol
@@ -289,42 +291,39 @@ public class ProofChecker extends SMTInterpol {
 							else if (relation == ">")
 								relation = "<";
 						
-						checkNumber(termNegDisj[i].getParameters(),2);						
+						checkNumber(termNegDisjMayDeep[i].getParameters(),2);						
+												
+						termTurnDisj[i] = convertApp(smtInterpol.term(relation, termNegDisjMayDeep[i].getParameters()));
 						
-						termTurnDisj[i] = convertApp(smtInterpol.term(relation, termNegDisj[i].getParameters()));
 						
 						// Multiply with -1			
-						Term[] params = new Term[2];
+						Term[] paramsTemp1 = new Term[2];
 						if (numbersSMT[i].isNegative())
 						{
-							params[0] = calculateTerm(termTurnDisj[i].getParameters()[0],smtInterpol).negate();
-							params[1] = calculateTerm(termTurnDisj[i].getParameters()[1],smtInterpol).negate();
+							paramsTemp1[0] = calculateTerm(termTurnDisj[i].getParameters()[0],smtInterpol).negate();
+							paramsTemp1[1] = calculateTerm(termTurnDisj[i].getParameters()[1],smtInterpol).negate();
 							numbersSMT[i] = numbersSMT[i].negate();
 						} else
 						{
-							params = termTurnDisj[i].getParameters();
+							paramsTemp1 = termTurnDisj[i].getParameters();
 						}
 						
-						
-						termNegDisjInv[i] = convertApp(smtInterpol.term(relation, params));
+						termNegDisjInv[i] = convertApp(smtInterpol.term(relation, paramsTemp1));
 								
 						//Uniformize them
-						termNegDisjUnif[i] = uniformizeInequality(termNegDisjInv[i], smtInterpol);
+						termNegDisjUnif[i] = uniformizeInEquality(termNegDisjInv[i], smtInterpol);
 																		
-						// Multiply both sides
-						params[0] = calculateTerm(termNegDisjUnif[i].getParameters()[0], smtInterpol).mul(numbersSMT[i]);
-						params[1] = calculateTerm(termNegDisjUnif[i].getParameters()[1], smtInterpol).mul(numbersSMT[i]);
+						// Multiply both sides		
+						Term[] paramsTemp2 = new Term[2];
+						paramsTemp2[0] = calculateTerm(termNegDisjUnif[i].getParameters()[0], smtInterpol).mul(numbersSMT[i]);
+						paramsTemp2[1] = calculateTerm(termNegDisjUnif[i].getParameters()[1], smtInterpol).mul(numbersSMT[i]);
 						
-						termMultDisj[i] = convertApp(smtInterpol.term(relation, params));
+						termMultDisj[i] = convertApp(smtInterpol.term(relation, paramsTemp2));
 						
 						foundLe = (foundLe || pm_func_weak(termMultDisj[i], "<="));
 						foundLt = (foundLt || pm_func_weak(termMultDisj[i], "<"));
 						foundEq = (foundEq || pm_func_weak(termMultDisj[i], "="));
 					}
-					// Have to handle mixed equality and inequality
-//					if (foundEq && (foundLt || foundLe))
-//						throw new AssertionError("Error 1 in @lemma_:LA \n"
-//								 + "The term was: " + term.toStringDirect());
 					
 					// Step 2: Add them up
 					
@@ -349,176 +348,6 @@ public class ProofChecker extends SMTInterpol {
 						throw new AssertionError("Error 4 in @lemma_:LA");
 					else if (foundEq && constant == Rational.ZERO)
 						throw new AssertionError("Error 5 in @lemma_:LA");
-					
-					
-					
-//					
-//					//boolean foundGe = false; // found greater-equal (>=)
-//					//boolean foundGt = false; // found greater-than (>)					
-//					boolean foundNeg = false; // has the i-th component a negation?
-//					for (int i = 0; i < arrayLength; i++)
-//					{
-//						// Maybe there's no negation
-//						foundNeg = (termLemmaDisj.getParameters()[i] instanceof ApplicationTerm);
-//						
-//						//Syntactical correctness
-//						if (foundNeg)
-//						{
-//							termLemmaAppNegApp[i] = convertApp(termLemmaDisj.getParameters()[i]);
-//							if (termLemmaAppNegApp[i].getParameters()[0] instanceof ApplicationTerm)
-//								System.out.println("");
-//							termLemmaAppNegAppInnerAnn[i] = convertAnn(termLemmaAppNegApp[i].getParameters()[0]);
-//						}
-//						else
-//						{
-//							if (termLemmaDisj.getParameters()[i] instanceof ApplicationTerm)
-//								System.out.println("");
-//							termLemmaAppNegAppInnerAnn[i] = convertAnn(termLemmaDisj.getParameters()[i]);
-//						}
-//
-//						if (!(termLemmaAppNegAppInnerAnn[i].getSubterm() instanceof ApplicationTerm))
-//							System.out.println("");
-//						termLemmaEq[i] = convertApp(termLemmaAppNegAppInnerAnn[i].getSubterm());
-//						termLemmaCheck[i] = calculateTerm(termLemmaEq[i].getParameters()[0], smtInterpol);
-//						
-//						if (foundNeg)
-//							pm_func(termLemmaAppNegApp[i],"not");
-//						pm_annot(termLemmaAppNegAppInnerAnn[i],":quoted");
-//						
-//						// Semantical correctness
-//						if (foundNeg)
-//						{
-//							//Important: foundGe = ...< is correct, since >= \equiv (not <)
-//							/*if (//foundGe && pm_func_weak(termLemmaEq[i],">") ||
-//									foundLe && pm_func_weak(termLemmaEq[i],"<"))
-//								throw new AssertionError("Error 1 in @lemma_:LA");*/
-//							
-//							//foundGe = foundGe || pm_func_weak(termLemmaEq[i],"<");
-//							//foundLe = foundLe || pm_func_weak(termLemmaEq[i],">");
-//							if (pm_func_weak(termLemmaEq[i],"<="))
-//							{
-//								//The inequality must be inverted, but not here
-//								if(numbersSMT[i].isNegative())
-//									throw new AssertionError("Error 2c in @lemma_:LA");
-//								//termLemmaCheck[i] = termLemmaCheck[i].negate(); //WRONG! Wird implizit über die Koeffizienten negiert
-//								//numbersSMT[i] = SMTAffineTerm.create( //WRONG!!
-//									//	numbersSMT[i], SMTAffineTerm.create(smtInterpol.numeral("-1"))).getConstant();
-//								foundLe = true;
-//								continue;
-//							}
-//
-//							if (pm_func_weak(termLemmaEq[i],"<"))
-//							{
-//								if(numbersSMT[i].isNegative())
-//									throw new AssertionError("Error 2e in @lemma_:LA");
-//								foundLt = true;
-//								continue;
-//							}
-//							
-//							pm_func(termLemmaEq[i],"=");
-//						}
-//						else
-//						{
-//							/*if (//foundGe && pm_func_weak(termLemmaEq[i],"<=") ||
-//									foundLe && pm_func_weak(termLemmaEq[i],">="))
-//								throw new AssertionError("Error 2a in @lemma_:LA");*/
-//							
-//							// foundGe = foundGe || pm_func_weak(termLemmaEq[i],">=");
-//							// foundLe = foundLe || pm_func_weak(termLemmaEq[i],"<=");
-//							
-//							//The inequality must be inverted
-//							if(!numbersSMT[i].isNegative())
-//								throw new AssertionError("Error 2d in @lemma_:LA");
-//							
-//							if (pm_func_weak(termLemmaEq[i],"<="))
-//							{
-//								foundLt = true;
-//								continue;
-//							}
-//							if (pm_func_weak(termLemmaEq[i],"<"))
-//							{
-//								foundLe = true;
-//								continue;
-//							}
-//							
-//							throw new AssertionError("Error 2b in @lemma_:LA");
-//						}
-//					}
-//					
-//					//if((foundLe || foundLt && (foundGt || foundGe))
-//					//	throw new AssertionError("Error 3a in @lemma_:LA");
-//					
-//					for(ApplicationTerm equality : termLemmaEq)
-//					{
-//						// Not nice: Use of "0+0=0" (Important: Needs to take care of both 0 and 0.0)
-//						// Warning: Code almost-duplicates (Random number: 29364)
-//						SMTAffineTerm termAffTemp = calculateTerm(equality.getParameters()[1],smtInterpol);
-//						if (!(termAffTemp.equals(termAffTemp.add(termAffTemp))))
-//							throw new AssertionError("Error 3b in @lemma_:LA: " + equality.getParameters()[1].toStringDirect());
-//					}
-//					
-//					SMTAffineTerm result = termLemmaCheck[0].mul(numbersSMT[0]);
-//					//System.out.println("Result: " + result.toStringDirect());
-//					
-//					for (int i = 1; i < numbersSMT.length; i++)
-//					{
-//						if (debug.contains("LemmaLAadd"))
-//						{
-//							System.out.println("Term ohne mult: " + termLemmaCheck[i].toStringDirect());
-//							System.out.println("mult: " + numbersSMT[i]);
-//							System.out.println("Term mit mult: " + termLemmaCheck[i].mul(numbersSMT[i]).toStringDirect());
-//						}
-//						result = result.add(termLemmaCheck[i].mul(numbersSMT[i]));
-//						if(debug.contains("LemmaLAadd"))
-//							System.out.println("Result: " + result.toStringDirect());
-//					}
-//					
-//					if (!result.isConstant())
-//						throw new AssertionError("Error 4 in @lemma_:LA!: " + result.toStringDirect());
-//					
-//					// Explanation of how the logic behind the lemmata works:
-//					// It's a proof via contradiction, i.e. the negation of the whole lemma leads to a contradiction.
-//					// Since it's a disjunction, it's negation will be a conjunction of the negated disjuncts.
-//					// That means we can argue, that if every negated disjunct has to hold, and this leads to a contradiction.
-//					// We just want terms with =0, <0 or <=0 which results in:
-//					//  * not a < 0	<=>	a >= 0	<=> -a <= 0
-//					//  * not a <= 0	<=>	a > 0	<=> -a < 0
-//					// Then we multiply each equation with an integer and sum them all up, which should lead to this contradiction
-//					// (x = 0) + (y <= 0) --> x+y <= 0
-//					// (x <= 0) + (y < 0) --> x+y < 0
-//					// So, e.g., if we have a (x < 0)-term, the proof is correct, if x+... is at least 0, this will lead to a contradiction
-//					
-//					// Not nice: Laborious if-condition: result = 0
-//					if (!foundLe && !foundLt && result.add(result).equals(result))
-//						throw new AssertionError("Error 5 in @lemma_:LA!");
-//					
-//					// Not nice: Result > 0 	<=> not result <= 0
-//					if (!foundLt && foundLe
-//							&& (result.getConstant().isNegative()
-//									|| result.add(result).equals(result)))
-//						throw new AssertionError("Error 6 in @lemma_:LA!");
-//					
-//					// Not nice: Result >= 0		<=> not result < 0
-//					if (foundLt
-//							&& result.getConstant().isNegative())
-//						throw new AssertionError("Error 7 in @lemma_:LA!");
-//					
-//					// Result < 0
-////					if (foundNeg && (foundGe || foundGt)
-////							&& result.getConstant().isNegative())
-////						throw new AssertionError("Error 7 in @lemma_:LA!");
-//					
-//					if (debug.contains("passt"))
-//					{
-//						//if (foundGe)
-//							//System.out.println("Passt, da " + result + " !< 0");
-//						//else
-//						if (foundLe)
-//							System.out.println("Passt, da " + result + " !> 0");
-//						else
-//							System.out.println("Passt, da " + result + " != 0");
-//					}
-					
 					
 				} else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":CC")
 				{
@@ -602,13 +431,63 @@ public class ProofChecker extends SMTInterpol {
 				return;
 				
 			case "@tautology":
-				System.out.println("Believed as true: " + termApp.toStringDirect() + " ."); //TODO: Implement rule-reader
 				
 				// If possible return the un-annotated version
 				// Warning: Code duplicates (Random number: 498255)
 				if (termApp.getParameters()[0] instanceof ApplicationTerm)
 					System.out.println("");
 				termAppInnerAnn = convertAnn(termApp.getParameters()[0]);
+				
+				if (termAppInnerAnn.getAnnotations()[0].getKey() == ":eq")
+				{
+					ApplicationTerm termOr = convertApp(termAppInnerAnn.getSubterm()); // The term with or
+					checkNumber(termOr.getParameters(),2);
+					ApplicationTerm term1Neg = convertApp(termOr.getParameters()[0]); // The first disjunkt, still with "not"
+					ApplicationTerm term1Pure = convertApp_hard(term1Neg.getParameters()[0]); // The first disjunkt, not with "not" anymore
+					ApplicationTerm term2 = convertApp_hard(termOr.getParameters()[1]); // The second disjunkt
+					String funcSymb = term1Pure.getFunction().getName();
+					
+					pm_func(termOr,"or");
+					pm_func(term1Neg,"not");
+					pm_func(term2,funcSymb);
+					
+					ApplicationTerm term1PureUnif = uniformizeInEquality(term1Pure, smtInterpol);
+					ApplicationTerm term2Unif = uniformizeInEquality(term2, smtInterpol);
+					
+					if (!term1PureUnif.equals(term2Unif))
+						throw new AssertionError("Error in @taut_eq");
+				} 
+				else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":or+")
+				{
+					ApplicationTerm termOr = convertApp(termAppInnerAnn.getSubterm()); // The term with or
+					ApplicationTerm term1Neg = convertApp(termOr.getParameters()[0]); // The first disjunkt, still with "not"
+					ApplicationTerm term1Pure = convertApp_hard(term1Neg.getParameters()[0]); // The first disjunkt, not with "not" anymore
+					
+					HashSet<Term> term1Disjuncts = new HashSet<Term>(); // The disjuncts in term 1
+					HashSet<Term> term2NDisjuncts = new HashSet<Term>(); // THe disjuncts in term 2-n
+					
+					term1Disjuncts.addAll(Arrays.asList(term1Pure.getParameters()));
+					for (int i = 1; i < termOr.getParameters().length; i++) //The first (i=0) parameter is left out)
+						term2NDisjuncts.add(termOr.getParameters()[i]);
+					
+					pm_func(termOr,"or");
+					pm_func(term1Neg,"not");
+					pm_func(term1Pure,"or");
+					
+					
+					if (!term1Disjuncts.equals(term2NDisjuncts))
+						throw new AssertionError("Error in @taut_or+");
+						
+					
+					/* Not nice: Not checked if there is a quoted-annotation, but 
+					 * otherwise it's still correct
+					 */
+				} 
+				else
+				{
+					System.out.println("Didn't know the following tautology-rule: " + termAppInnerAnn.getAnnotations()[0].getKey()
+							+ "therefor had to believed as true: " + termApp.toStringDirect() + " .");
+				}
 				
 				stackPush(termAppInnerAnn.getSubterm(), term);
 				return;
@@ -2331,8 +2210,8 @@ public class ProofChecker extends SMTInterpol {
 					// Case 4.2: Then both have to be brought to either ... < 0 or ... <= 0
 					//System.out.println("Term: " + term.toStringDirect());
 					//System.out.println("Term2: " + termEqApp.toStringDirect());
-					ApplicationTerm termOldComp = uniformizeInequality(convertApp_hard(termEqApp.getParameters()[0]), smtInterpol);
-					ApplicationTerm termNewComp = uniformizeInequality(convertApp_hard(termEqApp.getParameters()[1]), smtInterpol);
+					ApplicationTerm termOldComp = uniformizeInEquality(convertApp_hard(termEqApp.getParameters()[0]), smtInterpol);
+					ApplicationTerm termNewComp = uniformizeInEquality(convertApp_hard(termEqApp.getParameters()[1]), smtInterpol);
 					
 					if (termOldComp.getFunction().getName() != termNewComp.getFunction().getName())
 						throw new AssertionError("Error 4.2.2 in " + functionname);
@@ -3251,7 +3130,7 @@ public class ProofChecker extends SMTInterpol {
 		//	+ termStart.toStringDirect() + " to " + termEnd.toStringDirect());
 	}
 	
-	ApplicationTerm uniformizeInequality(ApplicationTerm termApp, SMTInterpol smtInterpol)
+	ApplicationTerm uniformizeInEquality(ApplicationTerm termApp, SMTInterpol smtInterpol)
 	{
 		ApplicationTerm termIneq;
 		boolean negated = pm_func_weak(termApp, "not");
