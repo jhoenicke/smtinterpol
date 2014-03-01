@@ -1,3 +1,7 @@
+/**
+ * @author Raiola
+ */
+
 package de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2;
 
 import de.uni_freiburg.informatik.ultimate.logic.AnnotatedTerm;
@@ -24,14 +28,12 @@ public class ProofChecker extends SMTInterpol {
 	
 	HashSet<String> debug = new HashSet<String>(); // Just for debugging
 	
-	// Not nice: returns are spread over the code, all could be in the end
 	HashMap<Term, Term> pcCache; //Proof Checker Cache
 	
 	// Declarations for the Walker
 	Stack<WalkerId<Term,String>> stackWalker = new Stack<WalkerId<Term,String>>();
 	Stack<Term> stackResults = new Stack<Term>();
 	Stack<Term> stackResultsDebug = new Stack<Term>();
-	//Not nice: Is this really necessary?:
 	Stack<Annotation[]> stackAnnots = new Stack<Annotation[]>();
 	
 	public boolean check(Term res, SMTInterpol smtInterpol) {
@@ -240,7 +242,7 @@ public class ProofChecker extends SMTInterpol {
 					
 					// New: Transform all to ... <= 0 if possible, otherwise to ... <= 0 and ... < 0 
 					
-					// Step 1: Uniformize the negated disjuncts and multply with factor //TODO
+					// Step 1: Uniformize the negated disjuncts and multiply with factor
 					
 					boolean foundLe = false; // found lower-equal (<=)
 					boolean foundLt = false; // found lower-than (<)
@@ -291,8 +293,8 @@ public class ProofChecker extends SMTInterpol {
 							else if (relation == ">")
 								relation = "<";
 						
-						checkNumber(termNegDisjMayDeep[i].getParameters(),2);						
-												
+						checkNumber(termNegDisjMayDeep[i].getParameters(),2);
+						
 						termTurnDisj[i] = convertApp(smtInterpol.term(relation, termNegDisjMayDeep[i].getParameters()));
 						
 						
@@ -340,14 +342,18 @@ public class ProofChecker extends SMTInterpol {
 					Rational constant = termSum.getConstant();
 					
 					
-					// <= is strictly stronger than < is strictly stronger than = 
-					if (foundLe && 
-							(constant.isNegative() || constant.equals(Rational.ZERO)))
-						throw new AssertionError("Error 3 in @lemma_:LA");
-					else if (foundLt && constant.isNegative())
-						throw new AssertionError("Error 4 in @lemma_:LA");
-					else if (foundEq && constant == Rational.ZERO)
-						throw new AssertionError("Error 5 in @lemma_:LA");
+					// < is strictly stronger than <= is strictly stronger than =
+					if (foundLt) {
+						if(constant.isNegative())
+							throw new AssertionError("Error 4 in @lemma_:LA");
+					}
+					else if (foundLe) { 
+							if(constant.isNegative() || constant.equals(Rational.ZERO))
+								throw new AssertionError("Error 3 in @lemma_:LA");
+					}
+					else if (foundEq)
+						if(constant == Rational.ZERO)
+							throw new AssertionError("Error 5 in @lemma_:LA");
 					
 				} else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":CC")
 				{
@@ -358,6 +364,7 @@ public class ProofChecker extends SMTInterpol {
 					
 					int arrayLength = termLemmaApp.getParameters().length;
 					
+					// The negated disjuncts
 					ApplicationTerm[] termLemmaAppIApp = new ApplicationTerm[arrayLength];
 					termLemmaAppIApp[0] = null; //The first component has no meaning
 					for (int i = 1; i < arrayLength; i++)
@@ -379,10 +386,14 @@ public class ProofChecker extends SMTInterpol {
 					
 					Object[] annotValues = (Object[]) termAppInnerAnn.getAnnotations()[0].getValue();
 					
+					// The first annotation has to be the goal-equality
 					if (!annotValues[0].equals(termLemmaEqApp[0]))
 						throw new AssertionError("Error 1 in lemma_:CC");
 					
-					// Get the subpaths
+					/* Get the subpaths. The HashMap contains pairs:
+					 * - First entry: Start & End of the path
+					 * - Second entry: Path
+					 */
 					HashMap<SymmetricPair<Term>, Term[]> subpaths =
 							new HashMap<SymmetricPair<Term>,Term[]>();
 					
@@ -402,7 +413,10 @@ public class ProofChecker extends SMTInterpol {
 						}
 					}
 					
-					// Get the premises
+					/* Get the premises. The HashMap contains pairs:
+					 * - First entry: Left term which equals the ...
+					 * - Second entry: ... right term (by premise)
+					 */
 					HashMap<SymmetricPair<Term>, Term[]> premises =
 							new HashMap<SymmetricPair<Term>,Term[]>();
 					
@@ -418,7 +432,9 @@ public class ProofChecker extends SMTInterpol {
 					Term termEnd = termLemmaEqApp[0].getParameters()[1];
 					
 					if (!pathFind(subpaths,premises,termStart,termEnd))
-						throw new AssertionError("Error at the end of lemma_:CC");
+						System.out.println("I'm sorry, I couldn't understand the following CC-Lemma: " 
+								+ termApp.toStringDirect());
+						//throw new AssertionError("Error at the end of lemma_:CC");
 				} else
 				{
 					System.out.println("Can't deal with lemmas of type "
@@ -453,8 +469,8 @@ public class ProofChecker extends SMTInterpol {
 					
 					ApplicationTerm term1PureUnif = uniformizeInEquality(term1Pure, smtInterpol);
 					ApplicationTerm term2Unif = uniformizeInEquality(term2, smtInterpol);
-					
-					if (!term1PureUnif.equals(term2Unif))
+															
+					if (!uniformedSame(term1PureUnif,term2Unif,smtInterpol))
 						throw new AssertionError("Error in @taut_eq");
 				} 
 				else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":or+")
@@ -1033,19 +1049,17 @@ public class ProofChecker extends SMTInterpol {
 					boolean multidisjunct = true;
 					Term termNew = termEqApp.getParameters()[1];
 					ApplicationTerm termNewApp = null;
-					if (termEqApp.getParameters()[1] instanceof ApplicationTerm)
-					{
-						termNewApp = convertApp(termNew);
-						multidisjunct = false;
-					}					
+					//if (termEqApp.getParameters()[1] instanceof ApplicationTerm) // OLD
+//					{
+//						termNewApp = convertApp(termNew);
+//						multidisjunct = false;
+//					}					
 
 					pm_func(termOldApp,"or");
 					
 										
 					HashSet<Term> oldDisjuncts = new HashSet<Term>();
 					HashSet<Term> newDisjuncts = new HashSet<Term>();
-					
-					//int nothing = 0; //This integer does literally nothing; 
 					
 						
 					oldDisjuncts.addAll(Arrays.asList(termOldApp.getParameters()));
@@ -1056,7 +1070,10 @@ public class ProofChecker extends SMTInterpol {
 						multidisjunct = false;
 					
 					if (multidisjunct)
+					{
+						termNewApp = convertApp(termNew);
 						pm_func(termNewApp,"or");
+					}						
 					
 					if (multidisjunct)
 						newDisjuncts.addAll(Arrays.asList(termNewApp.getParameters()));
@@ -1071,7 +1088,7 @@ public class ProofChecker extends SMTInterpol {
 					
 					if(!oldDisjuncts.equals(newDisjuncts))
 						throw new AssertionError("Error 2 at " + rewriteRule 
-								+ ".\n The term was " + termEqApp.toString());
+								+ ".\n The term was " + termEqApp.toStringDirect());
 					
 					// Not nice: I' \subsetneq I isn't checked, but even if I' \supseteq I it's still correct
 					
@@ -1424,12 +1441,13 @@ public class ProofChecker extends SMTInterpol {
 					}
 					
 					pm_func(termNewIneqApp, "<=");
-					// Not nice: Use of "0+0=0" (Important: Needs to take care of both 0 and 0.0)
+					// OLD: Not nice: Use of "0+0=0" (Important: Needs to take care of both 0 and 0.0)
 					// Warning: Code almost-duplicates (Random number: 29364)
 					SMTAffineTerm termAffTemp = calculateTerm(termNewIneqApp.getParameters()[1],smtInterpol);
-					if (!(termAffTemp.equals(termAffTemp.add(termAffTemp))))
-						throw new AssertionError("Error: Expected an Inequality ... <= 0 as a result "
-								+ "of the rule " + rewriteRule + ", but the result is " + termNewApp.toString());
+					isConstant(termAffTemp,Rational.ZERO);
+//					if (!(termAffTemp.equals(termAffTemp.add(termAffTemp))))
+//						throw new AssertionError("Error: Expected an Inequality ... <= 0 as a result "
+//								+ "of the rule " + rewriteRule + ", but the result is " + termNewApp.toString());
 					
 					SMTAffineTerm leftside = calculateTerm(termNewIneqApp.getParameters()[0], smtInterpol);
 
@@ -1463,9 +1481,8 @@ public class ProofChecker extends SMTInterpol {
 				}
 				else if (rewriteRule == ":leqTrue")
 				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO					
-															
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
+					checkNumber(termOldApp,2);
 
 					pm_func(termOldApp,"<=");
 					
@@ -1474,18 +1491,19 @@ public class ProofChecker extends SMTInterpol {
 //						throw new AssertionError("Error 1 at " + rewriteRule);
 					
 					SMTAffineTerm constant = calculateTerm(
-							convertConst(termOldApp.getParameters()[0]),smtInterpol);
+							convertConst_Neg(termOldApp.getParameters()[0]),smtInterpol);
 					
 					// Rule-Execution was wrong if c > 0 <=> -c < 0
 					if (constant.negate().getConstant().isNegative())
 						throw new AssertionError("Error 2 at " + rewriteRule);
 					
 					SMTAffineTerm termTemp = calculateTerm(termOldApp.getParameters()[1],smtInterpol);
-					// Not nice: Uses 0+0 = 0					
-					if (!(termTemp.add(termTemp).equals(termTemp)))
-						throw new AssertionError("Error 3 at " + rewriteRule);
+					// Old: Not nice: Uses 0+0 = 0					
+//					if (!(termTemp.add(termTemp).equals(termTemp)))
+//						throw new AssertionError("Error 3 at " + rewriteRule);
+					isConstant(termTemp,Rational.ZERO);
 					
-					if (termApp.getParameters()[1] != smtInterpol.term("true"));
+					if (termEqApp.getParameters()[1] != smtInterpol.term("true"))
 						throw new AssertionError("Error 4 at " + rewriteRule);
 				}
 				else if (rewriteRule == ":leqFalse")
@@ -1501,19 +1519,20 @@ public class ProofChecker extends SMTInterpol {
 //						throw new AssertionError("Error 1 at " + rewriteRule);
 					
 					SMTAffineTerm constant = calculateTerm(
-							convertConst(termOldApp.getParameters()[0]),smtInterpol);
+							convertConst_Neg(termOldApp.getParameters()[0]),smtInterpol);
 					
 					// Rule-Execution was wrong if c <= 0 <=> c < 0 || c = 0
 					if (constant.getConstant().isNegative()
-							|| constant.add(constant).equals(constant))
+							|| isConstant_weak(constant,Rational.ZERO))
 						throw new AssertionError("Error 2 at " + rewriteRule);
 					
 					SMTAffineTerm termTemp = calculateTerm(termOldApp.getParameters()[1],smtInterpol);
-					// Not nice: Uses 0+0 = 0
-					if (!(termTemp.add(termTemp).equals(termTemp)))
-						throw new AssertionError("Error 3 at " + rewriteRule);
+					// Old: Not nice: Uses 0+0 = 0
+//					if (!(termTemp.add(termTemp).equals(termTemp)))
+//						throw new AssertionError("Error 3 at " + rewriteRule);
+					isConstant(termTemp,Rational.ZERO);
 					
-					if (termApp.getParameters()[1] != smtInterpol.term("false"));
+					if (termApp.getParameters()[1] != smtInterpol.term("false"))
 						throw new AssertionError("Error 4 at " + rewriteRule);
 				}
 				else if (rewriteRule == ":div1")
@@ -1529,13 +1548,13 @@ public class ProofChecker extends SMTInterpol {
 //						throw new AssertionError("Error 1 at " + rewriteRule);
 					
 					SMTAffineTerm constant = calculateTerm(
-									convertConst(termOldApp.getParameters()[1]),smtInterpol);
+							convertConst_Neg(termOldApp.getParameters()[1]),smtInterpol);
 					
 					// Rule-Execution was wrong if c != 1
 					if (!(constant.getConstant().equals(Rational.ONE)))
 						throw new AssertionError("Error 2 at " + rewriteRule);
 					
-					if (termApp.getParameters()[1] != termOldApp.getParameters()[1]);
+					if (termApp.getParameters()[1] != termOldApp.getParameters()[1])
 						throw new AssertionError("Error 3 at " + rewriteRule);
 					
 				}
@@ -1551,7 +1570,7 @@ public class ProofChecker extends SMTInterpol {
 //					if (!(termOldApp.getParameters()[1] instanceof ConstantTerm))
 //						throw new AssertionError("Error 1 at " + rewriteRule);
 					
-					convertConst(termOldApp.getParameters()[1]);
+					convertConst_Neg(termOldApp.getParameters()[1]);
 					
 					SMTAffineTerm constant = calculateTerm(termOldApp.getParameters()[1],smtInterpol);
 					
@@ -1577,8 +1596,8 @@ public class ProofChecker extends SMTInterpol {
 //					if (!(termOldApp.getParameters()[1] instanceof ConstantTerm))
 //						throw new AssertionError("Error 2 at " + rewriteRule);
 					
-					convertConst(termOldApp.getParameters()[0]);
-					convertConst(termOldApp.getParameters()[1]);
+					convertConst_Neg(termOldApp.getParameters()[0]);
+					convertConst_Neg(termOldApp.getParameters()[1]);
 					
 					SMTAffineTerm c1 = calculateTerm(termOldApp.getParameters()[0],smtInterpol);
 					SMTAffineTerm c2 = calculateTerm(termOldApp.getParameters()[1],smtInterpol);
@@ -1596,40 +1615,10 @@ public class ProofChecker extends SMTInterpol {
 						if (!d.equals(c1.div(c2.getConstant()).getConstant().ceil()))
 							throw new AssertionError("Error 4 at " + rewriteRule);
 						
-						//OLD:
-						/* Then d could be defined via: c1/c2 <= d < c1/c2+1
-						 * So wrong would be both d - c1/c2 - 1 >= 0  <=>  !(d - c1/c2 - 1 < 0)
-						 * and d - c1/c2 < 0
-						 */
-						
-//						SMTAffineTerm termDiv = c1.div(c2.getConstant());
-//						SMTAffineTerm termSub = d.add(termDiv.negate());
-//						
-//						if (!(termSub.add(Rational.ONE.negate()).getConstant().isNegative()))
-//							throw new AssertionError("Error 4a at " + rewriteRule);
-//						
-//						if (termSub.getConstant().isNegative())
-//							throw new AssertionError("Error 5a at " + rewriteRule);
-						
 					} else
 					{
 						if (!d.equals(c1.div(c2.getConstant()).getConstant().floor()))
-							throw new AssertionError("Error 5 at " + rewriteRule);						
-						
-						// OLD:
-						/* Then d could be defined via: c1/c2 - 1 < d <= c1/c2
-						 * So wrong would be both c1/c2-1-d >= 0  <=>  !(c1/c2 -1-d < 0)
-						 * and c1/c2 - d < 0
-						 */
-						
-//						SMTAffineTerm termDiv = c1.div(c2.getConstant());
-//						SMTAffineTerm termSub = termDiv.add(d.negate());
-//
-//						if (!(termSub.add(Rational.ONE.negate()).getConstant().isNegative()))
-//							throw new AssertionError("Error 4b at " + rewriteRule);
-//						
-//						if (termSub.getConstant().isNegative())
-//							throw new AssertionError("Error 5b at " + rewriteRule);
+							throw new AssertionError("Error 5 at " + rewriteRule);
 					}
 				}
 				else if (rewriteRule == ":mod1")
@@ -1640,12 +1629,8 @@ public class ProofChecker extends SMTInterpol {
 
 					pm_func(termOldApp,"mod");
 					
-//					//Check syntactical correctness
-//					if (!(termOldApp.getParameters()[0] instanceof ConstantTerm)
-//							|| !(termOldApp.getParameters()[1] instanceof ConstantTerm)
-//							|| !(termApp.getParameters()[1] instanceof ConstantTerm))
-//						throw new AssertionError("Error 1 at " + rewriteRule);
-					convertConst(termOldApp.getParameters()[0]);
+					//Check syntactical correctness
+					convertConst_Neg(termOldApp.getParameters()[0]);
 					convertConst(termOldApp.getParameters()[1]);
 					convertConst(termApp.getParameters()[1]);
 					
@@ -1757,8 +1742,8 @@ public class ProofChecker extends SMTInterpol {
 					pm_func(termOldApp,"to_int");
 					
 					// r and v as in the rule
-					ConstantTerm termR = convertConst(termOldApp.getParameters()[1]);
-					ConstantTerm termV = convertConst(termApp.getParameters()[1]);
+					Term termR = convertConst_Neg(termOldApp.getParameters()[1]);
+					Term termV = convertConst_Neg(termApp.getParameters()[1]);
 					
 					if (calculateTerm(termR,smtInterpol).getConstant().floor() != 
 							calculateTerm(termV,smtInterpol).getConstant())						
@@ -1776,8 +1761,8 @@ public class ProofChecker extends SMTInterpol {
 					
 					pm_func(termOldApp,"to_real");
 					
-					ConstantTerm termOldC = convertConst(termOldApp.getParameters()[1]);
-					ConstantTerm termNewC = convertConst(termApp.getParameters()[1]);
+					Term termOldC = convertConst_Neg(termOldApp.getParameters()[1]);
+					Term termNewC = convertConst_Neg(termApp.getParameters()[1]);
 					
 					if (!calculateTerm(termOldC,smtInterpol).equals( 
 							calculateTerm(termNewC,smtInterpol).getConstant()))						
@@ -1845,8 +1830,8 @@ public class ProofChecker extends SMTInterpol {
 						checkNumber(termNewApp.getParameters(),2);
 						pm_func(termNewApp,"select");
 						
-						ConstantTerm c1 = convertConst(termOldAppInnerApp.getParameters()[1]);
-						ConstantTerm c2 = convertConst(termOldApp.getParameters()[1]);
+						Term c1 = convertConst_Neg(termOldAppInnerApp.getParameters()[1]);
+						Term c2 = convertConst_Neg(termOldApp.getParameters()[1]);
 						
 						if (c1 == c2)
 							throw new AssertionError("Error 3 at " + rewriteRule);
@@ -2100,7 +2085,6 @@ public class ProofChecker extends SMTInterpol {
 				return;
 				
 			case "@intern":
-				// TODO: Better quota
 				
 				// Step 1: The syntactical check				
 				
@@ -2180,6 +2164,14 @@ public class ProofChecker extends SMTInterpol {
 					
 					if (constOld.equals(Rational.ZERO) && constNew.equals(Rational.ZERO))
 					{
+						// Find the mulitplication in a cofactor
+						Rational oldGcd = termOldCompAff.getGcd();
+						Rational newGcd = termNewCompAff.getGcd();
+												
+						if (termOldCompAff.mul(newGcd).equals(termNewCompAff)
+								|| termNewCompAff.mul(oldGcd).equals(termOldCompAff)) // Note: == doesn't work
+							return;
+						
 						if (termOldCompAff.equals(termNewCompAff.negate())) // Last try
 							return;
 						System.out.println("Sadly1, I couldn't find a factorial constant in the internal rewrite: "
@@ -2236,6 +2228,14 @@ public class ProofChecker extends SMTInterpol {
 					
 					if (constOld.equals(Rational.ZERO) && constNew.equals(Rational.ZERO))
 					{
+						// Find the mulitplication in a cofactor
+						Rational oldGcd = termOldCompAff.getGcd();
+						Rational newGcd = termNewCompAff.getGcd();
+												
+						if (termOldCompAff.mul(newGcd).equals(termNewCompAff)
+								|| termNewCompAff.mul(oldGcd).equals(termOldCompAff)) // Note: == doesn't work
+							return;
+						
 						System.out.println("Sadly2, I couldn't find a factorial constant in the internal rewrite: "
 								+ termApp.getParameters()[0].toStringDirect() + " .");
 						return;
@@ -2260,43 +2260,6 @@ public class ProofChecker extends SMTInterpol {
 							+ termApp.getParameters()[0].toStringDirect() + " .");
 					// Warning: Code duplicates end here - a random number: 589354
 				}
-				
-//				// <->
-//				if ((firstNeg && secondNeg)		||		(!firstNeg && !secondNeg))
-//					if(!calculateTerm(termOldRel,smtInterpol).equals(
-//						calculateTerm(termNewRel,smtInterpol)))
-//						System.out.println("Sadly, I couldn't understand the internal rewrite: "
-//						+ termApp.getParameters()[0].toStringDirect() + " .");
-//					else
-//						return;
-//				
-//				// xor
-//				if ((pm_func_weak(termOldRel,"<=") && pm_func_weak(termNewRel,"<"))
-//						|| (pm_func_weak(termOldRel,"<") && pm_func_weak(termNewRel,"<=")))
-//				{
-//					if ((calculateTerm(termOldRel.getParameters()[0],smtInterpol).mul(
-//							calculateTerm(smtInterpol.numeral("-1"),smtInterpol).getConstant())).equals(
-//									calculateTerm(termNewRel.getParameters()[0],smtInterpol))
-//						&& termOldRel.getParameters()[1] == termNewRel.getParameters()[1])
-//						return;
-//					// If it's an integer-logic, it could be a x <= 0  <--> -x < 1 transformation
-//					// Not nice: Use of Strings
-//					if (term.getTheory().getLogic().toString() == "QF_LIA")
-//					{
-//						String addNumber = "";
-//						if (firstNeg)
-//							addNumber = "1";
-//						else
-//							addNumber = "-1";
-//				
-//						if (((calculateTerm(termOldRel.getParameters()[0],smtInterpol).add(
-//										calculateTerm(smtInterpol.numeral(addNumber),smtInterpol)).mul(
-//												calculateTerm(smtInterpol.numeral("-1"),smtInterpol).getConstant()))).equals(
-//										calculateTerm(termNewRel.getParameters()[0],smtInterpol))
-//							&& termOldRel.getParameters()[1] == termNewRel.getParameters()[1])
-//							return;
-//					}
-//				}
 				
 				System.out.println("Sadly, I had to believe the following internal rewrite: "
 						+ termApp.getParameters()[0].toStringDirect() + " .");
@@ -2744,7 +2707,6 @@ public class ProofChecker extends SMTInterpol {
 				throw new AssertionError("Error in \"split\"");
 			} else
 			{
-				//TODO
 				throw new AssertionError ("Error: The following split-rule hasn't been "
 						 + "implemented yet: " + splitRule);
 			}
@@ -3022,6 +2984,25 @@ public class ProofChecker extends SMTInterpol {
 		return (ConstantTerm) term;
 	}
 	
+	Term convertConst_Neg (Term term)
+	{
+		if (term instanceof ConstantTerm)
+		{
+			return (ConstantTerm) term;
+		}
+		
+		// Then it must be a negative number
+		ApplicationTerm termApp = convertApp(term);
+		pm_func(termApp,"-");
+		
+		if (termApp.getParameters()[0] instanceof ConstantTerm)
+				return termApp;
+		
+		throw new AssertionError("Error: The following term should be a ConstantTerm, "
+				+ "but is of the class " + term.getClass().getSimpleName() + ".\n"
+				+ "The term was: " + term.toString());
+	}
+	
 	// Now some pattern-match-functions.
 
 	//Throws an error if the pattern doesn't match
@@ -3061,10 +3042,16 @@ public class ProofChecker extends SMTInterpol {
 	
 	}
 	
-	//TODO: Add this to any possibly needed point
 	void checkNumber(Term[] termArray, int n)
 	{
 		if (termArray.length < n)
+			throw new AssertionError("Error: "
+					+ "The array is to short!");
+	}
+	
+	void checkNumber(ApplicationTerm termApp, int n)
+	{
+		if (termApp.getParameters().length < n)
 			throw new AssertionError("Error: "
 					+ "The array is to short!");
 	}
@@ -3083,9 +3070,11 @@ public class ProofChecker extends SMTInterpol {
 		 * that the subpaths may contain the same equality as the premises, which
 		 * could lead to infinite loops.
 		 */
+		// Is the searched equality already a premise?
 		if(premises.containsKey(searchPair))
 			return true;
 		
+		// Does a path for the searched equality exist?
 		if(subpaths.containsKey(searchPair))
 		{
 			Term[] path = subpaths.remove(searchPair);
@@ -3117,6 +3106,7 @@ public class ProofChecker extends SMTInterpol {
 		
 		// Semantical Correctness
 		
+		// true iff for each parameter-pair a path can be found
 		boolean returnVal = true;
 		
 		for (int i = 0; i < termStartApp.getParameters().length; i++)
@@ -3126,8 +3116,6 @@ public class ProofChecker extends SMTInterpol {
 		}
 		
 		return returnVal;
-		//throw new AssertionError("Error in lemma_:CC: I have no idea how to get from "
-		//	+ termStart.toStringDirect() + " to " + termEnd.toStringDirect());
 	}
 	
 	ApplicationTerm uniformizeInEquality(ApplicationTerm termApp, SMTInterpol smtInterpol)
@@ -3231,10 +3219,44 @@ public class ProofChecker extends SMTInterpol {
 			System.out.println("Class: " + term.getClass().getName());
 			System.out.println("Sort: " + term.getSort().getName());
 			
-			return false;				
+			return false; // TODO: false is incorrect, waiting for one test-case
 		}
 			
 	}
+	
+	void isConstant(SMTAffineTerm term, Rational constant)
+	{
+		if (!isConstant_weak(term, constant))
+			throw new AssertionError("The following term should be the "
+						+ "constant " + constant.toString() + " but isn't: "
+						+ term.toStringDirect());
+	}
+
+	boolean isConstant_weak(SMTAffineTerm term, Rational constant)
+	{
+		if (!term.isConstant() || term.getConstant() != constant)
+			return false;
+		return true;
+	}
+	
+	boolean uniformedSame(ApplicationTerm term1, ApplicationTerm term2, SMTInterpol smtInterpol)
+	{
+		if (term1.equals(term2))
+			return true;
+		
+		SMTAffineTerm term1leftAff = calculateTerm(term1.getParameters()[0],smtInterpol);
+		SMTAffineTerm term2leftAff = calculateTerm(term1.getParameters()[0],smtInterpol);
+		
+		if (term1leftAff.equals(term2leftAff))
+			return true; //Should be unreachable
+		
+		// Maybe one side of the equation is the negation of the other
+		if (term1leftAff.equals(term2leftAff.negate()))
+			return true; //Should be unreachable
+		
+		return false;
+	}
+	
 }
 
 
