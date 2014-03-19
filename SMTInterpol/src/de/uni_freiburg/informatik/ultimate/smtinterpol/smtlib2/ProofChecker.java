@@ -48,7 +48,7 @@ public class ProofChecker extends SMTInterpol {
 		//debug.add("calculateTerm");
 		//debug.add("WalkerPath");
 		//debug.add("LemmaCC");
-		debug.add("newRules");
+		//debug.add("newRules");
 		//debug.add("convertAppID");
 		
 		// Initializing the proof-checker-cache
@@ -434,9 +434,9 @@ public class ProofChecker extends SMTInterpol {
 					Term termEnd = termLemmaEqApp[0].getParameters()[1];
 					
 					if (!pathFind(subpaths,premises,termStart,termEnd))
-						System.out.println("I'm sorry, I couldn't understand the following CC-Lemma: " 
-								+ termApp.toStringDirect());
-						//throw new AssertionError("Error at the end of lemma_:CC");
+//						System.out.println("I'm sorry, I couldn't understand the following CC-Lemma: " 
+//								+ termApp.toStringDirect());
+						throw new AssertionError("Error at the end of lemma_:CC");
 				} else
 				{
 					System.out.println("Can't deal with lemmas of type "
@@ -553,8 +553,6 @@ public class ProofChecker extends SMTInterpol {
 				if (false)
 				{} else if (rewriteRule == ":trueNotFalse")
 				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule); //TODO
-					
 					if (!(termEqApp.getParameters()[1] == smtInterpol.term("false")))
 					{
 						throw new AssertionError("Error: The second argument of a rewrite of the rule " 
@@ -587,13 +585,11 @@ public class ProofChecker extends SMTInterpol {
 							+ "!\n The term was " + term.toStringDirect());
 					
 				} else if (rewriteRule == ":constDiff")
-				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule); //TODO
-					
+				{					
 					if (!(termEqApp.getParameters()[1] == smtInterpol.term("false")))
 					{
 						throw new AssertionError("Error: The second argument of a rewrite of the rule " 
-								+ rewriteRule + " should be true, but isn't.\n"
+								+ rewriteRule + " should be false, but isn't.\n"
 								+ "The term was " + termEqApp.toString());
 					}
 					
@@ -629,20 +625,28 @@ public class ProofChecker extends SMTInterpol {
 					
 					
 				} else if (rewriteRule == ":eqTrue")
-				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO
-															
+				{									
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
-					ApplicationTerm termNewApp = convertApp(termEqApp.getParameters()[1]);
+					
 
 					pm_func(termOldApp,"=");
-					pm_func(termNewApp,"and");
+					boolean multiconjunct = false;
+					ApplicationTerm termNewApp = null; //Not nice: Initialisation as null
+					if (termEqApp.getParameters()[1] instanceof ApplicationTerm)
+						if (pm_func_weak(convertApp(termEqApp.getParameters()[1]), "and"))
+						{
+							termNewApp = convertApp(termEqApp.getParameters()[1]);
+							multiconjunct = true;
+						}					
 										
 					HashSet<Term> oldTerms = new HashSet<Term>();
 					HashSet<Term> newTerms = new HashSet<Term>();
 					
 					oldTerms.addAll(Arrays.asList(termOldApp.getParameters()));
-					newTerms.addAll(Arrays.asList(termNewApp.getParameters()));
+					if (multiconjunct)
+						newTerms.addAll(Arrays.asList(termNewApp.getParameters()));
+					else
+						newTerms.add(termEqApp.getParameters()[1]);
 					
 					if (!oldTerms.contains(smtInterpol.term("true")))
 						throw new AssertionError("Error 1 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
@@ -659,21 +663,29 @@ public class ProofChecker extends SMTInterpol {
 					
 				} else if (rewriteRule == ":eqFalse")
 				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO
-					
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
-					ApplicationTerm termNewApp = convertApp(termEqApp.getParameters()[1]);
-					ApplicationTerm termNewAppInnerApp = convertApp(termNewApp.getParameters()[0]);
+					ApplicationTerm termNewApp = convertApp(termEqApp.getParameters()[1]);					
 
 					pm_func(termOldApp, "=");
 					pm_func(termNewApp, "not");
-					pm_func(termNewAppInnerApp, "or");
+					
+					boolean multidisjunct = false;
+					ApplicationTerm termNewAppInnerApp = null; //Not nice: Initialisation as null
+					if (termNewApp.getParameters()[0] instanceof ApplicationTerm)
+						if (pm_func_weak(convertApp(termNewApp.getParameters()[0]), "or"))
+						{
+							termNewAppInnerApp = convertApp(termNewApp.getParameters()[0]);
+							multidisjunct = true;
+						}
 					
 					HashSet<Term> oldTerms = new HashSet<Term>();
 					HashSet<Term> newTerms = new HashSet<Term>();
 					
 					oldTerms.addAll(Arrays.asList(termOldApp.getParameters()));
-					newTerms.addAll(Arrays.asList(termNewAppInnerApp.getParameters()));
+					if (multidisjunct)
+						newTerms.addAll(Arrays.asList(termNewAppInnerApp.getParameters()));
+					else
+						newTerms.add(termNewApp.getParameters()[0]);
 					
 					if (!oldTerms.contains(smtInterpol.term("false")))
 						throw new AssertionError("Error 1 at " + rewriteRule + ".\n The term was " + termEqApp.toString());
@@ -708,8 +720,6 @@ public class ProofChecker extends SMTInterpol {
 				
 				} else if (rewriteRule == ":eqSimp")
 				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO
-					
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
 					ApplicationTerm termNewApp = convertApp(termEqApp.getParameters()[1]);
 					
@@ -729,14 +739,7 @@ public class ProofChecker extends SMTInterpol {
 					// Not nice: Not checked if there aren't two doubled terms in termNewApp, but even if there are, it's still correct
 					
 				}  else if (rewriteRule == ":eqBinary")
-				{		
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO
-					
-					/* TODO: Guess: The first parameter is an n-ary equation and
-					 * the second the big "conjunction", where "conjunction" means
-					 * "negated disjunction of negations".
-					 */
-					
+				{					
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
 					ApplicationTerm termNewApp = convertApp(termEqApp.getParameters()[1]);
 					ApplicationTerm termNewAppInnerApp = convertApp(termNewApp.getParameters()[0]);
@@ -779,33 +782,29 @@ public class ProofChecker extends SMTInterpol {
 					{
 						for (int j = i + 1; j < arrayOldTerm.length; j++)
 						{
-							boolean found = false;
+//							boolean found = false;
 							for (int k = 0; k < arrayNewEqApp.length; k++)
 							{
 								if (!eqFound[k])
 								{
 									if(arrayNewEqApp[k].getParameters()[0] == arrayOldTerm[i]
-											&& arrayNewEqApp[k].getParameters()[1] == arrayOldTerm[j])
-									{
-										found = true;
-										eqFound[k] = true;
-									}
+											&& arrayNewEqApp[k].getParameters()[1] == arrayOldTerm[j])										
+										eqFound[k] = true; // found = true;
+									
 									if(arrayNewEqApp[k].getParameters()[1] == arrayOldTerm[i]
 											&& arrayNewEqApp[k].getParameters()[0] == arrayOldTerm[j])
-									{
-										found = true;
-										eqFound[k] = true;
-									}
+										eqFound[k] = true; // found = true;
 								}
 							}
 							
-							if (!found)
-							{
-								throw new AssertionError("Error: Couldn't find the equality that " 
-										+ "corresponds to " + arrayOldTerm[i].toStringDirect()
-										+ " and " + arrayOldTerm[j].toStringDirect() + ".\n"
-										+ "The term was " + term.toStringDirect());
-							}
+							// Wrong, because the rule allows to leave out disjuncts.
+//							if (!found)
+//							{
+//								throw new AssertionError("Error: Couldn't find the equality that " 
+//										+ "corresponds to " + arrayOldTerm[i].toStringDirect()
+//										+ " and " + arrayOldTerm[j].toStringDirect() + ".\n"
+//										+ "The term was " + term.toStringDirect());
+//							}
 						}
 					}
 					
@@ -819,8 +818,6 @@ public class ProofChecker extends SMTInterpol {
 				}
 				else if (rewriteRule == ":distinctBool")
 				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO
-					
 					if (termEqApp.getParameters()[1] != smtInterpol.term("false"))
 						throw new AssertionError("Error: The second argument of a rewrite of the rule "
 								+ rewriteRule + " should be false, but it isn't.\n"
@@ -836,8 +833,7 @@ public class ProofChecker extends SMTInterpol {
 					
 					// Check if two are they are all boolean
 					for (Term subterm : termOldApp.getParameters())
-						if (subterm != smtInterpol.term("false")
-								&& subterm != smtInterpol.term("true"))
+						if (subterm.getSort() != smtInterpol.sort("Bool"))
 							throw new AssertionError("Error 2 at " + rewriteRule);
 					
 				
@@ -1020,7 +1016,6 @@ public class ProofChecker extends SMTInterpol {
 					ApplicationTerm innerAppTermFirstNeg = convertApp(termEqApp.getParameters()[0]);
 					pm_func(innerAppTermFirstNeg, "not");
 					
-					// TODO: Needs testing!
 					if ((innerAppTermFirstNeg.getParameters()[0] == smtInterpol.term("false") &&
 							termEqApp.getParameters()[1] == smtInterpol.term("true"))
 						||
@@ -1122,63 +1117,58 @@ public class ProofChecker extends SMTInterpol {
 							+ "!\n The term was " + term.toStringDirect());						
 				}
 				else if (rewriteRule == ":iteTrue")
-				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO					
-															
+				{									
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
 
 					pm_func(termOldApp,"ite");
+					
+					checkNumber(termOldApp.getParameters(),3);
+					checkNumber(termEqApp.getParameters(),2);	
 					
 					//Check syntactical correctness
 					if (termOldApp.getParameters()[0] != smtInterpol.term("true"))
 						throw new AssertionError("Error 1 at " + rewriteRule);
 					
-					if (termOldApp.getParameters()[1] != termApp.getParameters()[1])
+					if (termOldApp.getParameters()[1] != termEqApp.getParameters()[1])
 						throw new AssertionError("Error 2 at " + rewriteRule);
 				}
 				else if (rewriteRule == ":iteFalse")
-				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO					
-															
+				{									
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
 
 					pm_func(termOldApp,"ite");
+					
+					checkNumber(termOldApp.getParameters(),3);
+					checkNumber(termEqApp.getParameters(),2);					
 					
 					//Check syntactical correctness
 					if (termOldApp.getParameters()[0] != smtInterpol.term("false"))
 						throw new AssertionError("Error 1 at " + rewriteRule);
 					
-					if (termOldApp.getParameters()[2] != termApp.getParameters()[1])
+					if (termOldApp.getParameters()[2] != termEqApp.getParameters()[1])
 						throw new AssertionError("Error 2 at " + rewriteRule);
 				}
 				else if (rewriteRule == ":iteSame")
-				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO					
-															
+				{									
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
 
 					pm_func(termOldApp,"ite");
 					
-					//Check syntactical correctness
-					if (termOldApp.getParameters()[0] != smtInterpol.term("false"))
-						throw new AssertionError("Error 1 at " + rewriteRule);
-					
-					if (termOldApp.getParameters()[1] != termApp.getParameters()[1])
+					//Check syntactical correctness					
+					if (termOldApp.getParameters()[1] != termEqApp.getParameters()[1])
 						throw new AssertionError("Error 2 at " + rewriteRule);
 					
-					if (termOldApp.getParameters()[2] != termApp.getParameters()[1])
+					if (termOldApp.getParameters()[2] != termEqApp.getParameters()[1])
 						throw new AssertionError("Error 3 at " + rewriteRule);
 				}
 				else if (rewriteRule == ":iteBool1")
-				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO					
-															
+				{									
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
 
 					pm_func(termOldApp,"ite");
 					
 					//Check syntactical correctness
-					if (termOldApp.getParameters()[0] != termApp.getParameters()[1])
+					if (termOldApp.getParameters()[0] != termEqApp.getParameters()[1])
 						throw new AssertionError("Error 1 at " + rewriteRule);
 					
 					if (termOldApp.getParameters()[1] != smtInterpol.term("true"))
@@ -1188,16 +1178,14 @@ public class ProofChecker extends SMTInterpol {
 						throw new AssertionError("Error 3 at " + rewriteRule);
 				}
 				else if (rewriteRule == ":iteBool2")
-				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO					
-															
+				{								
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
 
 					pm_func(termOldApp,"ite");
 					
 					//Check syntactical correctness
 					if (smtInterpol.term("not",termOldApp.getParameters()[0]) 
-							!= termApp.getParameters()[1])
+							!= termEqApp.getParameters()[1])
 						throw new AssertionError("Error 1 at " + rewriteRule);
 					
 					if (termOldApp.getParameters()[1] != smtInterpol.term("false"))
@@ -2033,91 +2021,91 @@ public class ProofChecker extends SMTInterpol {
 					/* Not nice: Not checked, if i is an integer, but
 					 * it is still correct.
 					 */
-				}
-				else if (rewriteRule == ":=+1" || rewriteRule == ":=+2")
-				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO					
-					int rr = 2;
-					if (rewriteRule == ":=+1")
-						rr = 1;
-					
-					checkNumber(termApp.getParameters(),2);
-					ApplicationTerm termOldApp = convertApp(termApp.getParameters()[0]);
-					checkNumber(termOldApp.getParameters(),2);
-					ApplicationTerm termNewApp = convertApp(termApp.getParameters()[1]);
-					checkNumber(termNewApp.getParameters(),2);
-					//ApplicationTerm termNewAppInnerApp = convertApp(termNewApp.getParameters()[2-rr]);
-					//checkNumber(termNewAppInnerApp.getParameters(),1);
-					
-					//The term (F1 or F2) which is negated in new term
-					Term termNewNeg = termOldApp.getParameters()[2-rr];
-					Term termNewPos = termOldApp.getParameters()[rr-1];
-					
-					pm_func(termOldApp,"=");
-					pm_func(termNewApp,"or");
-					//pm_func(termNewAppInnerApp,"not");
-					
-					if (termNewApp.getParameters()[rr-1] != termNewNeg
-							&& termNewApp.getParameters()[2-rr] != termNewNeg)
-						throw new AssertionError("Error 1 at " + rewriteRule);
-					
-					if (termNewApp.getParameters()[rr-1] != smtInterpol.term("not",termNewPos)
-							|| termNewApp.getParameters()[2-rr] != smtInterpol.term("not",termNewPos))
-						throw new AssertionError("Error 2 at " + rewriteRule);
-					
-					/* Not nice: Not checked, if the F are boolean, which
-					 * they should.
-					 */
-				}
-				else if (rewriteRule == ":=-1" || rewriteRule == ":=-2")
-				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO
-					
-					checkNumber(termApp.getParameters(),2);
-					ApplicationTerm termOldApp = convertApp(termApp.getParameters()[0]);
-					checkNumber(termOldApp.getParameters(),1);
-					ApplicationTerm termNewApp = convertApp(termApp.getParameters()[1]);
-					checkNumber(termNewApp.getParameters(),2);
-					ApplicationTerm termOldAppInnerApp = convertApp(termOldApp.getParameters()[0]);
-					checkNumber(termOldAppInnerApp.getParameters(),2);
-					
-					Term termF1 = termOldAppInnerApp.getParameters()[0];
-					Term termF2 = termOldAppInnerApp.getParameters()[1];
-					
-					pm_func(termOldApp,"not");
-					pm_func(termOldAppInnerApp,"=");
-					pm_func(termNewApp,"or");
-					
-					if (rewriteRule == ":=-1")
-						// or is commutative
-						if (termNewApp.getParameters()[0] != termF1
-							|| termNewApp.getParameters()[1] != termF1)
-							throw new AssertionError("Error 1 at " + rewriteRule);
-					
-						if (termNewApp.getParameters()[0] != termF2
-							|| termNewApp.getParameters()[1] != termF2)
-							throw new AssertionError("Error 2 at " + rewriteRule);	
-					else
-					{
-						ApplicationTerm termNewAppInner1App = convertApp(termNewApp.getParameters()[0]);
-						ApplicationTerm termNewAppInner2App = convertApp(termNewApp.getParameters()[1]);
-					
-						pm_func(termNewAppInner1App,"not");
-						pm_func(termNewAppInner2App,"not");
-						
-						// or is commutative						
-						if (termNewAppInner1App.getParameters()[0] != termF1
-							|| termNewAppInner2App.getParameters()[1] != termF1)
-							throw new AssertionError("Error 3 at " + rewriteRule);
-						
-						if (termNewAppInner1App.getParameters()[0] != termF2
-							|| termNewAppInner2App.getParameters()[1] != termF2)
-							throw new AssertionError("Error 4 at " + rewriteRule);
-					}		
-					
-					/* Not nice: Not checked, if the F are boolean, which
-					 * they should.
-					 */
+//				}
+//				else if (rewriteRule == ":=+1" || rewriteRule == ":=+2")
+//				{
+//					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO					
+//					int rr = 2;
+//					if (rewriteRule == ":=+1")
+//						rr = 1;
+//					
+//					checkNumber(termApp.getParameters(),2);
+//					ApplicationTerm termOldApp = convertApp(termApp.getParameters()[0]);
+//					checkNumber(termOldApp.getParameters(),2);
+//					ApplicationTerm termNewApp = convertApp(termApp.getParameters()[1]);
+//					checkNumber(termNewApp.getParameters(),2);
+//					//ApplicationTerm termNewAppInnerApp = convertApp(termNewApp.getParameters()[2-rr]);
+//					//checkNumber(termNewAppInnerApp.getParameters(),1);
+//					
+//					//The term (F1 or F2) which is negated in new term
+//					Term termNewNeg = termOldApp.getParameters()[2-rr];
+//					Term termNewPos = termOldApp.getParameters()[rr-1];
+//					
+//					pm_func(termOldApp,"=");
+//					pm_func(termNewApp,"or");
+//					//pm_func(termNewAppInnerApp,"not");
+//					
+//					if (termNewApp.getParameters()[rr-1] != termNewNeg
+//							&& termNewApp.getParameters()[2-rr] != termNewNeg)
+//						throw new AssertionError("Error 1 at " + rewriteRule);
+//					
+//					if (termNewApp.getParameters()[rr-1] != smtInterpol.term("not",termNewPos)
+//							|| termNewApp.getParameters()[2-rr] != smtInterpol.term("not",termNewPos))
+//						throw new AssertionError("Error 2 at " + rewriteRule);
+//					
+//					/* Not nice: Not checked, if the F are boolean, which
+//					 * they should.
+//					 */
+//				}
+//				else if (rewriteRule == ":=-1" || rewriteRule == ":=-2")
+//				{
+//					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO
+//					
+//					checkNumber(termApp.getParameters(),2);
+//					ApplicationTerm termOldApp = convertApp(termApp.getParameters()[0]);
+//					checkNumber(termOldApp.getParameters(),1);
+//					ApplicationTerm termNewApp = convertApp(termApp.getParameters()[1]);
+//					checkNumber(termNewApp.getParameters(),2);
+//					ApplicationTerm termOldAppInnerApp = convertApp(termOldApp.getParameters()[0]);
+//					checkNumber(termOldAppInnerApp.getParameters(),2);
+//					
+//					Term termF1 = termOldAppInnerApp.getParameters()[0];
+//					Term termF2 = termOldAppInnerApp.getParameters()[1];
+//					
+//					pm_func(termOldApp,"not");
+//					pm_func(termOldAppInnerApp,"=");
+//					pm_func(termNewApp,"or");
+//					
+//					if (rewriteRule == ":=-1")
+//						// or is commutative
+//						if (termNewApp.getParameters()[0] != termF1
+//							|| termNewApp.getParameters()[1] != termF1)
+//							throw new AssertionError("Error 1 at " + rewriteRule);
+//					
+//						if (termNewApp.getParameters()[0] != termF2
+//							|| termNewApp.getParameters()[1] != termF2)
+//							throw new AssertionError("Error 2 at " + rewriteRule);	
+//					else
+//					{
+//						ApplicationTerm termNewAppInner1App = convertApp(termNewApp.getParameters()[0]);
+//						ApplicationTerm termNewAppInner2App = convertApp(termNewApp.getParameters()[1]);
+//					
+//						pm_func(termNewAppInner1App,"not");
+//						pm_func(termNewAppInner2App,"not");
+//						
+//						// or is commutative						
+//						if (termNewAppInner1App.getParameters()[0] != termF1
+//							|| termNewAppInner2App.getParameters()[1] != termF1)
+//							throw new AssertionError("Error 3 at " + rewriteRule);
+//						
+//						if (termNewAppInner1App.getParameters()[0] != termF2
+//							|| termNewAppInner2App.getParameters()[1] != termF2)
+//							throw new AssertionError("Error 4 at " + rewriteRule);
+//					}		
+//					
+//					/* Not nice: Not checked, if the F are boolean, which
+//					 * they should.
+//					 */
 				}
 				else if (rewriteRule == ":ite+1" || rewriteRule == ":ite+2")
 				{
@@ -2853,7 +2841,7 @@ public class ProofChecker extends SMTInterpol {
 			ApplicationTerm termOldCalcApp = convertApp(convertAnn(stackPop("split")).getSubterm());
 			Term termSplitReturnInner = termSplitReturnApp.getParameters()[0];
 			
-			pm_func(termSplitReturnApp,"not");
+			// OLD: pm_func(termSplitReturnApp,"not"); Seems very wrong...
 			
 			String splitRule = termAppSplitInnerAnn.getAnnotations()[0].getKey();
 						
@@ -2865,10 +2853,10 @@ public class ProofChecker extends SMTInterpol {
 			if (false)
 			{} else if (splitRule == ":notOr")
 			{
+				pm_func(termSplitReturnApp,"not");
 				pm_func(termOldCalcApp, "not");
 				ApplicationTerm termOldCalcAppInnerApp = convertApp(termOldCalcApp.getParameters()[0]);
-				pm_func(termOldCalcAppInnerApp, "or");
-				
+				pm_func(termOldCalcAppInnerApp, "or");				
 				
 				
 				for (Term disjunct : termOldCalcAppInnerApp.getParameters())
@@ -2881,6 +2869,98 @@ public class ProofChecker extends SMTInterpol {
 				}
 				
 				throw new AssertionError("Error in \"split\"");
+			} 
+			else if (splitRule == ":=+1" || splitRule == ":=+2")
+			{	
+				int rr = 2;
+				if (splitRule == ":=+1")
+					rr = 1;
+				
+				checkNumber(termApp.getParameters(),2);
+				ApplicationTerm termOldApp = termOldCalcApp;//convertApp(termApp.getParameters()[0]);
+				checkNumber(termOldApp.getParameters(),2);
+				ApplicationTerm termNewApp = termSplitReturnApp;//convertApp(termApp.getParameters()[1]);
+				checkNumber(termNewApp.getParameters(),2);
+				//ApplicationTerm termNewAppInnerApp = convertApp(termNewApp.getParameters()[2-rr]);
+				//checkNumber(termNewAppInnerApp.getParameters(),1);
+				
+				//The term (F1 or F2) which is negated in new term
+				Term termNewNeg = termOldApp.getParameters()[2-rr];
+				Term termNewPos = termOldApp.getParameters()[rr-1];
+				
+				pm_func(termOldApp,"=");
+				pm_func(termNewApp,"or");
+				//pm_func(termNewAppInnerApp,"not");
+				
+				if (termNewApp.getParameters()[rr-1] != smtInterpol.term("not",termNewNeg)
+						&& termNewApp.getParameters()[2-rr] != smtInterpol.term("not",termNewNeg))
+					throw new AssertionError("Error 1 at " + splitRule);
+				
+				if (termNewApp.getParameters()[rr-1] != termNewPos
+						&& termNewApp.getParameters()[2-rr] != termNewPos)
+					throw new AssertionError("Error 2 at " + splitRule);
+				
+				/* Not nice: Not checked, if the F are boolean, which
+				 * they should.
+				 */
+				
+				stackPush(termApp.getParameters()[1], term);
+				return;
+			}
+			else if (splitRule == ":=-1" || splitRule == ":=-2")
+			{
+				System.out.println("\n \n \n Now finally tested: " + splitRule);	 //TODO
+				
+				checkNumber(termApp.getParameters(),2);
+				ApplicationTerm termOldApp = termOldCalcApp;//convertApp(termApp.getParameters()[0]);
+				checkNumber(termOldApp.getParameters(),1);
+				ApplicationTerm termNewApp = termSplitReturnApp;//convertApp(termApp.getParameters()[1]);
+				checkNumber(termNewApp.getParameters(),2);
+				ApplicationTerm termOldAppInnerApp = convertApp(termOldApp.getParameters()[0]);
+				checkNumber(termOldAppInnerApp.getParameters(),2);
+				
+				Term termF1 = termOldAppInnerApp.getParameters()[0];
+				Term termF2 = termOldAppInnerApp.getParameters()[1];
+				
+				pm_func(termOldApp,"not");
+				pm_func(termOldAppInnerApp,"=");
+				pm_func(termNewApp,"or");
+				
+				if (splitRule == ":=-1")
+				{
+					// or is commutative
+					if (termNewApp.getParameters()[0] != termF1
+						|| termNewApp.getParameters()[1] != termF1)
+						throw new AssertionError("Error 1 at " + splitRule);
+				
+					if (termNewApp.getParameters()[0] != termF2
+						|| termNewApp.getParameters()[1] != termF2)
+						throw new AssertionError("Error 2 at " + splitRule);
+				}
+				else
+				{
+					ApplicationTerm termNewAppInner1App = convertApp(termNewApp.getParameters()[0]);
+					ApplicationTerm termNewAppInner2App = convertApp(termNewApp.getParameters()[1]);
+				
+					pm_func(termNewAppInner1App,"not");
+					pm_func(termNewAppInner2App,"not");
+					
+					// or is commutative						
+					if (termNewAppInner1App.getParameters()[0] != termF1
+						|| termNewAppInner2App.getParameters()[1] != termF1)
+						throw new AssertionError("Error 3 at " + splitRule);
+					
+					if (termNewAppInner1App.getParameters()[0] != termF2
+						|| termNewAppInner2App.getParameters()[1] != termF2)
+						throw new AssertionError("Error 4 at " + splitRule);
+				}	
+				
+				/* Not nice: Not checked, if the F are boolean, which
+				 * they should.
+				 */				
+					
+				stackPush(termApp.getParameters()[1], term);
+				return;
 			} else
 			{
 				throw new AssertionError ("Error: The following split-rule hasn't been "
