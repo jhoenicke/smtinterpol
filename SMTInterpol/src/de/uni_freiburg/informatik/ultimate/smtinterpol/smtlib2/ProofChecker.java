@@ -869,8 +869,6 @@ public class ProofChecker extends SMTInterpol {
 				} 
 				else if (rewriteRule == ":distinctNeg")
 				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO
-					
 					if (termEqApp.getParameters()[1] != smtInterpol.term("true"))
 					{
 						throw new AssertionError("Error: The second argument of a rewrite of the rule "
@@ -895,36 +893,35 @@ public class ProofChecker extends SMTInterpol {
 				} 
 				else if (rewriteRule == ":distinctTrue")
 				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO
-					
 					ApplicationTerm termNewApp = convertApp(termEqApp.getParameters()[1]);
-					pm_func(termNewApp,"not");
-					
-					if (termNewApp.getParameters()[1] != smtInterpol.term("true"))
-						throw new AssertionError("Error 1 at " + rewriteRule);
-					
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
 					
 					pm_func(termOldApp, "distinct");
+					pm_func(termNewApp,"not");
 					
 					if (termOldApp.getParameters().length != 2)
 						throw new AssertionError("Error 2 at " + rewriteRule);
 					
-					// Check if one is the negation of the other
+					// Check if one is true
 					Term term1 = termOldApp.getParameters()[0];
 					Term term2 = termOldApp.getParameters()[1];
-					if (term1 != smtInterpol.term("true")
-							|| term2 != smtInterpol.term("true"))
+					
+					Term termNotTrue; // The term on the left side which is not true
+					
+					if (term1.equals(smtInterpol.term("true")))
+						termNotTrue = term2;
+					else if (term2.equals(smtInterpol.term("true")))
+						termNotTrue = term1;
+					else
+						throw new AssertionError("Error 1 at " + rewriteRule);						
+					
+					if (termNewApp.getParameters()[0] != termNotTrue)
 						throw new AssertionError("Error 2 at " + rewriteRule);
 				
 				} 
 				else if (rewriteRule == ":distinctFalse")
 				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO
-										
-					if (termEqApp.getParameters()[1] != smtInterpol.term("false"))
-						throw new AssertionError("Error 1 at " + rewriteRule);
-					
+					Term termNew = termEqApp.getParameters()[1];
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
 					
 					pm_func(termOldApp, "distinct");
@@ -932,11 +929,20 @@ public class ProofChecker extends SMTInterpol {
 					if (termOldApp.getParameters().length != 2)
 						throw new AssertionError("Error 2 at " + rewriteRule);
 					
-					// Check if one is the negation of the other
+					// Check if one is false
 					Term term1 = termOldApp.getParameters()[0];
 					Term term2 = termOldApp.getParameters()[1];
-					if (term1 != smtInterpol.term("false")
-							|| term2 != smtInterpol.term("false"))
+					
+					Term termNotFalse; // The term on the left side which is not true
+					
+					if (term1.equals(smtInterpol.term("false")))
+						termNotFalse = term2;
+					else if (term2.equals(smtInterpol.term("false")))
+						termNotFalse = term1;
+					else
+						throw new AssertionError("Error 1 at " + rewriteRule);						
+					
+					if (termNew != termNotFalse)
 						throw new AssertionError("Error 2 at " + rewriteRule);
 				
 				} 
@@ -947,71 +953,107 @@ public class ProofChecker extends SMTInterpol {
 					ApplicationTerm termNewAppInnerApp = convertApp(termNewApp.getParameters()[0]);
 					
 					pm_func(termOldApp, "distinct");
-					pm_func(termNewApp, "not");
 					
-					// The array which contains the equalities
-					Term[] arrayNewEq = null;
-					Term[] arrayOldTerm = termOldApp.getParameters(); 
-					
-				
-					if (pm_func_weak(termNewAppInnerApp,"or"))
+					// Maybe it's the distinctBoolEq-rule
+					if (pm_func_weak(termNewApp, "="))
 					{
-						arrayNewEq = termNewAppInnerApp.getParameters(); 					 
-					} else
-					{
-						arrayNewEq = termNewApp.getParameters();
+						Term termP1 = termOldApp.getParameters()[0]; // The first Boolesch variable
+						Term termP2 = termOldApp.getParameters()[1]; // The first Boolesch variable
+						
+						if (termP1.getSort() != smtInterpol.sort("Bool")
+								|| termP2.getSort() != smtInterpol.sort("Bool"))
+							throw new AssertionError("Error 1 in :distinctBinary_distinctBoolEq");
+						
+						boolean correctRightSide = false;
+						
+						// Four cases need to be checked
+						if (termNewApp.getParameters()[0].equals(termP1)
+								&& termNewApp.getParameters()[1].equals(negate(termP2,smtInterpol)))
+							correctRightSide = true;
+						
+						if (termNewApp.getParameters()[0].equals(termP2)
+								&& termNewApp.getParameters()[1].equals(negate(termP1,smtInterpol)))
+							correctRightSide = true;
+						
+						if (termNewApp.getParameters()[1].equals(termP1)
+								&& termNewApp.getParameters()[0].equals(negate(termP2,smtInterpol)))
+							correctRightSide = true;
+						
+						if (termNewApp.getParameters()[1].equals(termP2)
+								&& termNewApp.getParameters()[0].equals(negate(termP1,smtInterpol)))
+							correctRightSide = true;
+						
+						if (!correctRightSide)
+							throw new AssertionError("Error at the end of :distinctBinary_distinctBoolEq");
 					}
-					
-					boolean[] eqFound = new boolean[arrayNewEq.length];
-					
-					for (int i = 0; i < eqFound.length; i++)
-						eqFound[i] = false;
-					
-					// Look for each two distinct terms (j > i) if there exists a fitting equality
-					for (int i = 0; i < arrayOldTerm.length; i++)
+					else
 					{
-						for (int j = i + 1; j < arrayOldTerm.length; j++)
+						pm_func(termNewApp, "not");
+						
+						// The array which contains the equalities
+						Term[] arrayNewEq = null;
+						Term[] arrayOldTerm = termOldApp.getParameters(); 
+						
+					
+						if (pm_func_weak(termNewAppInnerApp,"or"))
 						{
-							boolean found = false;
-							for (int k = 0; k < arrayNewEq.length; k++)
+							arrayNewEq = termNewAppInnerApp.getParameters(); 					 
+						} else
+						{
+							arrayNewEq = termNewApp.getParameters();
+						}
+						
+						boolean[] eqFound = new boolean[arrayNewEq.length];
+						
+						for (int i = 0; i < eqFound.length; i++)
+							eqFound[i] = false;
+						
+						// Look for each two distinct terms (j > i) if there exists a fitting equality
+						for (int i = 0; i < arrayOldTerm.length; i++)
+						{
+							for (int j = i + 1; j < arrayOldTerm.length; j++)
 							{
-								if (!eqFound[k])
+								boolean found = false;
+								for (int k = 0; k < arrayNewEq.length; k++)
 								{
-									ApplicationTerm termAppTemp = convertApp(arrayNewEq[k]);
-									pm_func(termAppTemp, "=");
-									
-									if(termAppTemp.getParameters()[0] == arrayOldTerm[i]
-											&& termAppTemp.getParameters()[1] == arrayOldTerm[j])
+									if (!eqFound[k])
 									{
-										found = true;
-										eqFound[k] = true;
-									}
-									if(termAppTemp.getParameters()[1] == arrayOldTerm[i]
-											&& termAppTemp.getParameters()[0] == arrayOldTerm[j])
-									{
-										found = true;
-										eqFound[k] = true;
+										ApplicationTerm termAppTemp = convertApp(arrayNewEq[k]);
+										pm_func(termAppTemp, "=");
+										
+										if(termAppTemp.getParameters()[0] == arrayOldTerm[i]
+												&& termAppTemp.getParameters()[1] == arrayOldTerm[j])
+										{
+											found = true;
+											eqFound[k] = true;
+										}
+										if(termAppTemp.getParameters()[1] == arrayOldTerm[i]
+												&& termAppTemp.getParameters()[0] == arrayOldTerm[j])
+										{
+											found = true;
+											eqFound[k] = true;
+										}
 									}
 								}
-							}
-							
-							if (!found)
-							{
-								throw new AssertionError("Error: Couldn't find the equality that " 
-										+ "corresponds to " + arrayOldTerm[i].toStringDirect()
-										+ " and " + arrayOldTerm[j].toStringDirect() + ".\n"
-										+ "The term was " + term.toStringDirect());
+								
+								if (!found)
+								{
+									throw new AssertionError("Error: Couldn't find the equality that " 
+											+ "corresponds to " + arrayOldTerm[i].toStringDirect()
+											+ " and " + arrayOldTerm[j].toStringDirect() + ".\n"
+											+ "The term was " + term.toStringDirect());
+								}
 							}
 						}
+						
+						// At last check if each equality is alright
+						for (int i = 0; i < eqFound.length; i++)
+							if (!eqFound[i])
+								throw new AssertionError("Error: Coulnd't associate the equality " 
+										+ arrayNewEq[i] + "\n. The term was " + term.toStringDirect());
+						
+						// So it is correct
 					}
-					
-					// At last check if each equality is alright
-					for (int i = 0; i < eqFound.length; i++)
-						if (!eqFound[i])
-							throw new AssertionError("Error: Coulnd't associate the equality " 
-									+ arrayNewEq[i] + "\n. The term was " + term.toStringDirect());
-					
-					// So it is correct
 				}
 				else if (rewriteRule == ":notSimp")
 				{
@@ -3612,12 +3654,11 @@ public class ProofChecker extends SMTInterpol {
 			//ConstantTerm termConst = convertConst(term);
 			
 			if (term.getSort() == smtInterpol.sort("Int"))	
-					return true; // TODO: untested
+					return true;
 			
 			//else
 			return false;
-		}
-			
+		}			
 	}
 	
 	void isConstant(SMTAffineTerm term, Rational constant)
