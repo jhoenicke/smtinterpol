@@ -1591,7 +1591,7 @@ public class ProofChecker extends SMTInterpol {
 						{
 							// Then paramINew has to be either old.0 or (to_real old)
 							// Case 1: old.0
-							if (calculateTerm(paramINew,smtInterpol).getSort().getName() == "Rational") //TODO doesn't seem right
+							if (calculateTerm(paramINew,smtInterpol).getSort() == smtInterpol.sort("Rational")) //TODO doesn't seem right
 							{
 								if (!calculateTerm(paramINew,smtInterpol).equals(calculateTerm(paramIOld,smtInterpol)))
 									throw new AssertionError("Error 3 in :desugar");
