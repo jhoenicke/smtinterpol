@@ -1566,11 +1566,8 @@ public class ProofChecker extends SMTInterpol {
 						throw new AssertionError("Error 4 at " + rewriteRule);
 				}
 				else if (rewriteRule == ":desugar")
-				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO					
-					// Hierfür wurde in meinem Testfall canonicalSum verwendet.
-					
-					/* All Int-Parameters of the outmost function
+				{					
+					/* All Int-Parameters of the outermost function
 					 * are getting converted into Real-Parameters
 					 */
 					
@@ -1587,29 +1584,42 @@ public class ProofChecker extends SMTInterpol {
 					{
 						Term paramIOld = termOldApp.getParameters()[i];
 						Term paramINew = termNewApp.getParameters()[i];
-						if (calculateTerm(paramIOld,smtInterpol).isIntegral())
+						if (!paramIOld.equals(paramINew))
 						{
-							// Then paramINew has to be either old.0 or (to_real old)
-							// Case 1: old.0
-							if (calculateTerm(paramINew,smtInterpol).getSort() == smtInterpol.sort("Rational")) //TODO doesn't seem right
-							{
-								if (!calculateTerm(paramINew,smtInterpol).equals(calculateTerm(paramIOld,smtInterpol)))
-									throw new AssertionError("Error 3 in :desugar");
-								continue;
-							}
-							// Case 2: (to_real old)
-							
-							ApplicationTerm paramINewApp = convertApp(paramINew);
-							
-							pm_func(paramINewApp,"to_real");
-							
-							if(!paramIOld.equals(
-									paramINewApp.getParameters()[0]))
-								throw new AssertionError("Error 4 in :desugar");
-							
-						} else
-							if (!paramIOld.equals(paramINew))
+							if (!calculateTerm(paramIOld,smtInterpol).isIntegral())
 								throw new AssertionError("Error 2 in :desugar");
+							
+							// Then paramINew has to be either old.0 or (to_real old)
+							// Case 1: (to_real old), Case 2: old.0
+							boolean correct = false;
+							
+							if (paramINew instanceof ApplicationTerm)
+							{
+								// Case 1 and parts of Case 2: (Just handling of the complete Case 1)								
+								ApplicationTerm paramINewApp = convertApp(paramINew);
+								
+								if (pm_func_weak(paramINewApp,"to_real"))								
+									if(paramIOld.equals(
+											paramINewApp.getParameters()[0]))
+										correct = true;
+									else
+										throw new AssertionError("Error 4 in :desugar");
+							}
+							
+							// Case 2 and parts of Case 1: (Just handling of the complete Case 2)
+							if (calculateTerm(paramINew,smtInterpol).getSort() == smtInterpol.sort("Real"))
+							{
+								// Check for equalitiy, ? and ?.0 have to be equal, therefor .equals doesn't work
+								SMTAffineTerm diffZero = calculateTerm(paramINew,smtInterpol).add(
+										calculateTerm(paramIOld,smtInterpol).negate());
+								if (diffZero.isConstant()
+										&& diffZero.getConstant() == Rational.ZERO)
+									correct = true;
+							}
+							
+							if (!correct)
+								throw new AssertionError("Error 5 in :desugar");							
+						}
 					}
 				}
 				else if (rewriteRule == ":divisible")
@@ -1927,7 +1937,6 @@ public class ProofChecker extends SMTInterpol {
 				}
 				else if (rewriteRule == ":toInt")
 				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO	
 					// No idea how to check it
 					
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
@@ -1935,11 +1944,50 @@ public class ProofChecker extends SMTInterpol {
 					pm_func(termOldApp,"to_int");
 					
 					// r and v as in the rule
-					Term termR = convertConst_Neg(termOldApp.getParameters()[1]);
 					Term termV = convertConst_Neg(termEqApp.getParameters()[1]);
+					Term termR = termOldApp.getParameters()[0];
+					// can be a positive/negative fraction
+					// Case A: Positive Integer, Case B: Negative Integer
+					// Case C: Positive Fraction, Case D: Negative Fraction
 					
-					if (calculateTerm(termR,smtInterpol).getConstant().floor() != 
-							calculateTerm(termV,smtInterpol).getConstant())						
+					if (termR instanceof ApplicationTerm) 
+					{
+						// Case B, C, D:
+						ApplicationTerm termRApp = convertApp(termR);
+						ApplicationTerm termRInnerApp;
+						if (pm_func_weak(termRApp,"-") 
+								&& termRApp.getParameters()[0] instanceof ApplicationTerm)
+						{
+							// Case D:
+							termRInnerApp = convertApp(termRApp.getParameters()[0]);
+							pm_func(termRInnerApp,"/");
+							checkNumber(termRInnerApp,2);
+							
+							convertConst_Neg(termRInnerApp.getParameters()[0]); // Presumably the neg isn't needed
+							convertConst_Neg(termRInnerApp.getParameters()[1]); // Presumably the neg isn't needed
+						} else if (pm_func_weak(termRApp,"/"))
+						{
+							// Case C:
+							pm_func(termRApp,"/");
+							checkNumber(termRApp,2);
+							
+							convertConst_Neg(termRApp.getParameters()[0]); // Presumably the neg isn't needed
+							convertConst_Neg(termRApp.getParameters()[1]); // Presumably the neg isn't needed
+						} else
+						{
+							// Case B:
+							pm_func(termRApp,"-");
+							
+							convertConst(termRApp.getParameters()[0]);
+						}	
+					} else
+					{
+						// Case A:
+						convertConst(termR);
+					}
+					
+					if (!calculateTerm(termR,smtInterpol).getConstant().floor().equals( 
+							calculateTerm(termV,smtInterpol).getConstant())) 	
 						throw new AssertionError("Error 2 at " + rewriteRule);
 					
 					/* Not nice: Not checked, if v is an integer and
@@ -1948,17 +1996,14 @@ public class ProofChecker extends SMTInterpol {
 				}
 				else if (rewriteRule == ":toReal")
 				{
-					System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO					
-					//Mein Testfall wird wieder mit :canonicalSum behandelt 
-					
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
 					
 					pm_func(termOldApp,"to_real");
-					
-					Term termOldC = convertConst_Neg(termOldApp.getParameters()[1]);
+										
+					Term termOldC = convertConst_Neg(termOldApp.getParameters()[0]);
 					Term termNewC = convertConst_Neg(termEqApp.getParameters()[1]);
 					
-					if (!calculateTerm(termOldC,smtInterpol).equals( 
+					if (!calculateTerm(termOldC,smtInterpol).getConstant().equals( 
 							calculateTerm(termNewC,smtInterpol).getConstant()))						
 						throw new AssertionError("Error 2 at " + rewriteRule);
 					
@@ -3247,7 +3292,17 @@ public class ProofChecker extends SMTInterpol {
 					throw new AssertionError("Error 1 in add in calculateTerm with term " + term.toStringDirect());
 				resultTerm = SMTAffineTerm.create(smtInterpol.numeral("0"));
 				for (Term summand : termApp.getParameters())
+				{
+					System.out.println("Current Error: ");
+					System.out.print(resultTerm.toStringDirect());
+					System.out.println(" + " + summand.toStringDirect() + " ...");
+					System.out.print("... = " + resultTerm.toStringDirect());
+					System.out.println(" + " + calculateTerm(summand, smtInterpol).toString() + "...");
+					System.out.print("... = ");
+					System.out.println(resultTerm.add(calculateTerm(summand, smtInterpol)).toStringDirect());					
+					
 					resultTerm = resultTerm.add(calculateTerm(summand, smtInterpol));
+				}					
 				return resultTerm;
 			}
 			
@@ -3287,7 +3342,8 @@ public class ProofChecker extends SMTInterpol {
 				SMTAffineTerm divisor = calculateTerm(termApp.getParameters()[1], smtInterpol);
 				
 				if (divisor.isConstant())
-					return divident.div(divisor.getConstant());
+					return SMTAffineTerm.create(divident.getConstant().div(divisor.getConstant()), smtInterpol.sort("Real"));
+					// Not nice: use of "Real"
 				
 				throw new AssertionError("Error: Couldn't find the constant in the SMTAffineTerm division. "
 						+ "The term was " + termApp.toStringDirect());
@@ -3338,9 +3394,13 @@ public class ProofChecker extends SMTInterpol {
 		
 						
 		} else if (term instanceof ConstantTerm)
+		{
 			return SMTAffineTerm.create(term);
+		}
 		else if (term instanceof SMTAffineTerm)
+		{
 			return (SMTAffineTerm) term;
+		}
 		else
 			throw new AssertionError("Error 3 in calculateTerm with term " + term.toStringDirect());
 	}
@@ -3451,9 +3511,9 @@ public class ProofChecker extends SMTInterpol {
 	
 	boolean pm_func_weak(ApplicationTerm termApp, String pattern)
 	{
-		if (termApp.getFunction().getName() != pattern)
-			return false;
-		return true;
+		if (termApp.getFunction().getName().equals(pattern))
+			return true;
+		return false;
 	}
 	
 	// Does this function make any sense?
