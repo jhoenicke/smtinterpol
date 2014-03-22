@@ -3290,17 +3290,13 @@ public class ProofChecker extends SMTInterpol {
 			{
 				if (termApp.getParameters().length < 1)
 					throw new AssertionError("Error 1 in add in calculateTerm with term " + term.toStringDirect());
-				resultTerm = SMTAffineTerm.create(smtInterpol.numeral("0"));
+				//resultTerm = SMTAffineTerm.create(smtInterpol.numeral("0"));
+				resultTerm =
+						SMTAffineTerm.create(termApp.getSort().getName() == "Real"
+						                        ? smtInterpol.decimal("0.0") :
+						smtInterpol.numeral("0"));
 				for (Term summand : termApp.getParameters())
-				{
-					System.out.println("Current Error: ");
-					System.out.print(resultTerm.toStringDirect());
-					System.out.println(" + " + summand.toStringDirect() + " ...");
-					System.out.print("... = " + resultTerm.toStringDirect());
-					System.out.println(" + " + calculateTerm(summand, smtInterpol).toString() + "...");
-					System.out.print("... = ");
-					System.out.println(resultTerm.add(calculateTerm(summand, smtInterpol)).toStringDirect());					
-					
+				{	
 					resultTerm = resultTerm.add(calculateTerm(summand, smtInterpol));
 				}					
 				return resultTerm;
