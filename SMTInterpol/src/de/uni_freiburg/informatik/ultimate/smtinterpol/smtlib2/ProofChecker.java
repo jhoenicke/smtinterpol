@@ -2098,26 +2098,47 @@ public class ProofChecker extends SMTInterpol {
 				}
 				else if (rewriteRule == ":flatten")
 				{
+					// TODO: Testing
+					/* Assumption: All nested disjunctions are put into one, i.e.
+					 * no new disjunct is itself a disjunction
+					 */					
+					
 					ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
 					ApplicationTerm termNewApp = convertApp(termEqApp.getParameters()[1]);
-					ApplicationTerm termOldAppInnerApp = convertApp(termOldApp.getParameters()[0]);
 					
-					// Assumption: The first argument of the outer disjunction is the inner disjunction
-					pm_func(termOldApp, "or");
-					pm_func(termOldAppInnerApp, "or");
+					pm_func(termOldApp, "or");					
 					pm_func(termNewApp, "or");
 					
 					HashSet<Term> oldDisjuncts = new HashSet<Term>();
 					HashSet<Term> newDisjuncts = new HashSet<Term>();
-									
-					oldDisjuncts.addAll(Arrays.asList(termOldAppInnerApp.getParameters()));
-					for (int i = 1; i < termOldApp.getParameters().length; i++)
-						oldDisjuncts.add(termOldApp.getParameters()[i]);
+					ArrayList<Term> disjuncts = new ArrayList<Term>();
+					
+					disjuncts.addAll(Arrays.asList(termOldApp.getParameters()));
+					
+					while (disjuncts.size() > 0)
+					{
+						Term currentDisjunct = disjuncts.get(disjuncts.size()-1);
+						disjuncts.remove(currentDisjunct);
+						
+						boolean currentIsDisjunction = false;
+						
+						if (currentDisjunct instanceof ApplicationTerm)
+							currentIsDisjunction = pm_func_weak(currentDisjunct, "or");
+						
+						if (currentIsDisjunction)
+						{
+							ApplicationTerm currentDisjunctApp = convertApp(currentDisjunct);
+							disjuncts.addAll(Arrays.asList(currentDisjunctApp.getParameters()));
+						} else
+						{
+							oldDisjuncts.add(currentDisjunct);
+						}								
+					}		
+					
 					newDisjuncts.addAll(Arrays.asList(termNewApp.getParameters()));
 					
 					if (!oldDisjuncts.equals(newDisjuncts))
-						throw new AssertionError("Error in the rule " + rewriteRule + "!\n The term was " + term.toStringDirect());
-					
+						throw new AssertionError("Error in the rule " + rewriteRule + "!\n The term was " + term.toStringDirect());					
 				
 				} else
 				{
