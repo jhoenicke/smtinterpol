@@ -41,7 +41,7 @@ public class ProofChecker extends SMTInterpol {
 	public boolean check(Term res, SMTInterpol smtInterpol) {
 		
 		// Just for debugging
-		debug.add("currently");
+		//debug.add("currently");
 		//debug.add("passt");
 		//debug.add("hardTerm");
 		//debug.add("LemmaLAadd");
@@ -188,7 +188,7 @@ public class ProofChecker extends SMTInterpol {
 			
 			/* Just for debugging */
 			if (debug.contains("currently"))
-				System.out.println("Currently looking at: " + functionname);
+				System.out.println("Currently looking at: " + functionname + " \t (function)");
 			
 			// A global initialization for rewrite and intern:
 			ApplicationTerm termEqApp; // The ApplicationTerm with the equality
@@ -468,6 +468,61 @@ public class ProofChecker extends SMTInterpol {
 					
 					if (!pathFind(subpaths,premises,termStart,termEnd))
 						throw new AssertionError("Error at the end of lemma_:CC");
+				} else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":trichotomy")
+				{
+					ApplicationTerm termDisj = convertApp(termAppInnerAnn.getSubterm());
+					
+					pm_func(termDisj, "or");
+					
+					checkNumber(termDisj,3);
+					
+					ApplicationTerm disjunct1App = convertApp_hard(termDisj.getParameters()[0]);
+					ApplicationTerm disjunct2App = convertApp_hard(termDisj.getParameters()[1]);
+					ApplicationTerm disjunct3App = convertApp_hard(termDisj.getParameters()[2]);
+					
+					// Find the equality
+					
+					ApplicationTerm equality;
+
+					if (pm_func_weak(disjunct1App, "="))
+						equality = disjunct1App;
+					else if (pm_func_weak(disjunct2App, "="))
+						equality = disjunct2App;
+					else if (pm_func_weak(disjunct3App, "="))
+						equality = disjunct3App;
+					else
+						throw new AssertionError("Error 1 in Lemma_trichotomy");
+					
+					if (!(SMTAffineTerm.create(equality.getParameters()[1]).isConstant()
+							&& SMTAffineTerm.create(equality.getParameters()[1]).getConstant() == Rational.ZERO)
+						&& !(SMTAffineTerm.create(equality.getParameters()[0]).isConstant()
+							&& SMTAffineTerm.create(equality.getParameters()[0]).getConstant() == Rational.ZERO))
+					{
+						throw new AssertionError("Error 2 in Lemma_trichotomy");
+					}					
+									
+					// Uniformize the real disjuncts and the artificial should-be's and compare them
+					HashSet<Term> disjunctsRealCalc = new HashSet<Term>(); //Disjuncts: real then calculated
+					HashSet<Term> disjunctsArtCalc = new HashSet<Term>(); // Disjuncts: artificial then calculated
+					
+					disjunctsRealCalc.add(uniformizeInEquality(disjunct1App, smtInterpol));
+					disjunctsRealCalc.add(uniformizeInEquality(disjunct2App, smtInterpol));
+					disjunctsRealCalc.add(uniformizeInEquality(disjunct3App, smtInterpol));
+
+					disjunctsArtCalc.add(uniformizeInEquality(
+							equality
+							, smtInterpol));
+					disjunctsArtCalc.add(uniformizeInEquality(
+							convertApp(smtInterpol.term("<", equality.getParameters()))
+							, smtInterpol));
+					disjunctsArtCalc.add(uniformizeInEquality(
+							convertApp(smtInterpol.term(">", equality.getParameters()))
+							, smtInterpol));
+					
+					if(!disjunctsRealCalc.equals(disjunctsArtCalc))
+						throw new AssertionError("Error at the end of Lemma_trichotomy");
+					
+						
 				} else
 				{
 					System.out.println("Can't deal with lemmas of type "
@@ -551,10 +606,78 @@ public class ProofChecker extends SMTInterpol {
 					 * otherwise it's still correct
 					 */
 				} 
+				else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":termITE")
+				{
+					ApplicationTerm termOr = convertApp(termAppInnerAnn.getSubterm()); // The term with or
+					
+					pm_func(termOr, "or");
+					
+					checkNumber(termOr,2);
+					
+					// Find the terms which may be re-orderd because of commutativity 
+					
+					Term termNotEq = null;
+					ApplicationTerm equalityApp = null;
+					ApplicationTerm equalityIteApp = null;
+					Term equalityNotIte = null;
+					boolean foundEq = false;
+					
+					if (termOr.getParameters()[0] instanceof ApplicationTerm)
+					{
+						ApplicationTerm termAppTemp = convertApp(termOr);
+						if (pm_func_weak(termAppTemp,"="))
+							if (pm_func_weak(termAppTemp.getParameters()[0],"ite"))
+							{
+								foundEq = true;
+								equalityApp = convertApp(termOr.getParameters()[0]);
+								termNotEq = termOr.getParameters()[1];
+							}
+					}
+					
+					if (!foundEq)
+					{
+						equalityApp = convertApp(termOr.getParameters()[1]);
+						termNotEq = termOr.getParameters()[0];
+					}
+					
+					if(equalityApp.getParameters()[0] instanceof ApplicationTerm)
+					{
+						ApplicationTerm termAppTemp2 = convertApp(equalityApp.getParameters()[0]);
+						if (pm_func_weak(termAppTemp2, "ite"))
+						{
+							equalityIteApp = convertApp(equalityApp.getParameters()[0]);
+							equalityNotIte = equalityApp.getParameters()[1];
+						} else {
+							equalityIteApp = convertApp(equalityApp.getParameters()[1]);
+							equalityNotIte = equalityApp.getParameters()[0];
+						}								
+					}
+					
+					// Syntactical Correctness
+					
+					pm_func(equalityApp, "=");
+					pm_func(equalityIteApp, "ite");
+					
+					checkNumber(equalityApp, 2);
+					checkNumber(equalityIteApp, 3);
+					
+					// The Rule-Check
+					
+					if (termITEHelper_isEqual(termNotEq, equalityIteApp.getParameters()[0]))
+					{
+						if (equalityNotIte != equalityIteApp.getParameters()[2])
+							throw new AssertionError("Error 1 in @taut_termITE");
+					}
+					else
+						if (equalityNotIte != equalityIteApp.getParameters()[1])
+							throw new AssertionError("Error 2 in @taut_termITE");
+							
+					
+				} 
 				else
 				{
 					System.out.println("Didn't know the following tautology-rule: " + termAppInnerAnn.getAnnotations()[0].getKey()
-							+ "therefor had to believed as true: " + termApp.toStringDirect() + " .");
+							+ " therefor had to believed as true:\n" + termApp.toStringDirect() + " .");
 				}
 				
 				stackPush(termAppInnerAnn.getSubterm(), term);
@@ -2528,6 +2651,10 @@ public class ProofChecker extends SMTInterpol {
 			termArgs = termApp.getParameters();
 		}
 		
+		/* Just for debugging */
+		if (debug.contains("currently"))
+			System.out.println("Currently looking at: " + type + "\t (special-walk)"); 
+		
 		switch (type)
 		{		
 		case "calcParams":
@@ -2651,7 +2778,7 @@ public class ProofChecker extends SMTInterpol {
 				// Remove the negated pivot from allDisjuncts
 				
 				if (! allDisjuncts.remove(negate(pivots[i], smtInterpol))) {
-					throw new AssertionError("Error: couldn't find the negated pivot "+ pivots[i].toStringDirect() 
+					throw new AssertionError("Error (i = " + i + "): Couldn't find the negated pivot "+ pivots[i].toStringDirect() 
 							+ " in the intermediate disjunction " +  allDisjuncts.toString());
 					
 				}
@@ -3600,6 +3727,13 @@ public class ProofChecker extends SMTInterpol {
 		return returnVal;
 	}
 	
+//	AnnotatedTerm uniformizeInEquality(AnnotatedTerm termAnn, SMTInterpol smtInterpol)
+//	{
+//		return convertAnn(smtInterpol.annotate(
+//					uniformizeInEquality(convertApp(termAnn.getSubterm()), smtInterpol),
+//					termAnn.getAnnotations()));
+//	}
+	
 	ApplicationTerm uniformizeInEquality(ApplicationTerm termApp, SMTInterpol smtInterpol)
 	{
 		ApplicationTerm termIneq;
@@ -3727,5 +3861,19 @@ public class ProofChecker extends SMTInterpol {
 			return true; //Should be unreachable
 		
 		return false;
-	}	
+	}
+	
+	boolean termITEHelper_isEqual(Term termNeg, Term termGoal)
+	{
+		if (termNeg == termGoal)
+			return true;
+		
+		ApplicationTerm termNegApp = convertApp(termNeg);
+		
+		pm_func(termNegApp,"not");
+		
+		checkNumber(termNegApp,1);
+		
+		return (!termITEHelper_isEqual(termNegApp.getParameters()[0], termGoal));
+	}
 }
