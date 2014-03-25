@@ -353,38 +353,52 @@ public class ProofChecker extends SMTInterpol {
 					
 					pm_func(termLemmaApp,"or");
 					
-					int arrayLength = termLemmaApp.getParameters().length;
+					int arrayShortLength = termLemmaApp.getParameters().length - 1;
 					
 					// The negated disjuncts
-					ApplicationTerm[] termLemmaAppIApp = new ApplicationTerm[arrayLength];
-					termLemmaAppIApp[0] = null; //The first component has no meaning
-					for (int i = 1; i < arrayLength; i++)
-					{
-						termLemmaAppIApp[i] = convertApp(termLemmaApp.getParameters()[i]);
-						pm_func(termLemmaAppIApp[i],"not");
+					ApplicationTerm[] termLemmaAppNegDisj = new ApplicationTerm[arrayShortLength]; //Negated Disjuncts WITHOUT not
+					
+					ApplicationTerm termGoal = convertApp((Term) 
+							((Object[]) termAppInnerAnn.getAnnotations()[0].getValue())[0]);
+					
+					int j = 0;
+					
+					for (Term param : termLemmaApp.getParameters()) {
+						ApplicationTerm paramApp = convertApp_hard(param);
+						
+						if (paramApp.equals(termGoal))
+							continue;
+						
+						// Else: It must be a negation
+						pm_func(paramApp,"not");
+						
+						if (j >= termLemmaAppNegDisj.length)
+							throw new AssertionError("Error 0.5 in Lemma_:CC");
+						
+						termLemmaAppNegDisj[j] = convertApp_hard(paramApp.getParameters()[0]);
+						j++;
 					}
 					
+					if (j != termLemmaAppNegDisj.length)
+						throw new AssertionError("Error 1 in Lemma_:CC");
+					
 					// Get the equalities, the annotations are ignored
-					// The first equality is the goal, the others are the premises
-					ApplicationTerm[] termLemmaEqApp = new ApplicationTerm[arrayLength];
-					termLemmaEqApp[0] = convertApp_hard(termLemmaApp.getParameters()[0]);
-					pm_func(termLemmaEqApp[0],"=");
-					for (int i = 1; i < arrayLength; i++)
-					{
-						termLemmaEqApp[i] = convertApp_hard(termLemmaAppIApp[i].getParameters()[0]);
-						pm_func(termLemmaEqApp[i],"=");
-					}
+					/* Old and wrong: The first equality is the goal, the others are the premises
+					 * It doesn't have to be the first one.
+					 */
+					
+					pm_func(termGoal,"=");
+					
+					for (Term equality : termLemmaAppNegDisj)
+						pm_func(equality,"=");
 					
 					Object[] annotValues = (Object[]) termAppInnerAnn.getAnnotations()[0].getValue();
 					
-					// The first annotation has to be the goal-equality
-					if (!annotValues[0].equals(termLemmaEqApp[0]))
-						throw new AssertionError("Error 1 in lemma_:CC");
-					
 					/* Get the subpaths. The HashMap contains pairs:
-					 * - First entry: Start & End of the path
-					 * - Second entry: Path
+					 * - Key: Start & End of the path as Pair
+					 * - Object: Path
 					 */
+					
 					HashMap<SymmetricPair<Term>, Term[]> subpaths =
 							new HashMap<SymmetricPair<Term>,Term[]>();
 					
@@ -405,22 +419,25 @@ public class ProofChecker extends SMTInterpol {
 					}
 					
 					/* Get the premises. The HashMap contains pairs:
-					 * - First entry: Left term which equals the ...
-					 * - Second entry: ... right term (by premise)
+					 * - Key: Pair of the left term and the right term (which are equal by premise)
+					 * - Object: Array of those terms
 					 */
 					HashMap<SymmetricPair<Term>, Term[]> premises =
 							new HashMap<SymmetricPair<Term>,Term[]>();
-					
-					for (int i = 1; i < arrayLength; i++)
+											
+					for (int i = 0; i < arrayShortLength; i++)
 					{
+						checkNumber(termLemmaAppNegDisj[i],2);							
+						
 						SymmetricPair<Term> pairTemp = new SymmetricPair<Term>(
-								termLemmaEqApp[i].getParameters()[0],termLemmaEqApp[i].getParameters()[1]);
-						premises.put(pairTemp,termLemmaEqApp[i].getParameters());
+								termLemmaAppNegDisj[i].getParameters()[0],termLemmaAppNegDisj[i].getParameters()[1]);
+						premises.put(pairTemp,termLemmaAppNegDisj[i].getParameters());
 					}
 					
 					// Now for the pathfinding
-					Term termStart = termLemmaEqApp[0].getParameters()[0];
-					Term termEnd = termLemmaEqApp[0].getParameters()[1];
+					checkNumber(termGoal,2);
+					Term termStart = termGoal.getParameters()[0];
+					Term termEnd = termGoal.getParameters()[1];
 					
 					if (!pathFind(subpaths,premises,termStart,termEnd))
 						throw new AssertionError("Error at the end of lemma_:CC");
@@ -446,19 +463,42 @@ public class ProofChecker extends SMTInterpol {
 				{
 					ApplicationTerm termOr = convertApp(termAppInnerAnn.getSubterm()); // The term with or
 					checkNumber(termOr.getParameters(),2);
-					ApplicationTerm term1Neg = convertApp(termOr.getParameters()[0]); // The first disjunkt, still with "not"
-					ApplicationTerm term1Pure = convertApp_hard(term1Neg.getParameters()[0]); // The first disjunkt, not with "not" anymore
-					ApplicationTerm term2 = convertApp_hard(termOr.getParameters()[1]); // The second disjunkt
-					String funcSymb = term1Pure.getFunction().getName();
+					
+					boolean term1Negated = false;
+					
+					Term term1 = termOr.getParameters()[0];
+					Term term2 = termOr.getParameters()[1];
+					
+					if (term1 instanceof ApplicationTerm)
+						if (pm_func_weak(convertApp(term1),"not"))
+							term1Negated = true;
+					
+					ApplicationTerm termNegApp = null; // The term t with (not t) 
+					ApplicationTerm termPosApp = null; // the term without a not around
+					
+					if (term1Negated)
+					{
+						termNegApp = convertApp_hard(convertApp(term1).getParameters()[0]);
+						termPosApp = convertApp_hard(term2);
+					} else {
+						pm_func(term2,"not");
+
+						termNegApp = convertApp_hard(convertApp(term2).getParameters()[0]);
+						termPosApp = convertApp_hard(term1);
+					}
+															
+//					ApplicationTerm term1Neg = convertApp(termOr.getParameters()[0]); // The first disjunct, still with "not"
+//					ApplicationTerm term1Pure = convertApp_hard(term1Neg.getParameters()[0]); // The first disjunct, not with "not" anymore
+//					ApplicationTerm term2 = convertApp_hard(termOr.getParameters()[1]); // The second disjunct
+					String funcSymb = termNegApp.getFunction().getName();
 					
 					pm_func(termOr,"or");
-					pm_func(term1Neg,"not");
-					pm_func(term2,funcSymb);
+					pm_func(termPosApp,funcSymb);
 					
-					ApplicationTerm term1PureUnif = uniformizeInEquality(term1Pure, smtInterpol);
-					ApplicationTerm term2Unif = uniformizeInEquality(term2, smtInterpol);
+					ApplicationTerm termNegUnif = uniformizeInEquality(termNegApp, smtInterpol);
+					ApplicationTerm termPosUnif = uniformizeInEquality(termPosApp, smtInterpol);
 															
-					if (!uniformedSame(term1PureUnif,term2Unif,smtInterpol))
+					if (!uniformedSame(termNegUnif,termPosUnif,smtInterpol))
 						throw new AssertionError("Error in @taut_eq");
 				} 
 				else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":or+")
@@ -2165,6 +2205,27 @@ public class ProofChecker extends SMTInterpol {
 				// Not nice: Not checked if the annotation really is quoted, but otherwise
 				// it's still correct.
 				
+				/* Step 1,75: Maybe the first term is a negation of a Term t and 
+				 * the second is the negation of (! t :quoted) 
+				 */
+				
+				if (termEqApp.getParameters()[0] instanceof ApplicationTerm
+						&& termEqApp.getParameters()[1] instanceof ApplicationTerm)
+				{
+					ApplicationTerm termLeftApp = convertApp(termEqApp.getParameters()[0]); // Term on the left side of the rewrite-"="
+					ApplicationTerm termRightApp = convertApp(termEqApp.getParameters()[1]);
+					
+					if (pm_func_weak(termLeftApp,"not") 
+							&& pm_func_weak(termRightApp,"not"))
+						if (termRightApp.getParameters()[0] instanceof AnnotatedTerm)
+						{
+							AnnotatedTerm termRightAppInnerAnn = convertAnn(termRightApp.getParameters()[0]);
+							if (termLeftApp.getParameters()[0].equals(
+									termRightAppInnerAnn.getSubterm()))
+								return;
+						}
+				}
+				
 				// Step 2: Find out if one is negated
 				boolean firstNeg = false;
 				boolean secondNeg = false;
@@ -3281,6 +3342,11 @@ public class ProofChecker extends SMTInterpol {
 					+ "Instead it was " + termApp.getFunction().getName());
 	}
 	
+	void pm_func(Term term, String pattern)
+	{
+		pm_func(convertApp(term),pattern);
+	}
+	
 	boolean pm_func_weak(ApplicationTerm termApp, String pattern)
 	{
 		return termApp.getFunction().getName().equals(pattern);
@@ -3331,12 +3397,17 @@ public class ProofChecker extends SMTInterpol {
 			System.out.println("Searching for a way from " + termStart.toStringDirect()
 					+ " to " + termEnd.toStringDirect());
 		
+		// Are the terms already equal?
+		if (termStart == termEnd)
+			return true;
+		
 		SymmetricPair<Term> searchPair = new SymmetricPair<Term>(termStart, termEnd);
 		
 		/* The reason for checking the premises before the subpaths is,
 		 * that the subpaths may contain the same equality as the premises, which
 		 * could lead to infinite loops.
 		 */
+		
 		// Is the searched equality already a premise?
 		if(premises.containsKey(searchPair))
 			return true;
