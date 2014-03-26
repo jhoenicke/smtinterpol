@@ -54,6 +54,7 @@ public class ProofChecker extends SMTInterpol {
 		//debug.add("cacheUsed");
 		//debug.add("cacheUsedSmall");
 		//debug.add("allSubpaths");
+		debug.add("split_notOr");
 		
 		// Initializing the proof-checker-cache
 		pcCache = new HashMap<Term, Term>();
@@ -3046,20 +3047,13 @@ public class ProofChecker extends SMTInterpol {
 			if (false)
 			{} else if (splitRule == ":notOr")
 			{
-				// Old and probably wrong
-//				pm_func(termSplitReturnApp,"not");
-//				if (!pm_func_weak(termOldCalcApp, "not"))
-//				{
+				if (debug.contains("split_notOr"))
+				{
 					System.out.println("Meldung: Wandle um (berechnet):");
 					System.out.println(termOldCalcApp.toStringDirect());
 					System.out.println("in");
 					System.out.println(termApp.getParameters()[1].toStringDirect());
-//				}
-//				pm_func(termOldCalcApp, "not");
-//				ApplicationTerm termOldCalcAppInnerApp = convertApp(termOldCalcApp.getParameters()[0]);
-//				pm_func(termOldCalcAppInnerApp, "or");				
-				
-				
+				}
 				
 				ArrayList<Term> conjunctsOld = splitNotOrHelper_getConjunctsPushed(
 						splitNotOrHelper_pushNotInside(termOldCalcApp, smtInterpol));
@@ -3077,16 +3071,6 @@ public class ProofChecker extends SMTInterpol {
 				stackPush(termApp.getParameters()[1], term);
 				return;
 				
-//				for (Term disjunct : termOldCalcAppInnerApp.getParameters())
-//				{
-//					if (disjunct == termSplitReturnInner)
-//					{
-//						stackPush(termApp.getParameters()[1], term);
-//						return;
-//					}					
-//				}
-//				
-//				throw new AssertionError("Error in \"split\"");
 			} 
 			else if (splitRule == ":=+1" || splitRule == ":=+2")
 			{
