@@ -52,6 +52,7 @@ public class ProofChecker extends SMTInterpol {
 		//debug.add("newRules");
 		//debug.add("convertAppID");
 		//debug.add("cacheUsed");
+		//debug.add("cacheUsedSmall");
 		//debug.add("allSubpaths");
 		
 		// Initializing the proof-checker-cache
@@ -166,8 +167,10 @@ public class ProofChecker extends SMTInterpol {
 						+ "calculated, but isn't in the cache.");
 			}
 			if (debug.contains("cacheUsed"))
-				System.out.println("Calculation of the term " + term.toStringDirect() 
-						+ " is known: " + pcCache.get(term).toStringDirect());
+				System.out.println("Calculation of the term " + term.toString() 
+						+ " is known: " + pcCache.get(term).toString());
+			if (debug.contains("cacheUsedSmall"))
+				System.out.println("Calculation known.");
 			stackPush(pcCache.get(term), term);
 			return;
 		}
@@ -361,29 +364,28 @@ public class ProofChecker extends SMTInterpol {
 					
 				} else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":CC")
 				{
-					// Just for debugging!!! TODO
-					if (termAppInnerAnn instanceof AnnotatedTerm)
-					{
-						stackPush(termAppInnerAnn.getSubterm(), term);
-						return;
-					}
-					
 					//Syntactical correctness
 					ApplicationTerm termLemmaApp = convertApp(termAppInnerAnn.getSubterm());
 					
 					pm_func(termLemmaApp,"or");
 					
-					int arrayShortLength = termLemmaApp.getParameters().length - 1;
+					int arrayShortLength;
+					
+					Term termGoal;
+					if (((Object[]) termAppInnerAnn.getAnnotations()[0].getValue())[0] instanceof Term)
+					{
+						termGoal = (Term)
+								((Object[]) termAppInnerAnn.getAnnotations()[0].getValue())[0];
+						arrayShortLength = termLemmaApp.getParameters().length - 1;
+					} else {
+						termGoal = smtInterpol.term("false");
+						arrayShortLength = termLemmaApp.getParameters().length;
+					}
+					
+					
 					
 					// The negated disjuncts
 					ApplicationTerm[] termLemmaAppNegDisj = new ApplicationTerm[arrayShortLength]; //Negated Disjuncts WITHOUT not
-					
-					System.out.println("A");
-					if (! (((Object[]) termAppInnerAnn.getAnnotations()[0].getValue())[0] instanceof Term))
-						System.out.println("");
-					ApplicationTerm termGoal = convertApp((Term) 
-							((Object[]) termAppInnerAnn.getAnnotations()[0].getValue())[0]);
-					System.out.println("B");
 					
 					int j = 0;
 					
@@ -411,7 +413,8 @@ public class ProofChecker extends SMTInterpol {
 					 * It doesn't have to be the first one.
 					 */
 					
-					pm_func(termGoal,"=");
+					if (termGoal != smtInterpol.term("false"))
+						pm_func(termGoal,"=");
 					
 					for (Term equality : termLemmaAppNegDisj)
 						pm_func(equality,"=");
@@ -425,6 +428,10 @@ public class ProofChecker extends SMTInterpol {
 					
 					HashMap<SymmetricPair<Term>, Term[]> subpaths =
 							new HashMap<SymmetricPair<Term>,Term[]>();
+							
+					Term termMainPathStart = null;
+					Term termMainPathEnd = null;
+					boolean mainPathFound = false;
 					
 					for (int i = 1; i < annotValues.length; i++)
 					{
@@ -442,6 +449,13 @@ public class ProofChecker extends SMTInterpol {
 								System.out.println("");
 							//System.out.println("Lange: " + arrayTemp.length);
 							subpaths.put(pairTemp, arrayTemp);
+							
+							if (!mainPathFound)
+							{
+								termMainPathStart = arrayTemp[0];
+								termMainPathEnd = arrayTemp[arrayTemp.length-1];
+								mainPathFound = true;
+							}
 						}
 					}
 					
@@ -461,10 +475,27 @@ public class ProofChecker extends SMTInterpol {
 						premises.put(pairTemp,termLemmaAppNegDisj[i].getParameters());
 					}
 					
+					// Real termGoal
+					ApplicationTerm termGoalRealApp;
+					if (termGoal.equals(smtInterpol.term("false")))
+					{
+						termGoalRealApp = convertApp(smtInterpol.term("=", termMainPathStart, termMainPathEnd));
+						SMTAffineTerm controlDiff =
+								calculateTerm(termMainPathStart, smtInterpol).add(
+										calculateTerm(termMainPathEnd,smtInterpol).negate());
+						
+						if (!controlDiff.isConstant() 
+								|| controlDiff.getConstant().equals(Rational.ZERO))
+							throw new AssertionError("Error 2 in Lemma_:CC");
+					}
+					else
+						termGoalRealApp = convertApp(termGoal);
+					
+					
 					// Now for the pathfinding
-					checkNumber(termGoal,2);
-					Term termStart = termGoal.getParameters()[0];
-					Term termEnd = termGoal.getParameters()[1];
+					checkNumber(termGoalRealApp,2);
+					Term termStart = termGoalRealApp.getParameters()[0];
+					Term termEnd = termGoalRealApp.getParameters()[1];
 					
 					if (!pathFind(subpaths,premises,termStart,termEnd))
 						throw new AssertionError("Error at the end of lemma_:CC");
