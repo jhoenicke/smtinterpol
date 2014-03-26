@@ -3046,22 +3046,47 @@ public class ProofChecker extends SMTInterpol {
 			if (false)
 			{} else if (splitRule == ":notOr")
 			{
-				pm_func(termSplitReturnApp,"not");
-				pm_func(termOldCalcApp, "not");
-				ApplicationTerm termOldCalcAppInnerApp = convertApp(termOldCalcApp.getParameters()[0]);
-				pm_func(termOldCalcAppInnerApp, "or");				
+				// Old and probably wrong
+//				pm_func(termSplitReturnApp,"not");
+//				if (!pm_func_weak(termOldCalcApp, "not"))
+//				{
+					System.out.println("Meldung: Wandle um (berechnet):");
+					System.out.println(termOldCalcApp.toStringDirect());
+					System.out.println("in");
+					System.out.println(termApp.getParameters()[1].toStringDirect());
+//				}
+//				pm_func(termOldCalcApp, "not");
+//				ApplicationTerm termOldCalcAppInnerApp = convertApp(termOldCalcApp.getParameters()[0]);
+//				pm_func(termOldCalcAppInnerApp, "or");				
 				
 				
-				for (Term disjunct : termOldCalcAppInnerApp.getParameters())
-				{
-					if (disjunct == termSplitReturnInner)
-					{
-						stackPush(termApp.getParameters()[1], term);
-						return;
-					}					
-				}
 				
-				throw new AssertionError("Error in \"split\"");
+				ArrayList<Term> conjunctsOld = splitNotOrHelper_getConjunctsPushed(
+						splitNotOrHelper_pushNotInside(termOldCalcApp, smtInterpol));
+				ArrayList<Term> conjunctsNew = splitNotOrHelper_getConjunctsPushed(
+						splitNotOrHelper_pushNotInside(termSplitReturnApp, smtInterpol));
+				
+				// Just for debugging
+				for (int i = 0; i < conjunctsNew.size(); i++)
+					if (!conjunctsOld.contains(conjunctsNew.get(i)))
+						System.err.println("Debug(" + i + ")-Error in \"split\", rule: " + splitRule);						
+				
+				if (!conjunctsOld.containsAll(conjunctsNew))
+					throw new AssertionError("Error in \"split\", rule: " + splitRule);
+				
+				stackPush(termApp.getParameters()[1], term);
+				return;
+				
+//				for (Term disjunct : termOldCalcAppInnerApp.getParameters())
+//				{
+//					if (disjunct == termSplitReturnInner)
+//					{
+//						stackPush(termApp.getParameters()[1], term);
+//						return;
+//					}					
+//				}
+//				
+//				throw new AssertionError("Error in \"split\"");
 			} 
 			else if (splitRule == ":=+1" || splitRule == ":=+2")
 			{
@@ -3612,6 +3637,14 @@ public class ProofChecker extends SMTInterpol {
 		return termApp.getFunction().getName().equals(pattern);
 	}
 	
+	boolean pm_func_weakest(Term term, String pattern)
+	{
+		if (term instanceof ApplicationTerm)
+			return pm_func_weak((ApplicationTerm) term, pattern);
+		
+		return false;
+	}
+	
 	// Does this function make any sense?
 	boolean pm_func_weak(Term term, String pattern)
 	{
@@ -3907,4 +3940,130 @@ public class ProofChecker extends SMTInterpol {
 		
 		return (!termITEHelper_isEqual(termNegApp.getParameters()[0], termGoal));
 	}
+	
+	Term splitNotOrHelper_pushNotInside(Term term, SMTInterpol smtInterpol)
+	{
+		if (! (term instanceof ApplicationTerm))
+			return term;
+		
+		ApplicationTerm termApp = convertApp(term);
+		
+		if (!pm_func_weak(termApp,"not"))
+		{
+			Term[] paramsCalc = new Term[termApp.getParameters().length];
+			
+			for (int i = 0; i < termApp.getParameters().length; i++)
+				paramsCalc[i] = splitNotOrHelper_pushNotInside(termApp.getParameters()[i],smtInterpol);				
+			
+			return smtInterpol.term(termApp.getFunction().getName(), paramsCalc);					
+		}
+		
+		pm_func(termApp, "not"); // Should be impossible to throw an error
+		
+		checkNumber(termApp, 1);
+		
+		if (! (termApp.getParameters()[0] instanceof ApplicationTerm))
+			return term;
+		
+		ApplicationTerm termAppInnerApp = convertApp(termApp.getParameters()[0]);
+		
+		if (pm_func_weak(termAppInnerApp, "not"))
+			return splitNotOrHelper_pushNotInside(termAppInnerApp.getParameters()[0], smtInterpol);
+		
+		
+		
+		if (pm_func_weak(termAppInnerApp, "or"))
+		{
+			Term[] paramsCalc = new Term[termAppInnerApp.getParameters().length];
+			
+			for (int i = 0; i < paramsCalc.length; i++)
+				paramsCalc[i] = splitNotOrHelper_pushNotInside(
+						smtInterpol.term("not", termAppInnerApp.getParameters()[i])
+						, smtInterpol);
+			
+			return smtInterpol.term("and",
+					paramsCalc);
+		}
+		
+		return term;
+	}
+	
+	ArrayList<Term> splitNotOrHelper_getConjunctsPushed(Term term)
+	{
+		/* Important:
+		 * Assumes that the input-term is an
+		 * output of the pushNot-helper-function
+		 */
+		
+		ArrayList<Term> termRet = new ArrayList<Term>();
+		
+		if (!pm_func_weakest(term, "and"))
+		{
+			termRet.add(term);
+			return termRet;
+		}
+		
+		// So the term has the form (and ... )
+		
+		ApplicationTerm termApp = convertApp(term);
+		
+		for (Term param : termApp.getParameters())
+			termRet.addAll(splitNotOrHelper_getConjunctsPushed(param));
+		
+		return termRet;
+	}
+	
+	// Old, worked, but certainly wrong:
+//	ArrayList<Term> splitNotOrHelper_getConjuncts(Term term, SMTInterpol smtInterpol)
+//	{
+//		return splitNotOrHelper_getConjuncts(term, smtInterpol, false);
+//	}
+//	
+//	
+//	ArrayList<Term> splitNotOrHelper_getConjuncts(Term term, SMTInterpol smtInterpol, boolean negated)
+//	{
+//		ArrayList<Term> termRet = new ArrayList<Term>(); // return-Term
+//		
+//		if (! (term instanceof ApplicationTerm))
+//		{
+//			if (!negated)
+//				throw new AssertionError("Error 1 in splitNotOrHelper_getConjuncts");
+//			
+//			termRet.add(term);
+//			System.out.println("splitNotOrHelper: (noApp) " + term.toStringDirect());
+//			return termRet;
+//		}
+//		
+//		ApplicationTerm termApp = convertApp(term);
+//		
+//				
+//		if ((pm_func_weak(termApp,"or") && negated)
+//				|| (pm_func_weak(termApp,"and") && !negated))
+//		{
+//			System.out.println("Found and/or with " + termApp.getParameters().length + " parameters");
+//			//System.out.println("splitNotOrHelper: " + termRet.toString());
+//			
+//			for (Term param : termApp.getParameters())
+//				termRet.addAll(splitNotOrHelper_getConjuncts(param, smtInterpol, negated));
+//			
+//			return termRet;
+//		}
+//			
+//		if (pm_func_weak(termApp,"not"))
+//		{
+//			System.out.println("splitNotOrHelper: not");
+//			System.out.println(negated + " -> " + !negated);
+//			return splitNotOrHelper_getConjuncts(termApp.getParameters()[0], smtInterpol, (!negated));
+//		}
+//			
+//		
+//		if (negated)
+//			termRet.add(term);
+//		else
+//			termRet.add(smtInterpol.term("not",term));
+//		
+//		System.out.println("splitNotOrHelper: (last case: " + negated + ") " + term.toStringDirect());
+//		
+//		return termRet;
+//	}
 }
