@@ -30,7 +30,8 @@ public class ProofChecker extends SMTInterpol {
 	
 	HashSet<String> debug = new HashSet<String>(); // Just for debugging
 	
-	HashMap<Term, Term> pcCache; //Proof Checker Cache
+	HashMap<Term, Term> pcCacheConv; //Proof Checker Cache for conversions
+	HashSet<Term> pcCacheCheck; //Proof Checker Cache for correctness-checks (terms in this set are correct)
 	
 	// Declarations for the Walker
 	Stack<WalkerId<Term,String>> stackWalker = new Stack<WalkerId<Term,String>>();
@@ -56,9 +57,12 @@ public class ProofChecker extends SMTInterpol {
 		//debug.add("allSubpaths");
 		//debug.add("split_notOr");
 		debug.add("noAssertMsg"); //Faster Output without the assert-messages
+		//debug.add("CacheRuntimeCheck");
+	
 		
 		// Initializing the proof-checker-cache
-		pcCache = new HashMap<Term, Term>();
+		pcCacheConv = new HashMap<Term, Term>();
+		pcCacheCheck = new HashSet<Term>();
 				
 		Term resCalc;
 		// Now non-recursive:
@@ -161,21 +165,25 @@ public class ProofChecker extends SMTInterpol {
 		/* Takes proof, returns proven formula */
 		
 		/* Check the cache, if the unfolding step was already done */
-		if (pcCache.containsKey(term))
+		if (pcCacheConv.containsKey(term))
 		{
-			if (pcCache.get(term) == null)
+			if (pcCacheConv.get(term) == null)
 			{
 				throw new AssertionError("Error: The term " + term.toString() + " was already "
 						+ "calculated, but isn't in the cache.");
 			}
+			if (debug.contains("CacheRuntimeCheck"))
+				System.out.println("Cache-RT: K: " + term.toString() + " (known)");
 			if (debug.contains("cacheUsed"))
 				System.out.println("Calculation of the term " + term.toString() 
-						+ " is known: " + pcCache.get(term).toString());
+						+ " is known: " + pcCacheConv.get(term).toString());
 			if (debug.contains("cacheUsedSmall"))
 				System.out.println("Calculation known.");
-			stackPush(pcCache.get(term), term);
+			stackPush(pcCacheConv.get(term), term);
 			return;
-		}
+		} else
+			if (debug.contains("CacheRuntimeCheck"))
+				System.out.println("Cache-RT: U: " + term.toString() + " (unknown)");
 				
 		/* Declaration of variables used later */
 		String functionname;
@@ -226,7 +234,9 @@ public class ProofChecker extends SMTInterpol {
 					System.out.println("Lemma-type: " 
 							+ termAppInnerAnn.getAnnotations()[0].getKey());
 				
-				if (termAppInnerAnn.getAnnotations()[0].getKey() == ":LA")
+				if (pcCacheCheck.contains(term))
+				{}				
+				else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":LA")
 				{
 					// The disjunction
 					ApplicationTerm termLemmaDisj = convertApp(termAppInnerAnn.getSubterm());
@@ -563,6 +573,7 @@ public class ProofChecker extends SMTInterpol {
 					System.out.println("Believed as true: " + termApp.toStringDirect() + " .");
 				}				
 				
+				pcCacheCheck.add(term);
 				stackPush(termAppInnerAnn.getSubterm(), term);
 				return;
 				
@@ -574,7 +585,9 @@ public class ProofChecker extends SMTInterpol {
 					System.out.println("");
 				termAppInnerAnn = convertAnn(termApp.getParameters()[0]);
 				
-				if (termAppInnerAnn.getAnnotations()[0].getKey() == ":eq")
+				if (pcCacheCheck.contains(term))
+				{}
+				else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":eq")
 				{
 					ApplicationTerm termOr = convertApp(termAppInnerAnn.getSubterm()); // The term with or
 					checkNumber(termOr.getParameters(),2);
@@ -620,7 +633,7 @@ public class ProofChecker extends SMTInterpol {
 					ApplicationTerm term1Pure = convertApp_hard(term1Neg.getParameters()[0]); // The first disjunkt, not with "not" anymore
 					
 					HashSet<Term> term1Disjuncts = new HashSet<Term>(); // The disjuncts in term 1
-					HashSet<Term> term2NDisjuncts = new HashSet<Term>(); // THe disjuncts in term 2-n
+					HashSet<Term> term2NDisjuncts = new HashSet<Term>(); // The disjuncts in term 2-n
 					
 					term1Disjuncts.addAll(Arrays.asList(term1Pure.getParameters()));
 					for (int i = 1; i < termOr.getParameters().length; i++) //The first (i=0) parameter is left out)
@@ -713,6 +726,7 @@ public class ProofChecker extends SMTInterpol {
 							+ " therefor had to believed as true:\n" + termApp.toStringDirect() + " .");
 				}
 				
+				pcCacheCheck.add(term);
 				stackPush(termAppInnerAnn.getSubterm(), term);
 				return;
 				
@@ -744,7 +758,7 @@ public class ProofChecker extends SMTInterpol {
 					System.out.println("Rewrite-Rule: " + rewriteRule);
 				if (debug.contains("hardTerm"))
 					System.out.println("Term: " + term.toStringDirect());
-				if (false)
+				if (pcCacheCheck.contains(term))
 				{} else if (rewriteRule == ":trueNotFalse")
 				{
 					if (!(termEqApp.getParameters()[1] == smtInterpol.term("false")))
@@ -772,7 +786,10 @@ public class ProofChecker extends SMTInterpol {
 						}
 						
 						if (foundFalse && foundTrue)
+						{
+							pcCacheCheck.add(term);
 							return;
+						}
 					}
 					
 					throw new AssertionError("Error at the end of rule " + rewriteRule
@@ -952,6 +969,7 @@ public class ProofChecker extends SMTInterpol {
 						pm_func(termNewAppInnerApp, "not");
 						if (termOldApp != termNewAppInnerApp.getParameters()[0])
 							throw new AssertionError("Error A in " + rewriteRule);
+						pcCacheCheck.add(term);
 						return;
 					}
 					
@@ -1054,7 +1072,10 @@ public class ProofChecker extends SMTInterpol {
 					for (int i = 0; i < termOldApp.getParameters().length; i++)
 						for (int j = i+1; j < termOldApp.getParameters().length; j++)
 							if (termOldApp.getParameters()[i] == termOldApp.getParameters()[j])
+							{
+								pcCacheCheck.add(term);
 								return;
+							}
 					
 					throw new AssertionError("Error at the end of rule " + rewriteRule 
 							+ "!\n The term was " + term.toStringDirect());
@@ -1270,6 +1291,7 @@ public class ProofChecker extends SMTInterpol {
 						innerAppTermFirstNeg.getParameters()[0] == smtInterpol.term("true") &&
 							termEqApp.getParameters()[1] == smtInterpol.term("false"))
 					{
+						pcCacheCheck.add(term);
 						return;
 					}
 					
@@ -1352,13 +1374,19 @@ public class ProofChecker extends SMTInterpol {
 					// Case 1: One disjunct is true
 					for (Term disjunct : termOldApp.getParameters())
 						if (disjunct == smtInterpol.term("true"))
+						{
+							pcCacheCheck.add(term);
 							return;
+						}
 					
 					// Case 2: One disjunct is the negate of another
 					for (Term disjunct1 : termOldApp.getParameters())
 						for (Term disjunct2 : termOldApp.getParameters())
 							if (disjunct1 == negate(disjunct2, smtInterpol))
+							{
+								pcCacheCheck.add(term);
 								return;
+							}
 					
 					throw new AssertionError("Error at the end of rule " + rewriteRule 
 							+ "!\n The term was " + term.toStringDirect());						
@@ -2423,6 +2451,7 @@ public class ProofChecker extends SMTInterpol {
 			
 				// The second part, cut the @rewrite and the annotation out, both aren't needed for the @eq-function.
 				// stackPush(innerAnnTerm.getSubterm(), term);
+				pcCacheCheck.add(term);
 				return;
 				
 			case "@intern":
@@ -2431,12 +2460,18 @@ public class ProofChecker extends SMTInterpol {
 				
 				termEqApp = convertApp(termApp.getParameters()[0]);
 				
+				if (pcCacheCheck.contains(term))
+					return;
+				
 				pm_func(termEqApp,"=");
 				
 				// Step 1,5: Maybe the internal rewrite is just an addition of :quoted
 				if (convertApp_hard(termEqApp.getParameters()[0]) ==
 						convertApp_hard(termEqApp.getParameters()[1]))
+				{
+					pcCacheCheck.add(term);
 					return;
+				}
 				// Not nice: Not checked if the annotation really is quoted, but otherwise
 				// it's still correct.
 				
@@ -2457,7 +2492,10 @@ public class ProofChecker extends SMTInterpol {
 							AnnotatedTerm termRightAppInnerAnn = convertAnn(termRightApp.getParameters()[0]);
 							if (termLeftApp.getParameters()[0].equals(
 									termRightAppInnerAnn.getSubterm()))
+							{
+								pcCacheCheck.add(term);
 								return;
+							}
 						}
 				}
 				
@@ -2515,7 +2553,10 @@ public class ProofChecker extends SMTInterpol {
 					
 					// Precheck for better runtime - Warning: Code duplicates start here - a random number: 589354
 					if (termOldCompAff.equals(termNewCompAff))
+					{
+						pcCacheCheck.add(term);
 						return;
+					}
 					
 					// Check for a multiplication with a rational
 					Rational constOld = termOldCompAff.getConstant();
@@ -2531,13 +2572,22 @@ public class ProofChecker extends SMTInterpol {
 								|| termOldCompAff.mul(newGcd).equals(termNewCompAff.negate())
 								|| termNewCompAff.mul(oldGcd).equals(termOldCompAff)
 								|| termNewCompAff.mul(oldGcd).equals(termOldCompAff.negate())) // Note: == doesn't work
+						{
+							pcCacheCheck.add(term);
 							return;
+						}
 						
 						if (termOldCompAff.equals(termNewCompAff.negate())) // Last try
+						{
+							pcCacheCheck.add(term);
 							return;
+						}
 						System.out.println("Sadly1, I couldn't find a factorial constant in the internal rewrite: "
 								+ termApp.getParameters()[0].toStringDirect() + " .");
-						return;
+						{
+							pcCacheCheck.add(term);
+							return;
+						}
 					}
 										
 					if (constOld.equals(Rational.ZERO) || constNew.equals(Rational.ZERO))
@@ -2553,7 +2603,10 @@ public class ProofChecker extends SMTInterpol {
 					termNewCompAff = termNewCompAff.mul(constNewFactor);
 					
 					if (termOldCompAff.equals(termNewCompAff))
+					{
+						pcCacheCheck.add(term);
 						return;
+					}
 					
 					System.out.println("Sadly1, I couldn't understand the internal rewrite: "
 							+ termApp.getParameters()[0].toStringDirect() + " .");
@@ -2579,7 +2632,10 @@ public class ProofChecker extends SMTInterpol {
 					
 					// Precheck for better runtime - Warning: Code duplicates start here - a random number: 589354
 					if (termOldCompAff.equals(termNewCompAff))
+					{
+						pcCacheCheck.add(term);
 						return;
+					}
 					
 					// Check for a multiplication with a rational
 					Rational constOld = termOldCompAff.getConstant();
@@ -2592,12 +2648,20 @@ public class ProofChecker extends SMTInterpol {
 						Rational newGcd = termNewCompAff.getGcd();
 												
 						if (termOldCompAff.mul(newGcd).equals(termNewCompAff)
-								|| termNewCompAff.mul(oldGcd).equals(termOldCompAff)) // Note: == doesn't work
+								|| termOldCompAff.mul(newGcd).equals(termNewCompAff.negate())
+								|| termNewCompAff.mul(oldGcd).equals(termOldCompAff)
+								|| termNewCompAff.mul(oldGcd).equals(termOldCompAff.negate())) // Note: == doesn't work
+						{
+							pcCacheCheck.add(term);
 							return;
+						}
 						
 						System.out.println("Sadly2, I couldn't find a factorial constant in the internal rewrite: "
 								+ termApp.getParameters()[0].toStringDirect() + " .");
-						return;
+						{
+							pcCacheCheck.add(term);
+							return;
+						}
 					}
 					
 					if (constOld.equals(Rational.ZERO) || constNew.equals(Rational.ZERO))
@@ -2613,7 +2677,10 @@ public class ProofChecker extends SMTInterpol {
 					termNewCompAff = termNewCompAff.mul(constNewFactor);
 					
 					if (termOldCompAff.equals(termNewCompAff))
+					{
+						pcCacheCheck.add(term);
 						return;
+					}
 					
 					System.out.println("Sadly2, I couldn't understand the internal rewrite: "
 							+ termApp.getParameters()[0].toStringDirect() + " .");
@@ -2622,7 +2689,10 @@ public class ProofChecker extends SMTInterpol {
 				
 				System.out.println("Sadly, I had to believe the following internal rewrite: "
 						+ termApp.getParameters()[0].toStringDirect() + " .");
-				return;
+				{
+					pcCacheCheck.add(term);
+					return;
+				}
 				
 			case "@split":
 				
@@ -3309,8 +3379,8 @@ public class ProofChecker extends SMTInterpol {
 			} 
 			else
 			{
-				throw new AssertionError ("Error: The following split-rule hasn't been "
-						 + "implemented yet: " + splitRule);
+				throw new AssertionError ("Error: The following split-rule "
+						 + "is unknown: " + splitRule);
 			}			
 			
 		case "annot":
@@ -3340,7 +3410,7 @@ public class ProofChecker extends SMTInterpol {
 	
 	public void stackPush(Term pushTerm, Term keyTerm)
 	{
-		pcCache.put(keyTerm, pushTerm);
+		pcCacheConv.put(keyTerm, pushTerm);
 		stackResults.push(pushTerm);
 		stackResultsDebug.push(keyTerm);
 	}
@@ -3364,7 +3434,7 @@ public class ProofChecker extends SMTInterpol {
 		Term returnTerm = stackResults.pop();
 		Term debugTerm = stackResultsDebug.pop();
 		
-		if (pcCache.get(debugTerm) !=  returnTerm)
+		if (pcCacheConv.get(debugTerm) !=  returnTerm)
 		{
 			throw new AssertionError("Error: The debugger couldn't associate " + returnTerm.toStringDirect()
 					+ " with " + debugTerm.toStringDirect() + " at " + type);
