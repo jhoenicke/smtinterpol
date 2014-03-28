@@ -717,7 +717,7 @@ public class ProofChecker extends SMTInterpol {
 				return;
 				
 			case "@asserted":
-				if (!debug.contains("noAssertMsg"));
+				if (!debug.contains("noAssertMsg"))
 					System.out.println("Believed as asserted: " + termApp.getParameters()[0].toString() + " .");
 				/* Just return the part without @asserted */
 				stackPush(termApp.getParameters()[0], term);
