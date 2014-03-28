@@ -54,7 +54,8 @@ public class ProofChecker extends SMTInterpol {
 		//debug.add("cacheUsed");
 		//debug.add("cacheUsedSmall");
 		//debug.add("allSubpaths");
-		debug.add("split_notOr");
+		//debug.add("split_notOr");
+		debug.add("noAssertMsg"); //Faster Output without the assert-messages
 		
 		// Initializing the proof-checker-cache
 		pcCache = new HashMap<Term, Term>();
@@ -716,7 +717,8 @@ public class ProofChecker extends SMTInterpol {
 				return;
 				
 			case "@asserted":
-				System.out.println("Believed as asserted: " + termApp.getParameters()[0].toStringDirect() + " .");
+				if (!debug.contains("noAssertMsg"));
+					System.out.println("Believed as asserted: " + termApp.getParameters()[0].toString() + " .");
 				/* Just return the part without @asserted */
 				stackPush(termApp.getParameters()[0], term);
 				return;
@@ -2526,7 +2528,9 @@ public class ProofChecker extends SMTInterpol {
 						Rational newGcd = termNewCompAff.getGcd();
 												
 						if (termOldCompAff.mul(newGcd).equals(termNewCompAff)
-								|| termNewCompAff.mul(oldGcd).equals(termOldCompAff)) // Note: == doesn't work
+								|| termOldCompAff.mul(newGcd).equals(termNewCompAff.negate())
+								|| termNewCompAff.mul(oldGcd).equals(termOldCompAff)
+								|| termNewCompAff.mul(oldGcd).equals(termOldCompAff.negate())) // Note: == doesn't work
 							return;
 						
 						if (termOldCompAff.equals(termNewCompAff.negate())) // Last try
@@ -2940,7 +2944,7 @@ public class ProofChecker extends SMTInterpol {
 			
 			
 		case "clause":
-
+			
 			/* Check if the parameters of clause are two disjunctions (which they should be) */
 					
 			Term termAppParam1Calc = null;
@@ -3019,8 +3023,17 @@ public class ProofChecker extends SMTInterpol {
 			 */
 			
 			if (!param1Disjuncts.equals(param2Disjuncts))
-			{
-				throw new AssertionError("Error: The clause-operation didn't permutate correctly!");
+			{				
+				// Start of: Just for debugging:
+				System.out.println("disjuncts1: ");
+				for (Term disj1 : param1Disjuncts)
+					System.out.println(disj1.toStringDirect());
+				System.out.println("disjuncts2: ");
+				for (Term disj2 : param2Disjuncts)
+					System.out.println(disj2.toStringDirect());
+				// End of: Just for debugging:
+				
+				throw new AssertionError("Error: The clause-operation didn't permute correctly!");
 			}
 											
 			stackPush(termAppParam2Calc, term);
@@ -3055,21 +3068,40 @@ public class ProofChecker extends SMTInterpol {
 					System.out.println(termApp.getParameters()[1].toStringDirect());
 				}
 				
-				ArrayList<Term> conjunctsOld = splitNotOrHelper_getConjunctsPushed(
-						splitNotOrHelper_pushNotInside(termOldCalcApp, smtInterpol));
-				ArrayList<Term> conjunctsNew = splitNotOrHelper_getConjunctsPushed(
-						splitNotOrHelper_pushNotInside(termSplitReturnApp, smtInterpol));
+				pm_func(termSplitReturnApp,"not");
+				if (!pm_func_weak(termOldCalcApp, "not"))
+					System.out.println("Breakpoint");
+				pm_func(termOldCalcApp, "not");
+				ApplicationTerm termOldCalcAppInnerApp = convertApp(termOldCalcApp.getParameters()[0]);
+				pm_func(termOldCalcAppInnerApp, "or");
 				
-				// Just for debugging
-				for (int i = 0; i < conjunctsNew.size(); i++)
-					if (!conjunctsOld.contains(conjunctsNew.get(i)))
-						System.err.println("Debug(" + i + ")-Error in \"split\", rule: " + splitRule);						
+				for (Term disjunct : termOldCalcAppInnerApp.getParameters())
+				{
+					if (disjunct == termSplitReturnInner)
+					{
+						stackPush(termApp.getParameters()[1], term);
+						return;
+					}					
+				}
 				
-				if (!conjunctsOld.containsAll(conjunctsNew))
-					throw new AssertionError("Error in \"split\", rule: " + splitRule);
+				throw new AssertionError("Error in \"split\"");
 				
-				stackPush(termApp.getParameters()[1], term);
-				return;
+				// Too complicated:
+//				ArrayList<Term> conjunctsOld = splitNotOrHelper_getConjunctsPushed(
+//						splitNotOrHelper_pushNotInside(termOldCalcApp, smtInterpol));
+//				ArrayList<Term> conjunctsNew = splitNotOrHelper_getConjunctsPushed(
+//						splitNotOrHelper_pushNotInside(termSplitReturnApp, smtInterpol));
+//				
+//				// Just for debugging
+//				for (int i = 0; i < conjunctsNew.size(); i++)
+//					if (!conjunctsOld.contains(conjunctsNew.get(i)))
+//						System.err.println("Debug(" + i + ")-Error in \"split\", rule: " + splitRule);						
+//				
+//				if (!conjunctsOld.containsAll(conjunctsNew))
+//					throw new AssertionError("Error in \"split\", rule: " + splitRule);
+//				
+//				stackPush(termApp.getParameters()[1], term);
+//				return;
 				
 			} 
 			else if (splitRule == ":=+1" || splitRule == ":=+2")
