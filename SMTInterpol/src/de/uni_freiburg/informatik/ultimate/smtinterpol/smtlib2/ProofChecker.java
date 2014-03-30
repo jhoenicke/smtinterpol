@@ -18,30 +18,27 @@
  */
 package de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2;
 
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.NoSuchElementException;
+import java.util.Stack;
+
+import org.apache.log4j.Logger;
+
 import de.uni_freiburg.informatik.ultimate.logic.AnnotatedTerm;
 import de.uni_freiburg.informatik.ultimate.logic.Annotation;
 import de.uni_freiburg.informatik.ultimate.logic.ApplicationTerm;
+import de.uni_freiburg.informatik.ultimate.logic.ConstantTerm;
 import de.uni_freiburg.informatik.ultimate.logic.FormulaUnLet;
+import de.uni_freiburg.informatik.ultimate.logic.NonRecursive;
 import de.uni_freiburg.informatik.ultimate.logic.Rational;
-import de.uni_freiburg.informatik.ultimate.logic.ConstantTerm; //May not be needed
-//import de.uni_freiburg.informatik.ultimate.logic.FormulaUnLet;
-//import de.uni_freiburg.informatik.ultimate.logic.SMTLIBException;
 import de.uni_freiburg.informatik.ultimate.logic.Term;
 import de.uni_freiburg.informatik.ultimate.logic.TermTransformer;
-//import de.uni_freiburg.informatik.ultimate.logic.TermVariable;
-//import de.uni_freiburg.informatik.ultimate.logic.Script.LBool;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.convert.SMTAffineTerm;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.util.SymmetricPair;
-
-
-
-
-import java.math.BigInteger;
-//import java.util.ArrayList;
-//import java.util.HashMap;
-import java.util.*;
-
-import org.apache.log4j.Logger;
 
 /**
  * This proof checker checks compliance of SMTInterpol proofs with
@@ -49,8 +46,74 @@ import org.apache.log4j.Logger;
  * 
  * @author Pascal Raiola
  */
-public class ProofChecker {
-	
+public class ProofChecker extends NonRecursive {
+
+	public static class ProofWalker implements Walker {
+		final Term mTerm;
+		public ProofWalker(Term term) {
+			mTerm = term;
+		}
+		
+		public void walk(NonRecursive engine) {
+			((ProofChecker) engine).walk(mTerm);
+		}
+	}
+
+	public static class ResolutionWalker implements Walker {
+		final Term mTerm;
+		public ResolutionWalker(Term term) {
+			mTerm = term;
+		}
+		
+		public void walk(NonRecursive engine) {
+			((ProofChecker) engine).walkResolution(mTerm);
+		}
+	}
+
+	public static class EqualityWalker implements Walker {
+		final Term mTerm;
+		public EqualityWalker(Term term) {
+			mTerm = term;
+		}
+		
+		public void walk(NonRecursive engine) {
+			((ProofChecker) engine).walkEquality(mTerm);
+		}
+	}
+
+	public static class ClauseWalker implements Walker {
+		final Term mTerm;
+		public ClauseWalker(Term term) {
+			mTerm = term;
+		}
+		
+		public void walk(NonRecursive engine) {
+			((ProofChecker) engine).walkClause(mTerm);
+		}
+	}
+
+	public static class SplitWalker implements Walker {
+		final Term mTerm;
+		public SplitWalker(Term term) {
+			mTerm = term;
+		}
+		
+		public void walk(NonRecursive engine) {
+			((ProofChecker) engine).walkSplit(mTerm);
+		}
+	}
+
+	public static class AnnotationWalker implements Walker {
+		final Term mTerm;
+		public AnnotationWalker(Term term) {
+			mTerm = term;
+		}
+		
+		public void walk(NonRecursive engine) {
+			((ProofChecker) engine).walkAnnotation(mTerm);
+		}
+	}
+
 	HashSet<Term> mAssertions;
 	SMTInterpol mSkript;
 	Logger mLogger;
@@ -62,7 +125,6 @@ public class ProofChecker {
 	HashSet<Term> mCacheCheck; //Proof Checker Cache for correctness-checks (terms in this set are correct)
 	
 	// Declarations for the Walker
-	Stack<WalkerId<Term,String>> mStackWalker = new Stack<WalkerId<Term,String>>();
 	Stack<Term> mStackResults = new Stack<Term>();
 	Stack<Term> mStackResultsDebug = new Stack<Term>();
 	Stack<Annotation[]> mStackAnnots = new Stack<Annotation[]>();
@@ -105,53 +167,10 @@ public class ProofChecker {
 		mError = 0;
 		Term resCalc;
 		// Now non-recursive:
-		mStackWalker.push(new WalkerId<Term,String>(new FormulaUnLet().unlet(res),""));
-		WalkerId<Term,String> currentWalker;
-		
-		
-		while (!mStackWalker.isEmpty()) {
-			if (mDebug.contains("WalkerPath")) {
-				for (int i = 0; i < mStackWalker.size(); i++) {
-					System.out.println("Walker(" + i + "): [" + mStackWalker.elementAt(i).mTerm.toStringDirect()
-							+ "," + mStackWalker.elementAt(i).mString + "]");
-				}
-				System.out.println("");
-				
-				for (int i = 0; i < mStackResults.size(); i++) {
-					System.out.println("Result(" + i + "): " + mStackResults.elementAt(i).toStringDirect());
-				}
-				System.out.println("");
-				
-				for (int i = 0; i < mStackResultsDebug.size(); i++) {
-					System.out.println("Debug(" + i + "): " + mStackResultsDebug.elementAt(i).toStringDirect());
-				}
-				System.out.println("");
-				
-				for (int i = 0; i < mStackAnnots.size(); i++) {
-					System.out.println("Annot1(" + i + "): " + mStackAnnots.elementAt(i)[0].getKey()
-							+ " " + mStackAnnots.elementAt(i)[0].getValue());
-				}
-				System.out.println("");
-				System.out.println("");
-			}
-			
-			if (mDebug.contains("WalkerPathSmall")) {
-				int walkerMax = mStackWalker.size() - 1;
-				System.out.println("Walker(" + walkerMax + "): [" + mStackWalker.elementAt(walkerMax).mTerm.toString()
-						+ "," + mStackWalker.elementAt(walkerMax).mString + "]");
-			}
-			
-			currentWalker = mStackWalker.pop();
-			if (currentWalker.mString == "") {
-				walk((Term) currentWalker.mTerm);
-			} else {
-				walkSpecial((Term) currentWalker.mTerm, 
-						(String) currentWalker.mString);
-			}
-		}		
+		run(new ProofWalker(new FormulaUnLet().unlet(res)));
 		
 		assert (mStackResults.size() == 1);
-		resCalc = stackPop("end");
+		resCalc = stackPop();
 		
 		if (resCalc != mSkript.term("false")) {
 			mLogger.error("The proof did not yield a contradiction but "
@@ -174,7 +193,7 @@ public class ProofChecker {
 		//Formula is not negative
 		return smtInterpol.term("not", formula);
 	}
-	
+
 	public void walk(Term term) {
 		SMTInterpol smtInterpol = mSkript;
 		/* Non-recursive */
@@ -226,12 +245,13 @@ public class ProofChecker {
 				 * further, after the pivots are deleted.
 				 */
 				
-				mStackWalker.push(new WalkerId<Term,String>(termApp, "res"));
+				
+				enqueueWalker(new ResolutionWalker(termApp));
 				calcParams(termApp);
 				return;
 				
 			case "@eq":
-				mStackWalker.push(new WalkerId<Term,String>(termApp, "eq"));
+				enqueueWalker(new EqualityWalker(termApp));
 				calcParams(termApp);
 				return;
 				
@@ -2495,8 +2515,8 @@ public class ProofChecker {
 				if (termApp.getParameters().length < 2)
 					throw new AssertionError("Error at @split");
 				
-				mStackWalker.push(new WalkerId<Term,String>(term, "split"));
-				mStackWalker.push(new WalkerId<Term,String>(termApp.getParameters()[0], ""));								
+				enqueueWalker(new SplitWalker(term));
+				enqueueWalker(new ProofWalker(termApp.getParameters()[0]));
 				
 				return;
 				
@@ -2507,9 +2527,9 @@ public class ProofChecker {
 							+ termApp.getParameters().length + ". The term is " + termApp.toString());
 				}
 
-				mStackWalker.push(new WalkerId<Term,String>(term, "clause"));
-				mStackWalker.push(new WalkerId<Term,String>(termApp.getParameters()[1], ""));
-				mStackWalker.push(new WalkerId<Term,String>(termApp.getParameters()[0], ""));
+				enqueueWalker(new ClauseWalker(term));
+				enqueueWalker(new ProofWalker(termApp.getParameters()[1]));
+				enqueueWalker(new ProofWalker(termApp.getParameters()[0]));
 				return;				
 				
 			default:
@@ -2528,8 +2548,8 @@ public class ProofChecker {
 			
 			annTerm = (AnnotatedTerm) term;
 			
-			mStackWalker.push(new WalkerId<Term,String>(term,"annot"));
-			mStackWalker.push(new WalkerId<Term,String>(annTerm.getSubterm(),""));
+			enqueueWalker(new AnnotationWalker(term));
+			enqueueWalker(new ProofWalker(annTerm.getSubterm()));
 			mStackAnnots.push(annTerm.getAnnotations());
 		} else { 
 			throw new AssertionError("Error: The Proof-Checker has no routine for the class " + term.getClass() + ".");
@@ -2537,8 +2557,7 @@ public class ProofChecker {
 	
 	}
 	
-	//Special Walker
-	public void walkSpecial(Term term, String type) {
+	public void walkResolution(Term term) {
 		SMTInterpol smtInterpol = mSkript;
 		// term is just the first term
 		
@@ -2549,574 +2568,558 @@ public class ProofChecker {
 			termArgs = termApp.getParameters();
 		}
 		
-		/* Just for debugging */
-		if (mDebug.contains("currently"))
-			System.out.println("Currently looking at: " + type + "\t (special-walk)"); 
+		// If one of the non-first parameter is a real disjunction, i.e. a disjunction with
+		// at least 2 disjuncts, the non-pivot-disjunct(s) need to be added to the first parameter.
+		// disjunctsAdd is the list which memorizes those disjuncts, so they can be added later.
+		HashSet<Term> allDisjuncts = new HashSet<Term>();
 		
-		switch (type) {		
-		case "calcParams":
-			throw new AssertionError("Error: The case \"calcParams\" is old and shouldn't be reached anymore.");
-			
-		case "res":
-			
-			// If one of the non-first parameter is a real disjunction, i.e. a disjunction with
-			// at least 2 disjuncts, the non-pivot-disjunct(s) need to be added to the first parameter.
-			// disjunctsAdd is the list which memorizes those disjuncts, so they can be added later.
-			HashSet<Term> allDisjuncts = new HashSet<Term>();
-			
-			/* Get the arguments and pivots */
-			Term[] pivots = new Term[termArgs.length]; //The zeroth entry has no meaning.
-			AnnotatedTerm termArgsIAnn; // The ith argument of the first term, as an annotated term
+		/* Get the arguments and pivots */
+		Term[] pivots = new Term[termArgs.length]; //The zeroth entry has no meaning.
+		AnnotatedTerm termArgsIAnn; // The ith argument of the first term, as an annotated term
 
-			/* get pivot: start */
-			for (int i = 1; i < termArgs.length; i++) //The 0th argument get's resoluted and has therefor no pivot.
-			{
-				if (termArgs[i] instanceof AnnotatedTerm) {										
-					termArgsIAnn = (AnnotatedTerm) termArgs[i];
-					
-					/* Check if it is a pivot-annotation */
-					if (termArgsIAnn.getAnnotations()[0].getKey() != ":pivot") {
-						throw new AssertionError("Error: The annotation has key " 
-								+ termArgsIAnn.getAnnotations()[0].getKey() + " instead of :pivot, " 
-								+ "which is required. It's value is: " + termArgsIAnn.getAnnotations()[0].getValue());
-					}						
-											
-					/* Just take the first annotation, because 
-					 * it should have exactly one - otherwise 
-					 * the proof-checker throws an error */
-					if (termArgsIAnn.getAnnotations()[0].getValue() instanceof Term) {							
-						pivots[i] = (Term) termArgsIAnn.getAnnotations()[0].getValue();
-					} else {
-						throw new AssertionError("Error: The following object was supposed to be a known term but isn't: " 
-								+ termArgsIAnn.getAnnotations()[0].getValue().toString() + "It is:" 
-								+ termArgsIAnn.getAnnotations()[0].getValue().getClass().getCanonicalName());
-					}
-					
-					if (termArgsIAnn.getAnnotations().length > 1) {
-						throw new AssertionError("Error: Expected number of annotations was 1, instead it is " + termArgsIAnn.getAnnotations().length + " in this term " + termArgsIAnn);
-					}
-				} else {
-					throw new AssertionError("Error: Expected an annotated term as parameter No." + i + ">0 of a "
-							+ "resolution term");
-				}
-			}
-			/* get pivot: end */
-			
-			/* Check if the pivots are really in the second argument */
-			
-			//The arguments of the first term after the calculation
-			Term[] termArgsCalc = new Term[termArgs.length];
-			//The arguments of the first term after the calculation as AnnotatedTerms
-			AnnotatedTerm[] termArgsCalcAnn = new AnnotatedTerm[termArgsCalc.length];
-			
-			
-			for (int i = termArgsCalc.length - 1; i >= 0; i--) {
-				if (!mStackResults.isEmpty()) {
-					termArgsCalc[i] = stackPop(type);
-				} else {
-					throw new AssertionError("Error: The Resolution needs results, but there are not enough.");
-				}
+		/* get pivot: start */
+		for (int i = 1; i < termArgs.length; i++) //The 0th argument get's resoluted and has therefor no pivot.
+		{
+			if (termArgs[i] instanceof AnnotatedTerm) {										
+				termArgsIAnn = (AnnotatedTerm) termArgs[i];
 				
-				/* termArgsCalc still includes the pivot-annotation. */
-				if (i != 0) {
-					if (termArgsCalc[i] instanceof AnnotatedTerm) {
-						termArgsCalcAnn[i] = (AnnotatedTerm) termArgsCalc[i];
-					} else	{
-						throw new AssertionError("Error: This code really shouldn't be reachable! A random number: 23742");
-					}					
-				}
-			}
-			
-			// Declaration done, now for the real search			
-
-			// Now get the disjuncts of the first argument into the hash set
-			
-			// The first argument calculated and as an ApplicationTerm
-			// this is just needed if argument 0 has more than one disjunct.
-			ApplicationTerm termArg0CalcApp = null; //Not nice, but it will just be needed when multiDisjunct holds and then it is initialized properly
-			// true iff. argument 0 has more than one disjunct
-			boolean multiDisjunct = false; 
-			
-			if (termArgsCalc[0] instanceof ApplicationTerm) {
-				termArg0CalcApp = (ApplicationTerm) termArgsCalc[0]; //First Term: The one which gets resoluted
-				
-				/* Does the clause have one or more disjuncts? */
-				/* Assumption: If there is just one clause it doesn't start with an "or" */
-				if (termArg0CalcApp.getFunction().getName() == "or") {
-					multiDisjunct = true;
-				}
-			}
-			
-			/* Initialization of the disjunct(s) */			
-			if (multiDisjunct) {
-				// Its disjuncts (Works just if the clause has more than one disjunct)
-				allDisjuncts.addAll(Arrays.asList(termArg0CalcApp.getParameters()));
-			} else {
-				allDisjuncts.add(termArgsCalc[0]);
-			}
-			
-			
-			for (int i = 1; i < termArgs.length; i++) {
-				// Remove the negated pivot from allDisjuncts
-				
-				if (!allDisjuncts.remove(negate(pivots[i], smtInterpol))) {
-					throw new AssertionError("Error (i = " + i + "): Couldn't find the negated pivot " + pivots[i].toStringDirect() 
-							+ " in the intermediate disjunction " +  allDisjuncts.toString());
-					
-				}
-
-				/* The search for the pivot in the term with the pivot: */
-				if (termArgsCalcAnn[i].getSubterm() == pivots[i]) {
-					// The Pivot-term has one disjunct
-				} else if (termArgsCalcAnn[i].getSubterm() instanceof ApplicationTerm) {
-					// The pivot term has more than one disjunct
-
-					// Of the ith argument of the resolution, the subterm as an ApplicationTerm
-					ApplicationTerm termArgsCalcAnnISubtApp = (ApplicationTerm) termArgsCalcAnn[i].getSubterm();
-					 
-					if (termArgsCalcAnnISubtApp.getFunction().getName() != "or") {
-						throw new AssertionError("Error: Hoped for a disjunction while searching the pivot " 
-								+ pivots[i] + " in " + termArgsCalc[i].toStringDirect() + ". But found "
-								 + "a function with that symbol: " + termArgsCalcAnnISubtApp.getFunction().getName());
-					} 
-					
-					// For each disjunct we have to check if it's the pivot, if not it has to be added later.
-					boolean pivotFound = false;
-					for (int j = 0; j < termArgsCalcAnnISubtApp.getParameters().length; j++) {
-						if (termArgsCalcAnnISubtApp.getParameters()[j] != pivots[i]) {
-							allDisjuncts.add(termArgsCalcAnnISubtApp.getParameters()[j]);
-						} else {
-							pivotFound = true;
-						}
-					}
-					
-					if (!pivotFound) {
-						throw new AssertionError("Error: couldn't find the pivot " + pivots[i].toStringDirect() 
-								+ " in the disjunction " +  termArgsCalcAnnISubtApp.toStringDirect());
-					}					
-				} else {
-					throw new AssertionError("Error: Could NOT find the pivot " + pivots[i] + " in " 
-							+ termArgsCalc[i].toStringDirect() + " finden. Before the calculation the term was "
-							+ termArgs[i].toStringDirect());
-				}
-			}
-			
-			
-			/* Different handling for a different number of conjuncts is needed */
-			switch (allDisjuncts.size()) {
-			case 0:	
-				stackPush(smtInterpol.term("false"), term);
-				return;
-			case 1:;
-				stackPush(allDisjuncts.iterator().next(), term);
-				return;
-			default:				
-				//Build an array that contains only the disjuncts, that have to be returned
-				Term[] disjunctsReturn = allDisjuncts.toArray(new Term[allDisjuncts.size()]);
-
-				stackPush(smtInterpol.term("or", disjunctsReturn), term);
-				return;
-			}
-			
-			
-		case "eq":
-			/* Expected: The first argument is unary each other argument binary.
-			 * Each not-first argument describes a rewrite of a (sub)term of the first term.
-			 * Important is the order, e.g. the rewrite of the second argument has to be executed
-			 * before the rewrite of the third argument! 
-			 */
-
-			ApplicationTerm[] termAppParamsApp = new ApplicationTerm[termArgs.length]; //Parameters of @eq, uncalculated, application terms
-			Term termEdit; //Term which will be edited end ends in the result
-			// The i-th parameter of the first term as AnnotatedTerm, which is
-			// just needed for @rewrite, i.e. just not for @intern.
-			AnnotatedTerm termAppParamsAppIAnn;
-			/* The i-th Parameter of the first term, as ...
-			 *  - @intern: ApplicationTerm
-			 *  - @rewrite: Subterm of the AnnotatedTerm which is an ApplicationTerm
-			 *  ["May" stands for Maybe]
-			 */
-			ApplicationTerm termAppParamsAppIMayAnnApp;
-			// Initialization
-			for (int i = 0; i < termArgs.length; i++) {
-				termAppParamsApp[i] = convertApp(termArgs[i]);
-				
-				// OLD and WRONG: Check, if the params are correct for themselves
-				// This was already done, and at this points leads to chaos on the resultStack
-				// stackWalker.push(new WalkerId<Term,String>(termAppParamsApp[i],""));
-				
-			}
-
-			termEdit = stackPop(type); //termAppParamsApp[0];
-			
-			// Editing the term
-			for (int i = 1; i < termArgs.length; i++) {				
-				if (pm_func_weak(termAppParamsApp[i],"@rewrite")) {					
-					termAppParamsAppIAnn = convertAnn(termAppParamsApp[i].getParameters()[0]);
-					termAppParamsAppIMayAnnApp = convertApp(termAppParamsAppIAnn.getSubterm());
-				} else if (pm_func_weak(termAppParamsApp[i],"@intern")) {
-					termAppParamsAppIMayAnnApp = convertApp(termAppParamsApp[i].getParameters()[0]);
-				} else {
-					throw new AssertionError("Error: An argument of @eq was neither a @rewrite nor " 
-							+ "a @intern, it was: " + termAppParamsApp[i].getFunction().getName() + ".");
-				}
-
-				pm_func(termAppParamsAppIMayAnnApp, "=");
-				
-				checkNumber(termAppParamsAppIMayAnnApp, 2);
-				
-				// Not nice: Can it be, that one has to calculate termDelete or termInsert first?
-				termEdit = rewriteTerm(termEdit, termAppParamsAppIMayAnnApp.getParameters()[0], termAppParamsAppIMayAnnApp.getParameters()[1]);
-			}
-			
-			stackPush(termEdit, term);			
-			return;			
-			
-			
-		case "clause":
-			
-			/* Check if the parameters of clause are two disjunctions (which they should be) */
-					
-			Term termAppParam1Calc = null;
-			Term termAppParam2Calc = null;
-			
-			//The first Parameter of clause, which is a disjunction, just
-			//needed if there is more than one disjunct.
-			ApplicationTerm termAppParam1CalcApp = null;
-			ApplicationTerm termAppParam2CalcApp = null;
-			
-			// The disjuncts of each parameter
-			HashSet<Term> param1Disjuncts = new HashSet<Term>();
-			HashSet<Term> param2Disjuncts = new HashSet<Term>();
-			
-			// Important: It's correct, that at first the second parameter is read and then the first.
-			if (!mStackResults.isEmpty()) {
-				termAppParam2Calc = stackPop(type);
-			} else {
-				throw new AssertionError("Error: Clause2 needs a result, but there is none.");
-			}
-			
-			if (!mStackResults.isEmpty()) {
-				termAppParam1Calc = stackPop(type);
-			} else {
-				throw new AssertionError("Error: Clause1 needs a result, but there is none.");
-			}
-			
-			boolean multiDisjunct1 = false; // true iff parameter 1 has more than one disjunct
-			boolean multiDisjunct2 = false; // true iff parameter 2 has more than one disjunct
-			
-			if (termAppParam1Calc instanceof ApplicationTerm) {
-				termAppParam1CalcApp = (ApplicationTerm) termAppParam1Calc;
-				if (termAppParam1CalcApp.getFunction().getName() == "or") {
-					multiDisjunct1 = true;				
-				}
-			}
-
-			if (termAppParam2Calc instanceof ApplicationTerm) {
-				termAppParam2CalcApp = (ApplicationTerm) termAppParam2Calc;
-				if (termAppParam2CalcApp.getFunction().getName() == "or") {
-					multiDisjunct2 = true;					
-				}
-			} 		
-			
-			// Initialize the disjuncts			 			
-			
-			if (multiDisjunct1) {
-				param1Disjuncts.addAll(Arrays.asList(termAppParam1CalcApp.getParameters()));
-			} else {
-				if (termAppParam1Calc != smtInterpol.term("false"))
-						param1Disjuncts.add(termAppParam1Calc);
-			}
-			
-			if (multiDisjunct2) {
-				param2Disjuncts.addAll(Arrays.asList(termAppParam2CalcApp.getParameters()));
-			} else {
-				if (termAppParam2Calc != smtInterpol.term("false"))
-					param2Disjuncts.add(termAppParam2Calc);
-			}
-			
-
-			/* Check if the clause operation was correct. Each later disjunct has to be in 
-			 * the first disjunction and reverse.
-			 */
-			
-			if (!param1Disjuncts.equals(param2Disjuncts)) {				
-				// Start of: Just for debugging:
-				System.out.println("disjuncts1: ");
-				for (Term disj1 : param1Disjuncts)
-					System.out.println(disj1.toStringDirect());
-				System.out.println("disjuncts2: ");
-				for (Term disj2 : param2Disjuncts)
-					System.out.println(disj2.toStringDirect());
-				// End of: Just for debugging:
-				
-				throw new AssertionError("Error: The clause-operation didn't permute correctly!");
-			}
-											
-			stackPush(termAppParam2Calc, term);
-			return;
-		
-		
-			
-		case "split":
-			/* Read the rule and handle each differently */
-			checkNumber(termApp, 2);
-			
-			AnnotatedTerm termAppSplitInnerAnn = convertAnn(termApp.getParameters()[0]);
-			ApplicationTerm termSplitReturnApp = convertApp(termApp.getParameters()[1]);
-			ApplicationTerm termOldCalcApp = convertApp(convertAnn(stackPop("split")).getSubterm());
-			Term termSplitReturnInner = termSplitReturnApp.getParameters()[0];
-									
-			String splitRule = termAppSplitInnerAnn.getAnnotations()[0].getKey();
-						
-			if (mDebug.contains("currently"))
-				System.out.println("Split-Rule: " + splitRule);
-			if (mDebug.contains("hardTerm"))
-				System.out.println("Term: " + term.toStringDirect());
-			
-			if (splitRule == ":notOr") {
-				if (mDebug.contains("split_notOr")) {
-					System.out.println("Meldung: Wandle um (berechnet):");
-					System.out.println(termOldCalcApp.toStringDirect());
-					System.out.println("in");
-					System.out.println(termApp.getParameters()[1].toStringDirect());
-				}
-				
-				pm_func(termSplitReturnApp,"not");
-				if (!pm_func_weak(termOldCalcApp, "not"))
-					System.out.println("Breakpoint");
-				pm_func(termOldCalcApp, "not");
-				ApplicationTerm termOldCalcAppInnerApp = convertApp(termOldCalcApp.getParameters()[0]);
-				pm_func(termOldCalcAppInnerApp, "or");
-				
-				for (Term disjunct : termOldCalcAppInnerApp.getParameters()) {
-					if (disjunct == termSplitReturnInner) {
-						stackPush(termApp.getParameters()[1], term);
-						return;
-					}					
-				}
-				
-				throw new AssertionError("Error in \"split\"");
-				
-				// Too complicated:
-//				ArrayList<Term> conjunctsOld = splitNotOrHelper_getConjunctsPushed(
-//						splitNotOrHelper_pushNotInside(termOldCalcApp, smtInterpol));
-//				ArrayList<Term> conjunctsNew = splitNotOrHelper_getConjunctsPushed(
-//						splitNotOrHelper_pushNotInside(termSplitReturnApp, smtInterpol));
-//				
-//				// Just for debugging
-//				for (int i = 0; i < conjunctsNew.size(); i++)
-//					if (!conjunctsOld.contains(conjunctsNew.get(i)))
-//						System.err.println("Debug(" + i + ")-Error in \"split\", rule: " + splitRule);						
-//				
-//				if (!conjunctsOld.containsAll(conjunctsNew))
-//					throw new AssertionError("Error in \"split\", rule: " + splitRule);
-//				
-//				stackPush(termApp.getParameters()[1], term);
-//				return;
-				
-			} else if (splitRule == ":=+1" || splitRule == ":=+2") {
-				int rr = 2;
-				if (splitRule == ":=+1")
-					rr = 1;
-				
-				// checkNumber(termApp.getParameters(),2); already checked
-				
-				ApplicationTerm termOldApp = termOldCalcApp;
-				ApplicationTerm termNewApp = termSplitReturnApp;
-				
-				checkNumber(termOldApp,2);
-				checkNumber(termNewApp,2);
-				
-				//The term (F1 or F2) which is negated in new term
-				Term termNewNeg = termOldApp.getParameters()[2 - rr];
-				Term termNewPos = termOldApp.getParameters()[rr - 1];
-				
-				pm_func(termOldApp,"=");
-				pm_func(termNewApp,"or");
-				
-				if (termNewApp.getParameters()[rr - 1] != smtInterpol.term("not",termNewNeg)
-						&& termNewApp.getParameters()[2 - rr] != smtInterpol.term("not",termNewNeg))
-					throw new AssertionError("Error 1 at " + splitRule);
-				
-				if (termNewApp.getParameters()[rr - 1] != termNewPos
-						&& termNewApp.getParameters()[2 - rr] != termNewPos)
-					throw new AssertionError("Error 2 at " + splitRule);
-				
-				/* Not nice: Not checked, if the F are boolean, which
-				 * they should.
-				 */
-				
-				stackPush(termApp.getParameters()[1], term);
-				return;
-			} else if (splitRule == ":=-1" || splitRule == ":=-2") {
-				checkNumber(termApp,2);
-				
-				ApplicationTerm termOldApp = termOldCalcApp;
-				ApplicationTerm termNewApp = termSplitReturnApp;
-				
-				checkNumber(termOldApp,1);
-				checkNumber(termNewApp,2);
-				
-				ApplicationTerm termOldAppInnerApp = convertApp(termOldApp.getParameters()[0]);
-				
-				checkNumber(termOldAppInnerApp,2);
-				
-				Term termF1 = termOldAppInnerApp.getParameters()[0];
-				Term termF2 = termOldAppInnerApp.getParameters()[1];
-				
-				pm_func(termOldApp,"not");
-				pm_func(termOldAppInnerApp,"=");
-				pm_func(termNewApp,"or");
-				
-				if (splitRule == ":=-1") {
-					// or is commutative
-					if (termNewApp.getParameters()[0] != termF1
-						&& termNewApp.getParameters()[1] != termF1)
-						throw new AssertionError("Error 1 at " + splitRule);
-				
-					if (termNewApp.getParameters()[0] != termF2
-						&& termNewApp.getParameters()[1] != termF2)
-						throw new AssertionError("Error 2 at " + splitRule);
-				} else {
-					ApplicationTerm termNewAppInner1App = convertApp(termNewApp.getParameters()[0]);
-					ApplicationTerm termNewAppInner2App = convertApp(termNewApp.getParameters()[1]);
-				
-					pm_func(termNewAppInner1App,"not");
-					pm_func(termNewAppInner2App,"not");
+				/* Check if it is a pivot-annotation */
+				if (termArgsIAnn.getAnnotations()[0].getKey() != ":pivot") {
+					throw new AssertionError("Error: The annotation has key " 
+							+ termArgsIAnn.getAnnotations()[0].getKey() + " instead of :pivot, " 
+							+ "which is required. It's value is: " + termArgsIAnn.getAnnotations()[0].getValue());
+				}						
 										
-					// or is commutative						
-					if (termNewAppInner1App.getParameters()[0] != termF1
-						&& termNewAppInner2App.getParameters()[0] != termF1)
-						throw new AssertionError("Error 3 at " + splitRule);
-					
-					if (termNewAppInner1App.getParameters()[0] != termF2
-						&& termNewAppInner2App.getParameters()[0] != termF2)
-						throw new AssertionError("Error 4 at " + splitRule);
-				}	
-				
-				/* Not nice: Not checked, if the F are boolean, which
-				 * they should.
-				 */
-					
-				stackPush(termApp.getParameters()[1], term);
-				return;
-			} else if (splitRule == ":ite+1" || splitRule == ":ite+2") {
-				checkNumber(termApp,2);
-				
-				ApplicationTerm termOldApp = termOldCalcApp;
-				ApplicationTerm termNewApp = termSplitReturnApp;
-				
-				checkNumber(termOldApp,3);				
-				checkNumber(termNewApp,2);
-				
-				Term termF1 = termOldApp.getParameters()[0];
-				Term termF2 = termOldApp.getParameters()[1];
-				Term termF3 = termOldApp.getParameters()[2];
-				
-				pm_func(termOldApp,"ite");
-				pm_func(termNewApp,"or");
-				
-				if (splitRule == ":ite+2") {
-					// or is commutative
-					if (termNewApp.getParameters()[0] != termF1
-							&& termNewApp.getParameters()[1] != termF1)
-							throw new AssertionError("Error 1a at " + splitRule);
-					
-					if (termNewApp.getParameters()[0] != termF3
-							&& termNewApp.getParameters()[1] != termF3)
-							throw new AssertionError("Error 1b at " + splitRule);
-				} else {					
-					if (termNewApp.getParameters()[0] != termF2
-						&& termNewApp.getParameters()[1] != termF2)
-						throw new AssertionError("Error 2a at " + splitRule);
-					
-					if (termNewApp.getParameters()[0] != smtInterpol.term("not", termF1)
-						&& termNewApp.getParameters()[1] != smtInterpol.term("not", termF1))
-						throw new AssertionError("Error 2b at " + splitRule);
+				/* Just take the first annotation, because 
+				 * it should have exactly one - otherwise 
+				 * the proof-checker throws an error */
+				if (termArgsIAnn.getAnnotations()[0].getValue() instanceof Term) {							
+					pivots[i] = (Term) termArgsIAnn.getAnnotations()[0].getValue();
+				} else {
+					throw new AssertionError("Error: The following object was supposed to be a known term but isn't: " 
+							+ termArgsIAnn.getAnnotations()[0].getValue().toString() + "It is:" 
+							+ termArgsIAnn.getAnnotations()[0].getValue().getClass().getCanonicalName());
 				}
+				
+				if (termArgsIAnn.getAnnotations().length > 1) {
+					throw new AssertionError("Error: Expected number of annotations was 1, instead it is " + termArgsIAnn.getAnnotations().length + " in this term " + termArgsIAnn);
+				}
+			} else {
+				throw new AssertionError("Error: Expected an annotated term as parameter No." + i + ">0 of a "
+						+ "resolution term");
+			}
+		}
+		/* get pivot: end */
+		
+		/* Check if the pivots are really in the second argument */
+		
+		//The arguments of the first term after the calculation
+		Term[] termArgsCalc = new Term[termArgs.length];
+		//The arguments of the first term after the calculation as AnnotatedTerms
+		AnnotatedTerm[] termArgsCalcAnn = new AnnotatedTerm[termArgsCalc.length];
+		
+		
+		for (int i = termArgsCalc.length - 1; i >= 0; i--) {
+			if (!mStackResults.isEmpty()) {
+				termArgsCalc[i] = stackPop();
+			} else {
+				throw new AssertionError("Error: The Resolution needs results, but there are not enough.");
+			}
+			
+			/* termArgsCalc still includes the pivot-annotation. */
+			if (i != 0) {
+				if (termArgsCalc[i] instanceof AnnotatedTerm) {
+					termArgsCalcAnn[i] = (AnnotatedTerm) termArgsCalc[i];
+				} else	{
+					throw new AssertionError("Error: This code really shouldn't be reachable! A random number: 23742");
+				}					
+			}
+		}
+			
+		// Declaration done, now for the real search			
+
+		// Now get the disjuncts of the first argument into the hash set
+		
+		// The first argument calculated and as an ApplicationTerm
+		// this is just needed if argument 0 has more than one disjunct.
+		ApplicationTerm termArg0CalcApp = null; //Not nice, but it will just be needed when multiDisjunct holds and then it is initialized properly
+		// true iff. argument 0 has more than one disjunct
+		boolean multiDisjunct = false; 
+		
+		if (termArgsCalc[0] instanceof ApplicationTerm) {
+			termArg0CalcApp = (ApplicationTerm) termArgsCalc[0]; //First Term: The one which gets resoluted
+			
+			/* Does the clause have one or more disjuncts? */
+			/* Assumption: If there is just one clause it doesn't start with an "or" */
+			if (termArg0CalcApp.getFunction().getName() == "or") {
+				multiDisjunct = true;
+			}
+		}
+		
+		/* Initialization of the disjunct(s) */			
+		if (multiDisjunct) {
+			// Its disjuncts (Works just if the clause has more than one disjunct)
+			allDisjuncts.addAll(Arrays.asList(termArg0CalcApp.getParameters()));
+		} else {
+			allDisjuncts.add(termArgsCalc[0]);
+		}
+		
+		
+		for (int i = 1; i < termArgs.length; i++) {
+			// Remove the negated pivot from allDisjuncts
+			
+			if (!allDisjuncts.remove(negate(pivots[i], smtInterpol))) {
+				throw new AssertionError("Error (i = " + i + "): Couldn't find the negated pivot " + pivots[i].toStringDirect() 
+						+ " in the intermediate disjunction " +  allDisjuncts.toString());
+				
+			}
+
+			/* The search for the pivot in the term with the pivot: */
+			if (termArgsCalcAnn[i].getSubterm() == pivots[i]) {
+				// The Pivot-term has one disjunct
+			} else if (termArgsCalcAnn[i].getSubterm() instanceof ApplicationTerm) {
+				// The pivot term has more than one disjunct
+
+				// Of the ith argument of the resolution, the subterm as an ApplicationTerm
+				ApplicationTerm termArgsCalcAnnISubtApp = (ApplicationTerm) termArgsCalcAnn[i].getSubterm();
+				 
+				if (termArgsCalcAnnISubtApp.getFunction().getName() != "or") {
+					throw new AssertionError("Error: Hoped for a disjunction while searching the pivot " 
+							+ pivots[i] + " in " + termArgsCalc[i].toStringDirect() + ". But found "
+							 + "a function with that symbol: " + termArgsCalcAnnISubtApp.getFunction().getName());
+				} 
+				
+				// For each disjunct we have to check if it's the pivot, if not it has to be added later.
+				boolean pivotFound = false;
+				for (int j = 0; j < termArgsCalcAnnISubtApp.getParameters().length; j++) {
+					if (termArgsCalcAnnISubtApp.getParameters()[j] != pivots[i]) {
+						allDisjuncts.add(termArgsCalcAnnISubtApp.getParameters()[j]);
+					} else {
+						pivotFound = true;
+					}
+				}
+				
+				if (!pivotFound) {
+					throw new AssertionError("Error: couldn't find the pivot " + pivots[i].toStringDirect() 
+							+ " in the disjunction " +  termArgsCalcAnnISubtApp.toStringDirect());
+				}					
+			} else {
+				throw new AssertionError("Error: Could NOT find the pivot " + pivots[i] + " in " 
+						+ termArgsCalc[i].toStringDirect() + " finden. Before the calculation the term was "
+						+ termArgs[i].toStringDirect());
+			}
+		}
+		
+		
+		/* Different handling for a different number of conjuncts is needed */
+		switch (allDisjuncts.size()) {
+		case 0:	
+			stackPush(smtInterpol.term("false"), term);
+			return;
+		case 1:;
+			stackPush(allDisjuncts.iterator().next(), term);
+			return;
+		default:				
+			//Build an array that contains only the disjuncts, that have to be returned
+			Term[] disjunctsReturn = allDisjuncts.toArray(new Term[allDisjuncts.size()]);
+
+			stackPush(smtInterpol.term("or", disjunctsReturn), term);
+			return;
+		}
+	}			
+			
+	public void walkEquality(Term term) {
+		ApplicationTerm termApp = null; //The first term casted to an ApplicationTerm
+		Term[] termArgs = null; //The parameters/arguments of the first term
+		if (term instanceof ApplicationTerm) {
+			termApp = (ApplicationTerm) term;
+			termArgs = termApp.getParameters();
+		}
+		
+		/* Expected: The first argument is unary each other argument binary.
+		 * Each not-first argument describes a rewrite of a (sub)term of the first term.
+		 * Important is the order, e.g. the rewrite of the second argument has to be executed
+		 * before the rewrite of the third argument! 
+		 */
+
+		ApplicationTerm[] termAppParamsApp = new ApplicationTerm[termArgs.length]; //Parameters of @eq, uncalculated, application terms
+		Term termEdit; //Term which will be edited end ends in the result
+		// The i-th parameter of the first term as AnnotatedTerm, which is
+		// just needed for @rewrite, i.e. just not for @intern.
+		AnnotatedTerm termAppParamsAppIAnn;
+		/* The i-th Parameter of the first term, as ...
+		 *  - @intern: ApplicationTerm
+		 *  - @rewrite: Subterm of the AnnotatedTerm which is an ApplicationTerm
+		 *  ["May" stands for Maybe]
+		 */
+		ApplicationTerm termAppParamsAppIMayAnnApp;
+		// Initialization
+		for (int i = 0; i < termArgs.length; i++) {
+			termAppParamsApp[i] = convertApp(termArgs[i]);
+			
+			// OLD and WRONG: Check, if the params are correct for themselves
+			// This was already done, and at this points leads to chaos on the resultStack
+			// stackWalker.push(new WalkerId<Term,String>(termAppParamsApp[i],""));
+			
+		}
+
+		termEdit = stackPop(); //termAppParamsApp[0];
+		
+		// Editing the term
+		for (int i = 1; i < termArgs.length; i++) {				
+			if (pm_func_weak(termAppParamsApp[i],"@rewrite")) {					
+				termAppParamsAppIAnn = convertAnn(termAppParamsApp[i].getParameters()[0]);
+				termAppParamsAppIMayAnnApp = convertApp(termAppParamsAppIAnn.getSubterm());
+			} else if (pm_func_weak(termAppParamsApp[i],"@intern")) {
+				termAppParamsAppIMayAnnApp = convertApp(termAppParamsApp[i].getParameters()[0]);
+			} else {
+				throw new AssertionError("Error: An argument of @eq was neither a @rewrite nor " 
+						+ "a @intern, it was: " + termAppParamsApp[i].getFunction().getName() + ".");
+			}
+
+			pm_func(termAppParamsAppIMayAnnApp, "=");
+			
+			checkNumber(termAppParamsAppIMayAnnApp, 2);
+			
+			// Not nice: Can it be, that one has to calculate termDelete or termInsert first?
+			termEdit = rewriteTerm(termEdit, termAppParamsAppIMayAnnApp.getParameters()[0], termAppParamsAppIMayAnnApp.getParameters()[1]);
+		}
+		
+		stackPush(termEdit, term);			
+	}
+	
+	public void walkClause(Term term) {
+		SMTInterpol smtInterpol = mSkript;
+		// term is just the first term
+		
+		/* Check if the parameters of clause are two disjunctions (which they should be) */
+				
+		Term termAppParam1Calc = null;
+		Term termAppParam2Calc = null;
+		
+		//The first Parameter of clause, which is a disjunction, just
+		//needed if there is more than one disjunct.
+		ApplicationTerm termAppParam1CalcApp = null;
+		ApplicationTerm termAppParam2CalcApp = null;
+		
+		// The disjuncts of each parameter
+		HashSet<Term> param1Disjuncts = new HashSet<Term>();
+		HashSet<Term> param2Disjuncts = new HashSet<Term>();
+		
+		// Important: It's correct, that at first the second parameter is read and then the first.
+		if (!mStackResults.isEmpty()) {
+			termAppParam2Calc = stackPop();
+		} else {
+			throw new AssertionError("Error: Clause2 needs a result, but there is none.");
+		}
+		
+		if (!mStackResults.isEmpty()) {
+			termAppParam1Calc = stackPop();
+		} else {
+			throw new AssertionError("Error: Clause1 needs a result, but there is none.");
+		}
+		
+		boolean multiDisjunct1 = false; // true iff parameter 1 has more than one disjunct
+		boolean multiDisjunct2 = false; // true iff parameter 2 has more than one disjunct
+		
+		if (termAppParam1Calc instanceof ApplicationTerm) {
+			termAppParam1CalcApp = (ApplicationTerm) termAppParam1Calc;
+			if (termAppParam1CalcApp.getFunction().getName() == "or") {
+				multiDisjunct1 = true;				
+			}
+		}
+
+		if (termAppParam2Calc instanceof ApplicationTerm) {
+			termAppParam2CalcApp = (ApplicationTerm) termAppParam2Calc;
+			if (termAppParam2CalcApp.getFunction().getName() == "or") {
+				multiDisjunct2 = true;					
+			}
+		} 		
+		
+		// Initialize the disjuncts			 			
+		
+		if (multiDisjunct1) {
+			param1Disjuncts.addAll(Arrays.asList(termAppParam1CalcApp.getParameters()));
+		} else {
+			if (termAppParam1Calc != smtInterpol.term("false"))
+					param1Disjuncts.add(termAppParam1Calc);
+		}
+		
+		if (multiDisjunct2) {
+			param2Disjuncts.addAll(Arrays.asList(termAppParam2CalcApp.getParameters()));
+		} else {
+			if (termAppParam2Calc != smtInterpol.term("false"))
+				param2Disjuncts.add(termAppParam2Calc);
+		}
+		
+
+		/* Check if the clause operation was correct. Each later disjunct has to be in 
+		 * the first disjunction and reverse.
+		 */
+		
+		if (!param1Disjuncts.equals(param2Disjuncts)) {				
+			// Start of: Just for debugging:
+			System.out.println("disjuncts1: ");
+			for (Term disj1 : param1Disjuncts)
+				System.out.println(disj1.toStringDirect());
+			System.out.println("disjuncts2: ");
+			for (Term disj2 : param2Disjuncts)
+				System.out.println(disj2.toStringDirect());
+			// End of: Just for debugging:
+			
+			throw new AssertionError("Error: The clause-operation didn't permute correctly!");
+		}
+										
+		stackPush(termAppParam2Calc, term);
+	}		
+		
+			
+	public void walkSplit(Term term) {
+		SMTInterpol smtInterpol = mSkript;
+		// term is just the first term
+		
+		ApplicationTerm termApp = null; //The first term casted to an ApplicationTerm
+		if (term instanceof ApplicationTerm) {
+			termApp = (ApplicationTerm) term;
+		}
+		
+		/* Read the rule and handle each differently */
+		checkNumber(termApp, 2);
+		
+		AnnotatedTerm termAppSplitInnerAnn = convertAnn(termApp.getParameters()[0]);
+		ApplicationTerm termSplitReturnApp = convertApp(termApp.getParameters()[1]);
+		ApplicationTerm termOldCalcApp = convertApp(convertAnn(stackPop()).getSubterm());
+		Term termSplitReturnInner = termSplitReturnApp.getParameters()[0];
+								
+		String splitRule = termAppSplitInnerAnn.getAnnotations()[0].getKey();
+					
+		if (mDebug.contains("currently"))
+			System.out.println("Split-Rule: " + splitRule);
+		if (mDebug.contains("hardTerm"))
+			System.out.println("Term: " + term.toStringDirect());
+		
+		if (splitRule == ":notOr") {
+			if (mDebug.contains("split_notOr")) {
+				System.out.println("Meldung: Wandle um (berechnet):");
+				System.out.println(termOldCalcApp.toStringDirect());
+				System.out.println("in");
+				System.out.println(termApp.getParameters()[1].toStringDirect());
+			}
+			
+			pm_func(termSplitReturnApp,"not");
+			if (!pm_func_weak(termOldCalcApp, "not"))
+				System.out.println("Breakpoint");
+			pm_func(termOldCalcApp, "not");
+			ApplicationTerm termOldCalcAppInnerApp = convertApp(termOldCalcApp.getParameters()[0]);
+			pm_func(termOldCalcAppInnerApp, "or");
+			
+			for (Term disjunct : termOldCalcAppInnerApp.getParameters()) {
+				if (disjunct == termSplitReturnInner) {
+					stackPush(termApp.getParameters()[1], term);
+					return;
+				}					
+			}
+			
+			throw new AssertionError("Error in \"split\"");
+				
+		} else if (splitRule == ":=+1" || splitRule == ":=+2") {
+			int rr = 2;
+			if (splitRule == ":=+1")
+				rr = 1;
+			
+			// checkNumber(termApp.getParameters(),2); already checked
+			
+			ApplicationTerm termOldApp = termOldCalcApp;
+			ApplicationTerm termNewApp = termSplitReturnApp;
+			
+			checkNumber(termOldApp,2);
+			checkNumber(termNewApp,2);
+			
+			//The term (F1 or F2) which is negated in new term
+			Term termNewNeg = termOldApp.getParameters()[2 - rr];
+			Term termNewPos = termOldApp.getParameters()[rr - 1];
+			
+			pm_func(termOldApp,"=");
+			pm_func(termNewApp,"or");
+			
+			if (termNewApp.getParameters()[rr - 1] != smtInterpol.term("not",termNewNeg)
+					&& termNewApp.getParameters()[2 - rr] != smtInterpol.term("not",termNewNeg))
+				throw new AssertionError("Error 1 at " + splitRule);
+			
+			if (termNewApp.getParameters()[rr - 1] != termNewPos
+					&& termNewApp.getParameters()[2 - rr] != termNewPos)
+				throw new AssertionError("Error 2 at " + splitRule);
+			
+			/* Not nice: Not checked, if the F are boolean, which
+			 * they should.
+			 */
+			
+			stackPush(termApp.getParameters()[1], term);
+			return;
+		} else if (splitRule == ":=-1" || splitRule == ":=-2") {
+			checkNumber(termApp,2);
+			
+			ApplicationTerm termOldApp = termOldCalcApp;
+			ApplicationTerm termNewApp = termSplitReturnApp;
+			
+			checkNumber(termOldApp,1);
+			checkNumber(termNewApp,2);
+			
+			ApplicationTerm termOldAppInnerApp = convertApp(termOldApp.getParameters()[0]);
+			
+			checkNumber(termOldAppInnerApp,2);
+			
+			Term termF1 = termOldAppInnerApp.getParameters()[0];
+			Term termF2 = termOldAppInnerApp.getParameters()[1];
+			
+			pm_func(termOldApp,"not");
+			pm_func(termOldAppInnerApp,"=");
+			pm_func(termNewApp,"or");
+			
+			if (splitRule == ":=-1") {
+				// or is commutative
+				if (termNewApp.getParameters()[0] != termF1
+					&& termNewApp.getParameters()[1] != termF1)
+					throw new AssertionError("Error 1 at " + splitRule);
+			
+				if (termNewApp.getParameters()[0] != termF2
+					&& termNewApp.getParameters()[1] != termF2)
+					throw new AssertionError("Error 2 at " + splitRule);
+			} else {
+				ApplicationTerm termNewAppInner1App = convertApp(termNewApp.getParameters()[0]);
+				ApplicationTerm termNewAppInner2App = convertApp(termNewApp.getParameters()[1]);
+			
+				pm_func(termNewAppInner1App,"not");
+				pm_func(termNewAppInner2App,"not");
+									
+				// or is commutative						
+				if (termNewAppInner1App.getParameters()[0] != termF1
+					&& termNewAppInner2App.getParameters()[0] != termF1)
+					throw new AssertionError("Error 3 at " + splitRule);
+				
+				if (termNewAppInner1App.getParameters()[0] != termF2
+					&& termNewAppInner2App.getParameters()[0] != termF2)
+					throw new AssertionError("Error 4 at " + splitRule);
+			}	
+			
+			/* Not nice: Not checked, if the F are boolean, which
+			 * they should.
+			 */
+				
+			stackPush(termApp.getParameters()[1], term);
+			return;
+		} else if (splitRule == ":ite+1" || splitRule == ":ite+2") {
+			checkNumber(termApp,2);
+			
+			ApplicationTerm termOldApp = termOldCalcApp;
+			ApplicationTerm termNewApp = termSplitReturnApp;
+			
+			checkNumber(termOldApp,3);				
+			checkNumber(termNewApp,2);
+			
+			Term termF1 = termOldApp.getParameters()[0];
+			Term termF2 = termOldApp.getParameters()[1];
+			Term termF3 = termOldApp.getParameters()[2];
+			
+			pm_func(termOldApp,"ite");
+			pm_func(termNewApp,"or");
+			
+			if (splitRule == ":ite+2") {
+				// or is commutative
+				if (termNewApp.getParameters()[0] != termF1
+						&& termNewApp.getParameters()[1] != termF1)
+						throw new AssertionError("Error 1a at " + splitRule);
+				
+				if (termNewApp.getParameters()[0] != termF3
+						&& termNewApp.getParameters()[1] != termF3)
+						throw new AssertionError("Error 1b at " + splitRule);
+			} else {					
+				if (termNewApp.getParameters()[0] != termF2
+					&& termNewApp.getParameters()[1] != termF2)
+					throw new AssertionError("Error 2a at " + splitRule);
+				
+				if (termNewApp.getParameters()[0] != smtInterpol.term("not", termF1)
+					&& termNewApp.getParameters()[1] != smtInterpol.term("not", termF1))
+					throw new AssertionError("Error 2b at " + splitRule);
+			}
 					
 						
-				
-				/* Not nice: Not checked, if the F are boolean, which
-				 * they should.
-				 */
-				
-				stackPush(termApp.getParameters()[1], term);
-				return;
 			
-			} else if (splitRule == ":ite-1" || splitRule == ":ite-2") {
-				checkNumber(termApp,2);
-				
-				ApplicationTerm termOldApp = termOldCalcApp;
-				ApplicationTerm termNewApp = termSplitReturnApp;
-				
-				checkNumber(termOldApp,1);
-				checkNumber(termNewApp,2);
-				
-				ApplicationTerm termOldAppInnerApp = convertApp(termOldApp.getParameters()[0]);
-				
-				checkNumber(termOldAppInnerApp,3);								
-				
-				Term termF1 = termOldAppInnerApp.getParameters()[0];
-				Term termF2 = termOldAppInnerApp.getParameters()[1];
-				Term termF3 = termOldAppInnerApp.getParameters()[2];
-				
-				pm_func(termOldApp,"not");
-				pm_func(termOldAppInnerApp,"ite");
-				pm_func(termNewApp,"or");
-				
-				if (splitRule == ":ite-2") {
-					// or is commutative
-					if (termNewApp.getParameters()[0] != termF1
-						&& termNewApp.getParameters()[1] != termF1)
-						throw new AssertionError("Error 1 at " + splitRule);
-				
-					if (termNewApp.getParameters()[0] != smtInterpol.term("not", termF3)
-						&& termNewApp.getParameters()[1] != smtInterpol.term("not", termF3))
-						throw new AssertionError("Error 2 at " + splitRule);
-				} else {
-					ApplicationTerm termNewAppInner2App = convertApp(termNewApp.getParameters()[1]);
-					ApplicationTerm termNewAppInner1App = convertApp(termNewApp.getParameters()[0]);
-				
-					pm_func(termNewAppInner1App,"not");
-					pm_func(termNewAppInner2App,"not");
-					
-					checkNumber(termNewAppInner1App, 1);
-					checkNumber(termNewAppInner2App, 1);
-					
-					// or is commutative
-					if (termNewAppInner1App.getParameters()[0] != termF2
-						&& termNewAppInner2App.getParameters()[0] != termF1)
-						throw new AssertionError("Error 3 at " + splitRule);
-
-					if (termNewAppInner1App.getParameters()[0] != termF1
-						&& termNewAppInner2App.getParameters()[0] != termF2)
-						throw new AssertionError("Error 4 at " + splitRule);
-				}
-				
-				/* Not nice: Not checked, if the F are boolean, which
-				 * they should.
-				 */
-					
-				stackPush(termApp.getParameters()[1], term);
-				return;
-			} else {
-				throw new AssertionError("Error: The following split-rule "
-						 + "is unknown: " + splitRule);
-			}			
+			/* Not nice: Not checked, if the F are boolean, which
+			 * they should.
+			 */
 			
-		case "annot":
-			Term subtermCalc = stackPop(type);
-			Annotation[] annots = mStackAnnots.pop();
-			Term returnTerm = smtInterpol.annotate(subtermCalc, annots);
-			
-			stackPush(returnTerm, term);
+			stackPush(termApp.getParameters()[1], term);
 			return;
+		
+		} else if (splitRule == ":ite-1" || splitRule == ":ite-2") {
+			checkNumber(termApp,2);
 			
-		default:
-			throw new AssertionError("Error: Couldn't walk with the key " + type);
+			ApplicationTerm termOldApp = termOldCalcApp;
+			ApplicationTerm termNewApp = termSplitReturnApp;
+			
+			checkNumber(termOldApp,1);
+			checkNumber(termNewApp,2);
+			
+			ApplicationTerm termOldAppInnerApp = convertApp(termOldApp.getParameters()[0]);
+			
+			checkNumber(termOldAppInnerApp,3);								
+			
+			Term termF1 = termOldAppInnerApp.getParameters()[0];
+			Term termF2 = termOldAppInnerApp.getParameters()[1];
+			Term termF3 = termOldAppInnerApp.getParameters()[2];
+			
+			pm_func(termOldApp,"not");
+			pm_func(termOldAppInnerApp,"ite");
+			pm_func(termNewApp,"or");
+			
+			if (splitRule == ":ite-2") {
+				// or is commutative
+				if (termNewApp.getParameters()[0] != termF1
+					&& termNewApp.getParameters()[1] != termF1)
+					throw new AssertionError("Error 1 at " + splitRule);
+			
+				if (termNewApp.getParameters()[0] != smtInterpol.term("not", termF3)
+					&& termNewApp.getParameters()[1] != smtInterpol.term("not", termF3))
+					throw new AssertionError("Error 2 at " + splitRule);
+			} else {
+				ApplicationTerm termNewAppInner2App = convertApp(termNewApp.getParameters()[1]);
+				ApplicationTerm termNewAppInner1App = convertApp(termNewApp.getParameters()[0]);
+			
+				pm_func(termNewAppInner1App,"not");
+				pm_func(termNewAppInner2App,"not");
+				
+				checkNumber(termNewAppInner1App, 1);
+				checkNumber(termNewAppInner2App, 1);
+				
+				// or is commutative
+				if (termNewAppInner1App.getParameters()[0] != termF2
+					&& termNewAppInner2App.getParameters()[0] != termF1)
+					throw new AssertionError("Error 3 at " + splitRule);
+
+				if (termNewAppInner1App.getParameters()[0] != termF1
+					&& termNewAppInner2App.getParameters()[0] != termF2)
+					throw new AssertionError("Error 4 at " + splitRule);
+			}
+			
+			/* Not nice: Not checked, if the F are boolean, which
+			 * they should.
+			 */
+				
+			stackPush(termApp.getParameters()[1], term);
+			return;
+		} else {
+			throw new AssertionError("Error: The following split-rule "
+					 + "is unknown: " + splitRule);
 		}
+	}
+			
+	public void walkAnnotation(Term term) {
+		Term subtermCalc = stackPop();
+		Annotation[] annots = mStackAnnots.pop();
+		Term returnTerm = mSkript.annotate(subtermCalc, annots);
+		
+		stackPush(returnTerm, term);
 	}
 	
 	/* For each parameter create a Walker, which calculates it */
@@ -3125,7 +3128,7 @@ public class ProofChecker {
 		
 		for (int i = params.length - 1; i >= 0; i--) {			
 			//Calculating in the arguments (of the resolution/equality) proven formulas
-			mStackWalker.push(new WalkerId<Term,String>(params[i],""));
+			enqueueWalker(new ProofWalker(params[i]));
 		}
 	}
 	
@@ -3136,7 +3139,7 @@ public class ProofChecker {
 	}
 	
 	// The string is just for debugging, later it can be completely removed.
-	public Term stackPop(String type) {
+	public Term stackPop() {
 		if (mStackResults.size() == 0 || mStackResultsDebug.size() == 0) {
 			throw new AssertionError("Error: The debug-stack or the result-stack has size 0: "
 					+ "debug-size: " + mStackResultsDebug.size() + ", result-size: " + mStackResults.size());
@@ -3144,8 +3147,7 @@ public class ProofChecker {
 		
 		if (mStackResults.size() !=  mStackResultsDebug.size()) {
 			throw new AssertionError("Error: The debug-stack and the result-stack have different size: "
-					+ "debug-size: " + mStackResultsDebug.size() + ", result-size: " + mStackResults.size()
-					+ " at: " + type);
+					+ "debug-size: " + mStackResultsDebug.size() + ", result-size: " + mStackResults.size());
 		}
 		
 		Term returnTerm = mStackResults.pop();
@@ -3153,7 +3155,7 @@ public class ProofChecker {
 		
 		if (mCacheConv.get(debugTerm) !=  returnTerm) {
 			throw new AssertionError("Error: The debugger couldn't associate " + returnTerm.toStringDirect()
-					+ " with " + debugTerm.toStringDirect() + " at " + type);
+					+ " with " + debugTerm.toStringDirect());
 		}
 		
 		return returnTerm;
@@ -3744,58 +3746,4 @@ public class ProofChecker {
 		
 		return termRet;
 	}
-	
-	// Old, worked, but certainly wrong:
-//	ArrayList<Term> splitNotOrHelper_getConjuncts(Term term, SMTInterpol smtInterpol)
-//	{
-//		return splitNotOrHelper_getConjuncts(term, smtInterpol, false);
-//	}
-//	
-//	
-//	ArrayList<Term> splitNotOrHelper_getConjuncts(Term term, SMTInterpol smtInterpol, boolean negated)
-//	{
-//		ArrayList<Term> termRet = new ArrayList<Term>(); // return-Term
-//		
-//		if (! (term instanceof ApplicationTerm))
-//		{
-//			if (!negated)
-//				throw new AssertionError("Error 1 in splitNotOrHelper_getConjuncts");
-//			
-//			termRet.add(term);
-//			System.out.println("splitNotOrHelper: (noApp) " + term.toStringDirect());
-//			return termRet;
-//		}
-//		
-//		ApplicationTerm termApp = convertApp(term);
-//		
-//				
-//		if ((pm_func_weak(termApp,"or") && negated)
-//				|| (pm_func_weak(termApp,"and") && !negated))
-//		{
-//			System.out.println("Found and/or with " + termApp.getParameters().length + " parameters");
-//			//System.out.println("splitNotOrHelper: " + termRet.toString());
-//			
-//			for (Term param : termApp.getParameters())
-//				termRet.addAll(splitNotOrHelper_getConjuncts(param, smtInterpol, negated));
-//			
-//			return termRet;
-//		}
-//			
-//		if (pm_func_weak(termApp,"not"))
-//		{
-//			System.out.println("splitNotOrHelper: not");
-//			System.out.println(negated + " -> " + !negated);
-//			return splitNotOrHelper_getConjuncts(termApp.getParameters()[0], smtInterpol, (!negated));
-//		}
-//			
-//		
-//		if (negated)
-//			termRet.add(term);
-//		else
-//			termRet.add(smtInterpol.term("not",term));
-//		
-//		System.out.println("splitNotOrHelper: (last case: " + negated + ") " + term.toStringDirect());
-//		
-//		return termRet;
-//	}
 }
