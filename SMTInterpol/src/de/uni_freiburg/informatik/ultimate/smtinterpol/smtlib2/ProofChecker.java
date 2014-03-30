@@ -1,7 +1,21 @@
-/**
- * @author Raiola
+/*
+ * Copyright (C) 2009-2012 University of Freiburg
+ *
+ * This file is part of SMTInterpol.
+ *
+ * SMTInterpol is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMTInterpol is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with SMTInterpol.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 package de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2;
 
 import de.uni_freiburg.informatik.ultimate.logic.AnnotatedTerm;
@@ -21,12 +35,26 @@ import de.uni_freiburg.informatik.ultimate.smtinterpol.util.SymmetricPair;
 
 
 
+
 import java.math.BigInteger;
 //import java.util.ArrayList;
 //import java.util.HashMap;
 import java.util.*;
 
-public class ProofChecker extends SMTInterpol {
+import org.apache.log4j.Logger;
+
+/**
+ * This proof checker checks compliance of SMTInterpol proofs with
+ * its documented format. 
+ * 
+ * @author Pascal Raiola
+ */
+public class ProofChecker {
+	
+	HashSet<Term> mAssertions;
+	SMTInterpol mSkript;
+	Logger mLogger;
+	int mError;
 	
 	HashSet<String> debug = new HashSet<String>(); // Just for debugging
 	
@@ -39,7 +67,17 @@ public class ProofChecker extends SMTInterpol {
 	Stack<Term> stackResultsDebug = new Stack<Term>();
 	Stack<Annotation[]> stackAnnots = new Stack<Annotation[]>();
 	
-	public boolean check(Term res, SMTInterpol smtInterpol) {
+	public ProofChecker(SMTInterpol smtInterpol) {
+		mSkript = smtInterpol;
+		Term[] assertions = smtInterpol.getAssertions();
+		FormulaUnLet unletter = new FormulaUnLet();
+		mAssertions = new HashSet<Term>(assertions.length);
+		for (Term ass : assertions)
+			mAssertions.add(unletter.transform(ass));
+		mLogger = smtInterpol.getLogger();
+	}
+	
+	public boolean check(Term res) {
 		
 		// Just for debugging
 		//debug.add("currently");
@@ -64,6 +102,7 @@ public class ProofChecker extends SMTInterpol {
 		pcCacheConv = new HashMap<Term, Term>();
 		pcCacheCheck = new HashSet<Term>();
 				
+		mError = 0;
 		Term resCalc;
 		// Now non-recursive:
 		stackWalker.push(new WalkerId<Term,String>(new FormulaUnLet().unlet(res),""));
@@ -112,35 +151,24 @@ public class ProofChecker extends SMTInterpol {
 			currentWalker = stackWalker.pop();
 			if (currentWalker.s == "")
 			{
-				walk((Term) currentWalker.t, smtInterpol);
+				walk((Term) currentWalker.t);
 			} else
 			{
 				walkSpecial((Term) currentWalker.t, 
-						(String) currentWalker.s, smtInterpol);
+						(String) currentWalker.s);
 			}
 		}		
 		
-		if (!stackResults.isEmpty())
-		{
-			resCalc = stackPop("end");
-		} else
-		{
-			throw new AssertionError("Error: At the end of verifying the proof, there is no result left.");
+		assert (stackResults.size() == 1);
+		resCalc = stackPop("end");
+		
+		if (resCalc != mSkript.term("false")) {
+			mLogger.error("The proof did not yield a contradiction but "
+					+ resCalc);
+			mError++;
 		}
 		
-		if (resCalc == smtInterpol.term("false"))
-		{
-			return true;
-		} else {
-			System.out.println("The result-stack had " + (stackResults.size()  + 1) + " element(s).");
-			if (stackResults.size() > 0)
-			{
-				System.out.println("And on top is: " + stackPop("end").toStringDirect());
-			}
-			return false;
-		}
-		
-		
+		return mError == 0;
 	}
 	
 	public Term negate(Term formula, SMTInterpol smtInterpol)
@@ -159,8 +187,9 @@ public class ProofChecker extends SMTInterpol {
 		return smtInterpol.term("not", formula);
 	}
 	
-	public void walk(Term term, SMTInterpol smtInterpol)
+	public void walk(Term term)
 	{
+		SMTInterpol smtInterpol = mSkript;
 		/* Non-recursive */
 		/* Takes proof, returns proven formula */
 		
@@ -730,12 +759,17 @@ public class ProofChecker extends SMTInterpol {
 				stackPush(termAppInnerAnn.getSubterm(), term);
 				return;
 				
-			case "@asserted":
-				if (!debug.contains("noAssertMsg"))
-					System.out.println("Believed as asserted: " + termApp.getParameters()[0].toString() + " .");
+			case "@asserted": {
+				Term  assertedTerm = termApp.getParameters()[0];
+				if (!mAssertions.contains(assertedTerm)) {
+					mLogger.error("Could not find asserted term "
+							+ assertedTerm);
+					mError++;
+				}
 				/* Just return the part without @asserted */
-				stackPush(termApp.getParameters()[0], term);
+				stackPush(assertedTerm, term);
 				return;
+			}
 				
 			case "@rewrite":
 				
@@ -2745,8 +2779,9 @@ public class ProofChecker extends SMTInterpol {
 	}
 	
 	//Special Walker
-	public void walkSpecial(Term term, String type, SMTInterpol smtInterpol)
+	public void walkSpecial(Term term, String type)
 	{
+		SMTInterpol smtInterpol = mSkript;
 		// term is just the first term
 		
 		ApplicationTerm termApp = null; //The first term casted to an ApplicationTerm

@@ -461,6 +461,7 @@ public class SMTInterpol extends NoopScript {
 	boolean mInterpolantCheckMode = false;
 	boolean mUnsatCoreCheckMode = false;
 	boolean mModelCheckMode = false;
+	boolean mProofCheckMode = false;
 	
 	private int mProofMode;
 	
@@ -520,6 +521,7 @@ public class SMTInterpol extends NoopScript {
 	private final static int OPT_SIMPLIFY_INTERPOLANTS = 19;
 	private final static int OPT_SIMPLIFY_CHECK_TYPE = 20;
 	private final static int OPT_SIMPLIFY_REPEATEDLY = 21;
+	private final static int OPT_PROOF_CHECK_MODE = 22;
 	//// Add a new option number for every new option
 	
 	// The Options Map
@@ -582,6 +584,9 @@ public class SMTInterpol extends NoopScript {
 		new BoolOption(":simplify-repeatedly",
 				"Simplify until the fixpoint is reached", true,
 				OPT_SIMPLIFY_REPEATEDLY);
+		new BoolOption(":proof-check-mode",
+				"Check the produced proof for unsatisfiable formulas", false,
+				OPT_PROOF_CHECK_MODE);
 		//// Create new option object for every new option
 	}
 	
@@ -819,6 +824,14 @@ public class SMTInterpol extends NoopScript {
 				}
 			} else {
 				result = LBool.UNSAT;
+				if (mProofCheckMode) {
+					ProofChecker proofchecker = new ProofChecker(this);
+					if (!proofchecker.check(getProof())) { 
+						if (mDDFriendly)
+							System.exit(2);
+						mLogger.fatal("Proof-checker did not verify");
+					}
+				}
 			}
 		} catch (OutOfMemoryError eoom) {
 			// BUGFIX: Don't do this since log4j will produce another OOM.
@@ -869,8 +882,7 @@ public class SMTInterpol extends NoopScript {
 			mClausifier = new Clausifier(mEngine, mProofMode);
 			// This has to be before set-logic since we need to capture
 			// initialization of CClosure.
-			mEngine.setProofGeneration(
-					mProduceProofs || mProduceUnsatCores || mProduceInterpolants);
+			mEngine.setProofGeneration(mProofMode > 0);
 			mClausifier.setLogic(logic);
 			mClausifier.setAssignmentProduction(mProduceAssignment);
 			mEngine.setProduceAssignments(mProduceAssignment);
@@ -1048,6 +1060,8 @@ public class SMTInterpol extends NoopScript {
 			return mSimplifyCheckType.name().toLowerCase();
 		case OPT_SIMPLIFY_REPEATEDLY:
 			return mSimplifyRepeatedly;
+		case OPT_PROOF_CHECK_MODE:
+			return mProofCheckMode;
 		default:
 			throw new InternalError("This should be implemented!!!");
 		}
@@ -1058,11 +1072,7 @@ public class SMTInterpol extends NoopScript {
 	    throws SMTLIBException, UnsupportedOperationException {
 		if (mEngine == null)
 			throw new SMTLIBException("No logic set!");
-		int proofMode = 0;
-		if (mProduceInterpolants || mProduceUnsatCores)
-			proofMode = 1;
-		if (mProduceProofs)
-			proofMode = 2;
+		int proofMode = mProofMode;
 		if (proofMode == 0)
 			throw new SMTLIBException("Option :produce-proofs not set to true");
 		if (proofMode == 1)
@@ -1081,16 +1091,6 @@ public class SMTInterpol extends NoopScript {
 			Term res = generator.convert(retrieveProof());
 			if (mBy0Seen != -1)
 				res = new Div0Remover().transform(res);
-			/* Begin Proof-Checker */
-			System.out.print("\nProof-Checker:\n");
-			if(new ProofChecker().check(res, this))
-			{
-				System.out.println("The proof-checker confirmed the proof.");
-			} else {
-				throw new AssertionError("Error: The proof-checker couldn't verify the proof.");
-			}
-			System.out.print("\n\n");
-			/* End Proof-Checker */
 			return res;
 		} catch (Exception exc) {	
 			throw new SMTLIBException(exc.getMessage() == null 
@@ -1550,6 +1550,13 @@ public class SMTInterpol extends NoopScript {
 		case OPT_SIMPLIFY_REPEATEDLY:
 			mSimplifyRepeatedly = o.checkArg(value, mSimplifyRepeatedly);
 			break;
+		case OPT_PROOF_CHECK_MODE:
+			if (mProofCheckMode = o.checkArg(value, mProofCheckMode)) {
+				mProofMode = 2;
+				if (mAssertions == null)
+					mAssertions = new ScopedArrayList<Term>();
+			}
+			break;
 		default:
 			throw new InternalError("This should be implemented!!!");
 		}
@@ -1650,6 +1657,7 @@ public class SMTInterpol extends NoopScript {
 	 * @throws SMTLIBException If no proof is present or the proof is found to
 	 *                         to be incorrect.
 	 */
+	@SuppressWarnings("unused")
 	public Clause retrieveProof() throws SMTLIBException {
 		Clause unsat = mEngine.getProof();
 		if (unsat == null) {
