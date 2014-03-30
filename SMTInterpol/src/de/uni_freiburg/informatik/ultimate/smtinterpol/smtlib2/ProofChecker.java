@@ -617,22 +617,19 @@ public class ProofChecker extends NonRecursive {
 	
 	
 	public void walkTautology(ApplicationTerm tautologyApp) {
-		// If possible return the un-annotated version
-		// Warning: Code duplicates (Random number: 498255)
-		if (tautologyApp.getParameters()[0] instanceof ApplicationTerm)
-			System.out.println("");
-		AnnotatedTerm termAppInnerAnn = convertAnn(tautologyApp.getParameters()[0]);
-		
-		if (mCacheCheck.contains(tautologyApp)) {
-			/* empty */
-		} else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":eq") {
-			ApplicationTerm termOr = convertApp(termAppInnerAnn.getSubterm()); // The term with or
-			checkNumber(termOr.getParameters(),2);
+		AnnotatedTerm annTerm = (AnnotatedTerm) tautologyApp.getParameters()[0];
+		String tautType = annTerm.getAnnotations()[0].getKey();
+		Term tautology = annTerm.getSubterm();
+		Term[] clause = termToClause(tautology);
+
+		if (tautType == ":eq") {
+			if (clause.length != 2)
+				reportError("Tautology :eq must have two literals");
 			
 			boolean term1Negated = false;
 			
-			Term term1 = termOr.getParameters()[0];
-			Term term2 = termOr.getParameters()[1];
+			Term term1 = clause[0];
+			Term term2 = clause[1];
 			
 			if (term1 instanceof ApplicationTerm)
 				if (pm_func_weak(convertApp(term1),"not"))
@@ -653,7 +650,6 @@ public class ProofChecker extends NonRecursive {
 			
 			String funcSymb = termNegApp.getFunction().getName();
 			
-			pm_func(termOr,"or");
 			pm_func(termPosApp,funcSymb);
 			
 			ApplicationTerm termNegUnif = uniformizeInEquality(termNegApp);
@@ -661,32 +657,24 @@ public class ProofChecker extends NonRecursive {
 													
 			if (!uniformedSame(termNegUnif,termPosUnif))
 				throw new AssertionError("Error in @taut_eq");
-		} else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":or+") {
-			ApplicationTerm termOr = convertApp(termAppInnerAnn.getSubterm()); // The term with or
-			ApplicationTerm term1Neg = convertApp(termOr.getParameters()[0]); // The first disjunkt, still with "not"
-			ApplicationTerm term1Pure = convertApp_hard(term1Neg.getParameters()[0]); // The first disjunkt, not with "not" anymore
-			
-			HashSet<Term> term1Disjuncts = new HashSet<Term>(); // The disjuncts in term 1
-			HashSet<Term> term2NDisjuncts = new HashSet<Term>(); // The disjuncts in term 2-n
-			
-			term1Disjuncts.addAll(Arrays.asList(term1Pure.getParameters()));
-			for (int i = 1; i < termOr.getParameters().length; i++) //The first (i=0) parameter is left out)
-				term2NDisjuncts.add(termOr.getParameters()[i]);
-			
-			pm_func(termOr,"or");
-			pm_func(term1Neg,"not");
-			pm_func(term1Pure,"or");
-			
-			
-			if (!term1Disjuncts.equals(term2NDisjuncts))
-				throw new AssertionError("Error in @taut_or+");
-				
-			
-			/* Not nice: Not checked if there is a quoted-annotation, but 
-			 * otherwise it's still correct
-			 */
-		} else if (termAppInnerAnn.getAnnotations()[0].getKey() == ":termITE") {
-			ApplicationTerm termOr = convertApp(termAppInnerAnn.getSubterm()); // The term with or
+		} else if (tautType == ":or+") {
+			Term[] split = termToClause(unquote(negate(clause[0])));
+			if (split.length < 2)
+				reportError("Expected or-term in rule :or+ but got " + clause[0]);
+			else {
+				boolean problem = false;
+				for (int i = 1; i < clause.length; i++) {
+					if (split[i - 1] != clause[i])
+						problem = true;
+				}
+				if (problem)
+					reportError("Malformed tautology " + tautologyApp);
+			}
+		} else if (tautType == ":or-") {
+			if (!checkOrMinus(unquote(clause[0]),clause[1]))
+				reportError("Invalid application of rule :or-");
+		} else if (tautType == ":termITE") {
+			ApplicationTerm termOr = convertApp(tautology); // The term with or
 			
 			pm_func(termOr, "or");
 			
@@ -746,13 +734,11 @@ public class ProofChecker extends NonRecursive {
 					
 			
 		} else {
-			System.out.println("Didn't know the following tautology-rule: " + termAppInnerAnn.getAnnotations()[0].getKey()
-					+ " therefor had to believed as true:\n" + tautologyApp.toStringDirect() + " .");
+			reportError("Unknown tautology rule " + tautType);
 		}
 		
 		mCacheCheck.add(tautologyApp);
-		stackPush(termAppInnerAnn.getSubterm(), tautologyApp);
-		return;
+		stackPush(tautology, tautologyApp);
 	}
 
 	void walkAsserted(ApplicationTerm assertedApp) {
@@ -762,7 +748,6 @@ public class ProofChecker extends NonRecursive {
 		}
 		/* Just return the part without @asserted */
 		stackPush(assertedTerm, assertedApp);
-		return;
 	}
 			
 	void walkRewrite(ApplicationTerm rewriteApp) {
@@ -788,7 +773,7 @@ public class ProofChecker extends NonRecursive {
 		if (mCacheCheck.contains(rewriteApp)) {
 			/* empty */
 		} else if (rewriteRule == ":trueNotFalse") {
-			if (!(termEqApp.getParameters()[1] == mSkript.term("false"))) {
+			if (termEqApp.getParameters()[1] != mSkript.term("false")) {
 				throw new AssertionError("Error: The second argument of a rewrite of the rule " 
 						+ rewriteRule + " should be true, but isn't.\n"
 						+ "The term was " + termEqApp.toString());
@@ -818,7 +803,7 @@ public class ProofChecker extends NonRecursive {
 					+ "!\n The term was " + rewriteApp.toStringDirect());
 			
 		} else if (rewriteRule == ":constDiff") {					
-			if (!(termEqApp.getParameters()[1] == mSkript.term("false"))) {
+			if (termEqApp.getParameters()[1] != mSkript.term("false")) {
 				throw new AssertionError("Error: The second argument of a rewrite of the rule " 
 						+ rewriteRule + " should be false, but isn't.\n"
 						+ "The term was " + termEqApp.toString());
@@ -929,7 +914,7 @@ public class ProofChecker extends NonRecursive {
 			// Not nice: j \notin I' isn't checked, but even if j \in I' it's still correct
 		
 		} else if (rewriteRule == ":eqSame") {
-			if (!(termEqApp.getParameters()[1] == mSkript.term("true"))) {
+			if (termEqApp.getParameters()[1] != mSkript.term("true")) {
 				throw new AssertionError("Error: The second argument of a rewrite of the rule "
 						+ rewriteRule + " should be true, but isn't.\n"
 						+ "The term was " + termEqApp.toString());
@@ -2276,8 +2261,7 @@ public class ProofChecker extends NonRecursive {
 			disjuncts.addAll(Arrays.asList(termOldApp.getParameters()));
 			
 			while (disjuncts.size() > 0) {
-				Term currentDisjunct = disjuncts.get(disjuncts.size() - 1);
-				disjuncts.remove(currentDisjunct);
+				Term currentDisjunct = disjuncts.remove(disjuncts.size() - 1);
 				
 				boolean currentIsDisjunction = false;
 				
@@ -2305,7 +2289,6 @@ public class ProofChecker extends NonRecursive {
 		// The second part, cut the @rewrite and the annotation out, both aren't needed for the @eq-function.
 		// stackPush(innerAnnTerm.getSubterm(), term);
 		mCacheCheck.add(rewriteApp);
-		return;
 	}
 	
 	public void walkIntern(ApplicationTerm internApp) {
@@ -3418,7 +3401,7 @@ public class ProofChecker extends NonRecursive {
 		if (!termLeftNew.getSort().isNumericSort())
 			throw new AssertionError("Error 2 in uniformizeInequality");
 		
-		params[1] = (Rational.ZERO).toTerm(termLeftNew.getSort());		
+		params[1] = Rational.ZERO.toTerm(termLeftNew.getSort());		
 		
 		return convertApp(mSkript.term(relation, params), "unif2");
 	}
@@ -3549,5 +3532,29 @@ public class ProofChecker extends NonRecursive {
 			termRet.addAll(splitNotOrHelper_getConjunctsPushed(param));
 		
 		return termRet;
+	}
+	
+	public Term unquote(Term quotedTerm) {
+		if (quotedTerm instanceof AnnotatedTerm) {
+			AnnotatedTerm annTerm = (AnnotatedTerm) quotedTerm;
+			Annotation[] annots = annTerm.getAnnotations();
+			if (annots.length == 1 && annots[0].getKey() == ":quoted") {
+				Term result = annTerm.getSubterm();
+				return result;
+			}
+		}
+		reportError("Expected quoted literal, but got " + quotedTerm);
+		return quotedTerm;
+	}
+	
+	public boolean checkOrMinus(Term orTerm, Term literal) {
+		if (orTerm instanceof ApplicationTerm) {
+			ApplicationTerm theOrTerm = (ApplicationTerm) orTerm;
+			if (theOrTerm.getFunction().getName() == "or"
+					&& Arrays.asList(theOrTerm.getParameters())
+						.contains(negate(literal)))
+				return true;
+		}
+		return false;
 	}
 }
