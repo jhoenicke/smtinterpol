@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.NoSuchElementException;
 import java.util.Stack;
 
 import org.apache.log4j.Logger;
@@ -137,22 +136,21 @@ public class ProofChecker extends NonRecursive {
 	public boolean check(Term proof) {
 		
 		// Just for debugging
-		//debug.add("currently");
-		//debug.add("passt");
-		//debug.add("hardTerm");
-		//debug.add("LemmaLAadd");
-		//debug.add("calculateTerm");
-		//debug.add("WalkerPath");
-		//debug.add("WalkerPathSmall");
-		//debug.add("LemmaCC");
-		//debug.add("newRules");
-		//debug.add("convertAppID");
-		//debug.add("cacheUsed");
-		//debug.add("cacheUsedSmall");
-		//debug.add("allSubpaths");
-		//debug.add("split_notOr");
-		mDebug.add("noAssertMsg"); //Faster Output without the assert-messages
-		//debug.add("CacheRuntimeCheck");
+		//mDebug.add("currently");
+		//mDebug.add("hardTerm");
+		//mDebug.add("LemmaLAadd");
+		//mDebug.add("calculateTerm");
+		//mDebug.add("WalkerPath");
+		//mDebug.add("WalkerPathSmall");
+		//mDebug.add("LemmaCC");
+		//mDebug.add("newRules");
+		//mDebug.add("convertAppID");
+		//mDebug.add("cacheUsed");
+		//mDebug.add("cacheUsedSmall");
+		//mDebug.add("allSubpaths");
+		//mDebug.add("split_notOr");
+		//mDebug.add("CacheRuntimeCheck");
+		//mLogger.setLevel(Level.DEBUG);
 	
 		
 		// Initializing the proof-checker-cache
@@ -201,23 +199,20 @@ public class ProofChecker extends NonRecursive {
 	public void walk(ApplicationTerm proofTerm) {
 		/* Check the cache, if the unfolding step was already done */
 		if (mCacheConv.containsKey(proofTerm)) {
-			if (mCacheConv.get(proofTerm) == null) {
-				throw new AssertionError("Error: The term " + proofTerm.toString()
-						+ " was already calculated, but isn't in the cache.");
-			}
 			if (mDebug.contains("CacheRuntimeCheck"))
-				System.out.println("Cache-RT: K: " + proofTerm.toString()
+				mLogger.debug("Cache-RT: K: " + proofTerm.toString()
 						+ " (known)");
 			if (mDebug.contains("cacheUsed"))
-				System.out.println("Calculation of the term " + proofTerm.toString() 
+				mLogger.debug("Calculation of the term " + proofTerm.toString() 
 						+ " is known: " + mCacheConv.get(proofTerm).toString());
 			if (mDebug.contains("cacheUsedSmall"))
-				System.out.println("Calculation known.");
+				mLogger.debug("Calculation known.");
 			stackPush(mCacheConv.get(proofTerm), proofTerm);
 			return;
 		} else
 			if (mDebug.contains("CacheRuntimeCheck"))
-				System.out.println("Cache-RT: U: " + proofTerm.toString() + " (unknown)");
+				mLogger.debug("Cache-RT: U: " + proofTerm.toString()
+						+ " (unknown)");
 				
 		/* Get the function and parameters */
 		String rulename = proofTerm.getFunction().getName();
@@ -225,7 +220,7 @@ public class ProofChecker extends NonRecursive {
 		
 		/* Just for debugging */
 		if (mDebug.contains("currently"))
-			System.out.println("Currently looking at: " + rulename
+			mLogger.debug("Currently looking at: " + rulename
 					+ " \t (function)");
 		
 		/* Look at the rule name and treat each different */
@@ -522,15 +517,16 @@ public class ProofChecker extends NonRecursive {
 			 * - Key: Pair of the left term and the right term (which are equal by premise)
 			 * - Object: Array of those terms
 			 */
-			HashMap<SymmetricPair<Term>, Term[]> premises =
-					new HashMap<SymmetricPair<Term>,Term[]>();
+			HashSet<SymmetricPair<Term>> premises =
+					new HashSet<SymmetricPair<Term>>();
 									
 			for (int i = 0; i < arrayShortLength; i++) {
 				checkNumber(termLemmaAppNegDisj[i],2);							
 				
 				SymmetricPair<Term> pairTemp = new SymmetricPair<Term>(
-						termLemmaAppNegDisj[i].getParameters()[0],termLemmaAppNegDisj[i].getParameters()[1]);
-				premises.put(pairTemp,termLemmaAppNegDisj[i].getParameters());
+						termLemmaAppNegDisj[i].getParameters()[0],
+						termLemmaAppNegDisj[i].getParameters()[1]);
+				premises.add(pairTemp);
 			}
 			
 			// Real termGoal
@@ -553,8 +549,7 @@ public class ProofChecker extends NonRecursive {
 			Term termStart = termGoalRealApp.getParameters()[0];
 			Term termEnd = termGoalRealApp.getParameters()[1];
 			
-			if (!pathFind(subpaths,premises,termStart,termEnd))
-				throw new AssertionError("Error at the end of lemma_:CC");
+			checkEqualityPath(subpaths,premises,termStart,termEnd);
 		} else if (lemmaType == ":trichotomy") {
 			ApplicationTerm termDisj = convertApp(lemma);
 			
@@ -3203,37 +3198,43 @@ public class ProofChecker extends NonRecursive {
 					+ "\n It should have length " + n);
 	}
 	
-	
-	boolean pathFind(HashMap<SymmetricPair<Term>,Term[]> subpaths, HashMap<SymmetricPair<Term>,Term[]> premises,
+	/**
+	 * Check if there is an equality path from termStart to termEnd.
+	 * This reports errors using reportError.
+	 * 
+	 * @param subpaths the subpaths from the CC-lemma annotations.  To ensure
+	 * 	termination, currently investigated subpaths are removed.
+	 * @param premises the already proven equalities.  This is initialized to 
+	 *  the equalities occurring in the conflict. 
+	 * @param termStart one side of the equality.
+	 * @param termEnd the other side of the equality.
+	 */
+	void checkEqualityPath(HashMap<SymmetricPair<Term>,Term[]> subpaths, 
+			HashSet<SymmetricPair<Term>> premises,
 			Term termStart, Term termEnd) {
 		if (mDebug.contains("LemmaCC")) {
-			System.out.println("");
-			System.out.println("");
-			System.out.println("Searching for a way from " + termStart.toStringDirect()
+			mLogger.debug("Searching for a way from " + termStart.toStringDirect()
 					+ " \n to " + termEnd.toStringDirect());
 		}
 		
 		if (mDebug.contains("allSubpaths")) {
-			System.out.println("");
-			System.out.println("Alle subpaths:");
+			mLogger.debug("All subpaths:");
 			for (Term[] values : subpaths.values()) {
+				StringBuilder sb = new StringBuilder();
 				for (Term value : values)
-					System.out.print(value.toStringDirect() + " ~~ ");
-				System.out.println("");
+					sb.append(" ~~ ").append(value.toStringDirect());
+				mLogger.debug(sb.toString());
 			}
-			System.out.println("");
 		}
 				
 		
 		// Are the terms already equal?
 		if (termStart == termEnd) {
 			if (mDebug.contains("LemmaCC"))
-				System.out.println("It's equal.");
-			return true;
+				mLogger.debug("It's equal.");
+			return;
 		}
 		SymmetricPair<Term> searchPair = new SymmetricPair<Term>(termStart, termEnd);
-//		if (subpaths.containsKey(searchPair))
-//			System.out.println("A:" + subpaths.get(searchPair)[0].toString());
 		
 		/* The reason for checking the premises before the subpaths is,
 		 * that the subpaths may contain the same equality as the premises, which
@@ -3241,61 +3242,55 @@ public class ProofChecker extends NonRecursive {
 		 */
 		
 		// Is the searched equality already a premise?
-		if (premises.containsKey(searchPair)) {
+		if (premises.contains(searchPair)) {
 			if (mDebug.contains("LemmaCC"))
-				System.out.println("It's a premise");
-			return true;
+				mLogger.debug("It's a premise or already proven");
+			return;
 		}
 		
 		// Does a path for the searched equality exist?
 		if (subpaths.containsKey(searchPair)) {
 			if (mDebug.contains("LemmaCC"))
-				System.out.println("It's solvable via a subpath");
-			//System.out.println(subpaths.get(searchPair)[0].toString());
+				mLogger.debug("It's solvable via a subpath");
 			
 			Term[] path = subpaths.remove(searchPair);
-			
-			checkNumber(path, 2);
-			
-			//Term nextStep = path[1];
-			Term[] pathCut = new Term[path.length - 1];
-			for (int i = 0; i < pathCut.length; i++)
-				pathCut[i] = path[i + 1];
-			subpaths.put(new SymmetricPair<Term>(path[1],path[path.length - 1]), pathCut);
-			HashMap<SymmetricPair<Term>,Term[]> subpaths2 = 
-					new HashMap<SymmetricPair<Term>,Term[]>(subpaths);
-			return pathFind(subpaths,premises,path[0],path[1])
-					&& pathFind(subpaths2,premises,path[1],path[path.length - 1]);
+			assert (path[0] == termStart && path[path.length - 1] == termEnd)
+				|| (path[0] == termEnd && path[path.length - 1] == termStart);
+			for (int i = 0; i < path.length - 1; i++) {
+				// TODO: Make it non-recursive?
+				checkEqualityPath(subpaths, premises, path[i], path[i + 1]);
+			}
+			/* Path is proven, add it to cache */
+			premises.add(searchPair);
+			return;
 		}
 		
 		/* So the pair can't be found, then
 		 * it must be a pair of two functions with the same
 		 * function symbol and parameters which can be found.
 		 */
-		if (mDebug.contains("LemmaCC"))
-			System.out.println("It's a function-equality");
+		if (termStart instanceof ApplicationTerm
+				&& termEnd instanceof ApplicationTerm) {
+			ApplicationTerm startApp = (ApplicationTerm) termStart;
+			ApplicationTerm endApp = (ApplicationTerm) termEnd;
+			Term[] startParams = startApp.getParameters();
+			Term[] endParams = endApp.getParameters();
 		
-		// Syntactical correctness
-		ApplicationTerm termStartApp = convertApp(termStart);
-		ApplicationTerm termEndApp = convertApp(termEnd);
-		
-		pm_func(termStartApp,termEndApp.getFunction().getName());
-		
-		if (termStartApp.getParameters().length == 0
-				|| termStartApp.getParameters().length != termEndApp.getParameters().length)
-			throw new AssertionError("Error 1 in pathfinding");
-		
-		// Semantical Correctness
-		
-		// true iff for each parameter-pair a path can be found
-		boolean returnVal = true;
-		
-		for (int i = 0; i < termStartApp.getParameters().length; i++) {
-			returnVal = returnVal
-					&& pathFind(subpaths, premises, termStartApp.getParameters()[i], termEndApp.getParameters()[i]);
+			if (startApp.getFunction() == endApp.getFunction()
+				&& startParams.length == endParams.length) {
+				if (mDebug.contains("LemmaCC"))
+					mLogger.debug("It's a function-equality");
+				
+				// check if for each parameter-pair a path can be found
+				
+				for (int i = 0; i < startApp.getParameters().length; i++) {
+					checkEqualityPath(subpaths, premises, 
+							startParams[i],	endParams[i]);
+				}
+				return;
+			}
 		}
-		
-		return returnVal;
+		reportError("Cannot explain equality " + termStart + " = " + termEnd);
 	}
 	
 	ApplicationTerm uniformizeInEquality(ApplicationTerm termApp) {
@@ -3486,10 +3481,8 @@ public class ProofChecker extends NonRecursive {
 		// So the term has the form (and ... )
 		
 		ApplicationTerm termApp = convertApp(term);
-		
 		for (Term param : termApp.getParameters())
 			termRet.addAll(splitNotOrHelper_getConjunctsPushed(param));
-		
 		return termRet;
 	}
 	
