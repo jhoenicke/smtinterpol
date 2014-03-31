@@ -118,7 +118,6 @@ public class ProofChecker extends NonRecursive {
 	HashSet<String> mDebug = new HashSet<String>(); // Just for debugging
 	
 	HashMap<Term, Term> mCacheConv; //Proof Checker Cache for conversions
-	HashSet<Term> mCacheCheck; //Proof Checker Cache for correctness-checks (terms in this set are correct)
 	
 	// Declarations for the Walker
 	Stack<Term> mStackResults = new Stack<Term>();
@@ -135,7 +134,7 @@ public class ProofChecker extends NonRecursive {
 		mLogger = smtInterpol.getLogger();
 	}
 	
-	public boolean check(Term res) {
+	public boolean check(Term proof) {
 		
 		// Just for debugging
 		//debug.add("currently");
@@ -158,15 +157,13 @@ public class ProofChecker extends NonRecursive {
 		
 		// Initializing the proof-checker-cache
 		mCacheConv = new HashMap<Term, Term>();
-		mCacheCheck = new HashSet<Term>();
-				
 		mError = 0;
-		Term resCalc;
 		// Now non-recursive:
-		run(new ProofWalker(new FormulaUnLet().unlet(res)));
+		proof = new FormulaUnLet().unlet(proof);
+		run(new ProofWalker(proof));
 		
 		assert (mStackResults.size() == 1);
-		resCalc = stackPop();
+		Term resCalc = stackPopCheck(proof);
 		
 		if (resCalc != mSkript.term("false")) {
 			reportError("The proof did not yield a contradiction but "
@@ -671,7 +668,8 @@ public class ProofChecker extends NonRecursive {
 					reportError("Malformed tautology " + tautologyApp);
 			}
 		} else if (tautType == ":or-") {
-			if (!checkOrMinus(unquote(clause[0]),clause[1]))
+			if (clause.length != 2 
+					|| !checkOrMinus(unquote(clause[0]),clause[1]))
 				reportError("Invalid application of rule :or-");
 		} else if (tautType == ":termITE") {
 			ApplicationTerm termOr = convertApp(tautology); // The term with or
@@ -737,7 +735,6 @@ public class ProofChecker extends NonRecursive {
 			reportError("Unknown tautology rule " + tautType);
 		}
 		
-		mCacheCheck.add(tautologyApp);
 		stackPush(tautology, tautologyApp);
 	}
 
@@ -761,6 +758,11 @@ public class ProofChecker extends NonRecursive {
 		ApplicationTerm termEqApp = convertApp(termAppInnerAnn.getSubterm()); //The application term inside the annotated term inside the rewrite-term
 		
 		pm_func(termEqApp, "=");
+
+		/* The result is simply the equality (without annotation).  
+		 * Compute it first and check later.
+		 */
+		stackPush(termEqApp, rewriteApp);
 		
 		checkNumber(termEqApp,2);
 		
@@ -770,9 +772,7 @@ public class ProofChecker extends NonRecursive {
 			System.out.println("Rewrite-Rule: " + rewriteRule);
 		if (mDebug.contains("hardTerm"))
 			System.out.println("Term: " + rewriteApp.toStringDirect());
-		if (mCacheCheck.contains(rewriteApp)) {
-			/* empty */
-		} else if (rewriteRule == ":trueNotFalse") {
+		if (rewriteRule == ":trueNotFalse") {
 			if (termEqApp.getParameters()[1] != mSkript.term("false")) {
 				throw new AssertionError("Error: The second argument of a rewrite of the rule " 
 						+ rewriteRule + " should be true, but isn't.\n"
@@ -794,7 +794,6 @@ public class ProofChecker extends NonRecursive {
 				}
 				
 				if (foundFalse && foundTrue) {
-					mCacheCheck.add(rewriteApp);
 					return;
 				}
 			}
@@ -961,7 +960,6 @@ public class ProofChecker extends NonRecursive {
 				pm_func(termNewAppInnerApp, "not");
 				if (termOldApp != termNewAppInnerApp.getParameters()[0])
 					throw new AssertionError("Error A in " + rewriteRule);
-				mCacheCheck.add(rewriteApp);
 				return;
 			}
 			
@@ -1055,7 +1053,6 @@ public class ProofChecker extends NonRecursive {
 			for (int i = 0; i < termOldApp.getParameters().length; i++)
 				for (int j = i + 1; j < termOldApp.getParameters().length; j++)
 					if (termOldApp.getParameters()[i] == termOldApp.getParameters()[j]) {
-						mCacheCheck.add(rewriteApp);
 						return;
 					}
 			
@@ -1247,7 +1244,6 @@ public class ProofChecker extends NonRecursive {
 					&& termEqApp.getParameters()[1] == mSkript.term("true"))
 				|| (innerAppTermFirstNeg.getParameters()[0] == mSkript.term("true") 
 					&& termEqApp.getParameters()[1] == mSkript.term("false"))) {
-				mCacheCheck.add(rewriteApp);
 				return;
 			}
 			
@@ -1322,7 +1318,6 @@ public class ProofChecker extends NonRecursive {
 			// Case 1: One disjunct is true
 			for (Term disjunct : termOldApp.getParameters())
 				if (disjunct == mSkript.term("true")) {
-					mCacheCheck.add(rewriteApp);
 					return;
 				}
 			
@@ -1330,7 +1325,6 @@ public class ProofChecker extends NonRecursive {
 			for (Term disjunct1 : termOldApp.getParameters())
 				for (Term disjunct2 : termOldApp.getParameters())
 					if (disjunct1 == negate(disjunct2)) {
-						mCacheCheck.add(rewriteApp);
 						return;
 					}
 			
@@ -2288,7 +2282,6 @@ public class ProofChecker extends NonRecursive {
 	
 		// The second part, cut the @rewrite and the annotation out, both aren't needed for the @eq-function.
 		// stackPush(innerAnnTerm.getSubterm(), term);
-		mCacheCheck.add(rewriteApp);
 	}
 	
 	public void walkIntern(ApplicationTerm internApp) {
@@ -2296,15 +2289,17 @@ public class ProofChecker extends NonRecursive {
 		
 		ApplicationTerm termEqApp = convertApp(internApp.getParameters()[0]);
 		
-		if (mCacheCheck.contains(internApp))
-			return;
+		/* The result is simply the first argument.  Compute it first 
+		 * and check later.
+		 */
+		stackPush(termEqApp, internApp);
+		
 		
 		pm_func(termEqApp,"=");
 		
 		// Step 1,5: Maybe the internal rewrite is just an addition of :quoted
 		if (convertApp_hard(termEqApp.getParameters()[0])
 				== convertApp_hard(termEqApp.getParameters()[1])) {
-			mCacheCheck.add(internApp);
 			return;
 		}
 		// Not nice: Not checked if the annotation really is quoted, but otherwise
@@ -2325,7 +2320,6 @@ public class ProofChecker extends NonRecursive {
 					AnnotatedTerm termRightAppInnerAnn = convertAnn(termRightApp.getParameters()[0]);
 					if (termLeftApp.getParameters()[0].equals(
 							termRightAppInnerAnn.getSubterm())) {
-						mCacheCheck.add(internApp);
 						return;
 					}
 				}
@@ -2384,7 +2378,6 @@ public class ProofChecker extends NonRecursive {
 			
 			// Precheck for better runtime - Warning: Code duplicates start here - a random number: 589354
 			if (termOldCompAff.equals(termNewCompAff)) {
-				mCacheCheck.add(internApp);
 				return;
 			}
 			
@@ -2402,17 +2395,14 @@ public class ProofChecker extends NonRecursive {
 						|| termNewCompAff.mul(oldGcd).equals(termOldCompAff)
 						|| termNewCompAff.mul(oldGcd).equals(termOldCompAff.negate())) // Note: == doesn't work
 				{
-					mCacheCheck.add(internApp);
 					return;
 				}
 				
 				if (termOldCompAff.equals(termNewCompAff.negate()))	{
-					mCacheCheck.add(internApp);
 					return;
 				}
 				reportError("Sadly1, I couldn't find a factorial constant in the internal rewrite: "
 						+ internApp.getParameters()[0].toStringDirect() + " .");
-				mCacheCheck.add(internApp);
 				return;
 			}
 								
@@ -2429,7 +2419,6 @@ public class ProofChecker extends NonRecursive {
 			termNewCompAff = termNewCompAff.mul(constNewFactor);
 			
 			if (termOldCompAff.equals(termNewCompAff)) {
-				mCacheCheck.add(internApp);
 				return;
 			}
 			
@@ -2456,7 +2445,6 @@ public class ProofChecker extends NonRecursive {
 			
 			// Precheck for better runtime - Warning: Code duplicates start here - a random number: 589354
 			if (termOldCompAff.equals(termNewCompAff)) {
-				mCacheCheck.add(internApp);
 				return;
 			}
 			
@@ -2474,13 +2462,11 @@ public class ProofChecker extends NonRecursive {
 						|| termNewCompAff.mul(oldGcd).equals(termOldCompAff)
 						|| termNewCompAff.mul(oldGcd).equals(termOldCompAff.negate())) // Note: == doesn't work
 				{
-					mCacheCheck.add(internApp);
 					return;
 				}
 				
 				reportError("Sadly2, I couldn't find a factorial constant in the internal rewrite: "
 						+ internApp.getParameters()[0].toStringDirect() + " .");
-				mCacheCheck.add(internApp);
 				return;
 			}
 			
@@ -2497,7 +2483,6 @@ public class ProofChecker extends NonRecursive {
 			termNewCompAff = termNewCompAff.mul(constNewFactor);
 			
 			if (termOldCompAff.equals(termNewCompAff)) {
-				mCacheCheck.add(internApp);
 				return;
 			}
 			
@@ -2507,7 +2492,6 @@ public class ProofChecker extends NonRecursive {
 		
 		reportError("Sadly, I had to believe the following internal rewrite: "
 				+ internApp.getParameters()[0].toStringDirect() + " .");
-		mCacheCheck.add(internApp);
 		return;
 	}	
 	
@@ -2621,55 +2605,37 @@ public class ProofChecker extends NonRecursive {
 	}			
 			
 	public void walkEquality(ApplicationTerm eqApp) {
-		Term[] termArgs = eqApp.getParameters();
+		Term[] eqParams = eqApp.getParameters();
 		
-		/* Expected: The first argument is unary each other argument binary.
-		 * Each not-first argument describes a rewrite of a (sub)term of the first term.
-		 * Important is the order, e.g. the rewrite of the second argument has to be executed
-		 * before the rewrite of the third argument! 
+		/* Expected: The first argument is a boolean formula each other 
+		 * argument a binary equality.
+		 *
+		 * Each not-first argument describes a rewrite of a (sub)term of the 
+		 * first term. Important is the order, e.g. the rewrite of the second 
+		 * argument has to be executed before the rewrite of the third 
+		 * argument! 
 		 */
 
-		ApplicationTerm[] termAppParamsApp = new ApplicationTerm[termArgs.length]; //Parameters of @eq, uncalculated, application terms
-		Term termEdit; //Term which will be edited end ends in the result
-		// The i-th parameter of the first term as AnnotatedTerm, which is
-		// just needed for @rewrite, i.e. just not for @intern.
-		AnnotatedTerm termAppParamsAppIAnn;
-		/* The i-th Parameter of the first term, as ...
-		 *  - @intern: ApplicationTerm
-		 *  - @rewrite: Subterm of the AnnotatedTerm which is an ApplicationTerm
-		 *  ["May" stands for Maybe]
+		/* Get the rewrite equalities from the stack. These should be
+		 * proof nodes that come from an @intern or @rewrite rule.
 		 */
-		ApplicationTerm termAppParamsAppIMayAnnApp;
-		// Initialization
-		for (int i = 0; i < termArgs.length; i++) {
-			termAppParamsApp[i] = convertApp(termArgs[i]);
-			
-			// OLD and WRONG: Check, if the params are correct for themselves
-			// This was already done, and at this points leads to chaos on the resultStack
-			// stackWalker.push(new WalkerId<Term,String>(termAppParamsApp[i],""));
-			
+		Term[] rewrites = new Term[eqParams.length-1];
+		for (int i = eqParams.length - 1; i >= 1; i--) {
+			rewrites[i - 1] = stackPopCheck(eqParams[i]);
 		}
-
-		termEdit = stackPop(); //termAppParamsApp[0];
 		
-		// Editing the term
-		for (int i = 1; i < termArgs.length; i++) {				
-			if (pm_func_weak(termAppParamsApp[i],"@rewrite")) {					
-				termAppParamsAppIAnn = convertAnn(termAppParamsApp[i].getParameters()[0]);
-				termAppParamsAppIMayAnnApp = convertApp(termAppParamsAppIAnn.getSubterm());
-			} else if (pm_func_weak(termAppParamsApp[i],"@intern")) {
-				termAppParamsAppIMayAnnApp = convertApp(termAppParamsApp[i].getParameters()[0]);
-			} else {
-				throw new AssertionError("Error: An argument of @eq was neither a @rewrite nor " 
-						+ "a @intern, it was: " + termAppParamsApp[i].getFunction().getName() + ".");
-			}
+		/* the first argument is the term on which rewrites are applied */
+		Term termEdit;
+		termEdit = stackPopCheck(eqParams[0]);
+		
+		// Rewriting the term
+		for (Term rewrite : rewrites) {
+			pm_func(rewrite, "=");
+			Term[] rewriteSides = ((ApplicationTerm) rewrite).getParameters();
+			if (rewriteSides.length != 2)
+				reportError("Rewrite equality with more than two sides?");
 
-			pm_func(termAppParamsAppIMayAnnApp, "=");
-			
-			checkNumber(termAppParamsAppIMayAnnApp, 2);
-			
-			// Not nice: Can it be, that one has to calculate termDelete or termInsert first?
-			termEdit = rewriteTerm(termEdit, termAppParamsAppIMayAnnApp.getParameters()[0], termAppParamsAppIMayAnnApp.getParameters()[1]);
+			termEdit = rewriteTerm(termEdit, rewriteSides[0], rewriteSides[1]);
 		}
 		
 		stackPush(termEdit, eqApp);			
@@ -2958,11 +2924,6 @@ public class ProofChecker extends NonRecursive {
 		return returnTerm;
 	}
 	
-	// The string is just for debugging, later it can be completely removed.
-	public Term stackPop() {
-		return stackPopCheck(null);
-	}
-	
 	public Term rewriteTerm(final Term termOrig, final Term termDelete, final Term termInsert) {
 		
 		return new TermTransformer() {
@@ -3065,17 +3026,15 @@ public class ProofChecker extends NonRecursive {
 				SMTAffineTerm leftSideNew =  leftSide.add(rightSide.negate());
 				SMTAffineTerm rightSideNew =  rightSide.add(rightSide.negate()); //=0
 				SMTAffineTerm[]	sides = new SMTAffineTerm[2];
-				try {
+				if (!leftSideNew.isConstant())
 					sides[0] = leftSideNew.div(leftSideNew.getGcd());
-				} catch (NoSuchElementException ex) {
+				else
 					sides[0] = leftSideNew;
-				}
 
-				try {
+				if (!rightSideNew.isConstant())
 					sides[1] = rightSideNew.div(rightSideNew.getGcd());
-				} catch (NoSuchElementException ex) {
+				else
 					sides[1] = rightSideNew;
-				}
 
 				return SMTAffineTerm.create(mSkript.term(termApp.getFunction().getName(), sides));
 			
@@ -3303,10 +3262,10 @@ public class ProofChecker extends NonRecursive {
 			for (int i = 0; i < pathCut.length; i++)
 				pathCut[i] = path[i + 1];
 			subpaths.put(new SymmetricPair<Term>(path[1],path[path.length - 1]), pathCut);
-			if (pathFind(subpaths,premises,path[0],path[1]))
-				return pathFind(subpaths,premises,path[1],path[path.length - 1]);
-			else
-				return false;
+			HashMap<SymmetricPair<Term>,Term[]> subpaths2 = 
+					new HashMap<SymmetricPair<Term>,Term[]>(subpaths);
+			return pathFind(subpaths,premises,path[0],path[1])
+					&& pathFind(subpaths2,premises,path[1],path[path.length - 1]);
 		}
 		
 		/* So the pair can't be found, then
