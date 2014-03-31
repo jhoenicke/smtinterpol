@@ -1838,5 +1838,4 @@ public class SMTInterpol extends NoopScript {
 		}
 		return new Term[] {at, bt, ct};
 	}
-
 }
