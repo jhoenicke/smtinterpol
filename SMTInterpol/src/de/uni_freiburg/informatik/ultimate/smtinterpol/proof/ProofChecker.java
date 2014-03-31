@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with SMTInterpol.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2;
+package de.uni_freiburg.informatik.ultimate.smtinterpol.proof;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -39,6 +39,7 @@ import de.uni_freiburg.informatik.ultimate.logic.Rational;
 import de.uni_freiburg.informatik.ultimate.logic.Term;
 import de.uni_freiburg.informatik.ultimate.logic.TermTransformer;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.convert.SMTAffineTerm;
+import de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2.SMTInterpol;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.util.SymmetricPair;
 
 /**

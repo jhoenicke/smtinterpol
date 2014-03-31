@@ -64,6 +64,7 @@ import de.uni_freiburg.informatik.ultimate.smtinterpol.dpll.Literal;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.interpolate.Interpolator;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.interpolate.SymbolChecker;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.interpolate.SymbolCollector;
+import de.uni_freiburg.informatik.ultimate.smtinterpol.proof.ProofChecker;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.proof.ProofTermGenerator;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.proof.PropProofChecker;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.proof.Transformations.AvailableTransformations;
