@@ -36,10 +36,10 @@ import de.uni_freiburg.informatik.ultimate.logic.FormulaUnLet;
 import de.uni_freiburg.informatik.ultimate.logic.FunctionSymbol;
 import de.uni_freiburg.informatik.ultimate.logic.NonRecursive;
 import de.uni_freiburg.informatik.ultimate.logic.Rational;
+import de.uni_freiburg.informatik.ultimate.logic.Script;
 import de.uni_freiburg.informatik.ultimate.logic.Term;
 import de.uni_freiburg.informatik.ultimate.logic.TermTransformer;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.convert.SMTAffineTerm;
-import de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2.SMTInterpol;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.util.SymmetricPair;
 
 /**
@@ -53,7 +53,7 @@ public class ProofChecker extends NonRecursive {
 	public static class ProofWalker implements Walker {
 		final ApplicationTerm mTerm;
 		public ProofWalker(Term term) {
-			assert (term.getSort().getName().equals("@Proof"));
+			assert term.getSort().getName().equals("@Proof");
 			mTerm = (ApplicationTerm) term;
 		}
 		
@@ -111,7 +111,7 @@ public class ProofChecker extends NonRecursive {
 	}
 
 	HashSet<Term> mAssertions;
-	SMTInterpol mSkript;
+	Script mSkript;
 	Logger mLogger;
 	int mError;
 	
@@ -124,14 +124,14 @@ public class ProofChecker extends NonRecursive {
 	Stack<Term> mStackResultsDebug = new Stack<Term>();
 	Stack<Annotation[]> mStackAnnots = new Stack<Annotation[]>();
 	
-	public ProofChecker(SMTInterpol smtInterpol) {
-		mSkript = smtInterpol;
-		Term[] assertions = smtInterpol.getAssertions();
+	public ProofChecker(Script script, Logger logger) {
+		mSkript = script;
+		Term[] assertions = script.getAssertions();
 		FormulaUnLet unletter = new FormulaUnLet();
 		mAssertions = new HashSet<Term>(assertions.length);
 		for (Term ass : assertions)
 			mAssertions.add(unletter.transform(ass));
-		mLogger = smtInterpol.getLogger();
+		mLogger = logger;
 	}
 	
 	public boolean check(Term proof) {
@@ -2538,7 +2538,7 @@ public class ProofChecker extends NonRecursive {
 	 *        original proof.
 	 */
 	public void walkResolution(ApplicationTerm resApp) {
-		Term[] termArgs = resApp.getParameters();		
+		Term[] termArgs = resApp.getParameters();
 
 		/* Get the pivot literals (pivots[0] is always null)
 		 * and retrieve the calculations for the proofs from the stack.
@@ -2547,14 +2547,14 @@ public class ProofChecker extends NonRecursive {
 		Term[] clauseTerms = new Term[termArgs.length];
 		for (int i = termArgs.length - 1; i >= 1; i--) {
 			AnnotatedTerm pivotPlusProof = (AnnotatedTerm) termArgs[i];
-				
+			
 			/* Check if it is a pivot-annotation */
 			if (pivotPlusProof.getAnnotations().length != 1
 					|| pivotPlusProof.getAnnotations()[0].getKey() != ":pivot") {
 				throw new IllegalArgumentException(
 						"Annotation :pivot expected");
-			}						
-										
+			}
+			
 			/* Just take the first annotation, because 
 			 * it should have exactly one - otherwise 
 			 * the proof-checker throws an error 
@@ -2594,12 +2594,12 @@ public class ProofChecker extends NonRecursive {
 			
 			if (!pivotFound) {
 				reportError("Could not find pivot in secondary clause");
-			}					
+			}
 		}
 
 		stackPush(clauseToTerm(allDisjuncts), resApp);
-	}			
-			
+	}
+	
 	public void walkEquality(ApplicationTerm eqApp) {
 		Term[] eqParams = eqApp.getParameters();
 		

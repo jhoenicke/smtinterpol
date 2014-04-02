@@ -826,7 +826,8 @@ public class SMTInterpol extends NoopScript {
 			} else {
 				result = LBool.UNSAT;
 				if (mProofCheckMode) {
-					ProofChecker proofchecker = new ProofChecker(this);
+					ProofChecker proofchecker = 
+							new ProofChecker(this, getLogger());
 					if (!proofchecker.check(getProof())) { 
 						if (mDDFriendly)
 							System.exit(2);
