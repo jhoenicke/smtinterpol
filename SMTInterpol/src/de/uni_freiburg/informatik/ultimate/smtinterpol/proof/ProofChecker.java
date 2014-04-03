@@ -194,7 +194,7 @@ public class ProofChecker extends NonRecursive {
 	 * The proof walker.  This takes a proof term and pushes the proven
 	 * formula on the result stack.  It also checks the proof cache to
 	 * prevent running over the same term twice.
-	 * 
+	 *
 	 * @param proofTerm  The proof term.  Its sort must be {@literal @}Proof.
 	 */
 	public void walk(ApplicationTerm proofTerm) {
@@ -265,6 +265,16 @@ public class ProofChecker extends NonRecursive {
 		}
 	}
 	
+	/**
+	 * Walk a lemma rule.  This checks the correctness of the lemma and
+	 * returns the lemma, which is always the annotated sub term of this
+	 * application.  The result is pushed to the stack instead of being
+	 * returned.
+	 * 
+	 * If the lemma cannot be verified, an error is reported but the lemma
+	 * is still used to check the remainder of the proof.
+	 * @param lemmaApp The {@literal @}lemma application.
+	 */
 	public void walkLemma(ApplicationTerm lemmaApp) {
 		AnnotatedTerm annTerm = (AnnotatedTerm) lemmaApp.getParameters()[0];
 		String lemmaType = annTerm.getAnnotations()[0].getKey();
@@ -275,322 +285,431 @@ public class ProofChecker extends NonRecursive {
 			mLogger.debug("Lemma-type: " + lemmaType);
 		
 		if (lemmaType == ":LA") {
-			// The disjunction
-			ApplicationTerm termLemmaDisj = convertApp(lemma);
-			
-			pm_func(termLemmaDisj,"or");
-			
-			int arrayLength = termLemmaDisj.getParameters().length;
-			ApplicationTerm[] termMultDisj = new ApplicationTerm[arrayLength]; // multiplied [negated] disjuncts
-			ApplicationTerm[] termNegDisj = new ApplicationTerm[arrayLength]; // negated disjuncts
-			ApplicationTerm[] termNegDisjMayDeep = new ApplicationTerm[arrayLength]; // negated disjuncts maybe one level deeper
-			ApplicationTerm[] termTurnDisj = new ApplicationTerm[arrayLength]; // disjuncts with potentially turned <=/</>=/>
-			ApplicationTerm[] termNegDisjUnif = new ApplicationTerm[arrayLength];
-			ApplicationTerm[] termNegDisjInv = new ApplicationTerm[arrayLength];
-			
-			// Now get the factors:
-			Term[] numbers = (Term[]) lemmaAnnotation;
-			Rational[] numbersSMT = new Rational[numbers.length];
-			
-			for (int i = 0; i < numbers.length; i++)
-				numbersSMT[i] = calculateTerm(numbers[i]).getConstant();
-			
-			// New: Transform all to ... <= 0 if possible, otherwise to ... <= 0 and ... < 0 
-			
-			// Step 1: Uniformize the negated disjuncts and multiply with factor
-			
-			boolean foundLe = false; // found lower-equal (<=)
-			boolean foundLt = false; // found lower-than (<)
-			boolean foundEq = false; // found equality (=)
-			
-			for (int i = 0; i < arrayLength; i++) {
-				// The convertApp_hard's are used to remove the ":quoted"-annotation
-				
-				// Negate them and remove the annotation
-				termNegDisj[i] = convertApp_hard(negate(convertApp_hard(termLemmaDisj.getParameters()[i])));
-				
-				// Get rid of each negation
-				String prerelation = termNegDisj[i].getFunction().getName();
-				String relation;
-				if (prerelation == "not") {
-					// Dig one level deeper
-					termNegDisjMayDeep[i] = convertApp_hard(termNegDisj[i].getParameters()[0]);
-												
-					prerelation = termNegDisjMayDeep[i].getFunction().getName();
-					
-					//Turn the relation around
-					if (prerelation == "<=")
-						relation = ">";
-					else if (prerelation == ">=")
-						relation = "<";
-					else if (prerelation == "<")
-						relation = ">=";
-					else if (prerelation == ">")
-						relation = "<=";
-					else
-						relation = prerelation;
-				} else {
-					termNegDisjMayDeep[i] = termNegDisj[i];
-					relation = prerelation;
-				}
-				
-				// If the factor is negative switch the function symbol
-				if (numbersSMT[i].isNegative())
-					if (relation == "<=")
-						relation = ">=";
-					else if (relation == ">=")
-						relation = "<=";
-					else if (relation == "<")
-						relation = ">";
-					else if (relation == ">")
-						relation = "<";
-				
-				checkNumber(termNegDisjMayDeep[i].getParameters(),2);
-				
-				termTurnDisj[i] = convertApp(mSkript.term(relation, termNegDisjMayDeep[i].getParameters()));
-				checkNumber(termTurnDisj[i],2);
-				
-				// Multiply with -1			
-				Term[] paramsTemp1 = new Term[2];
-				if (numbersSMT[i].isNegative()) {
-					paramsTemp1[0] = calculateTerm(termTurnDisj[i].getParameters()[0]).negate();
-					paramsTemp1[1] = calculateTerm(termTurnDisj[i].getParameters()[1]).negate();
-					numbersSMT[i] = numbersSMT[i].negate();
-				} else {
-					paramsTemp1 = termTurnDisj[i].getParameters();
-				}
-				
-				termNegDisjInv[i] = convertApp(mSkript.term(relation, paramsTemp1));
-						
-				//Uniformize them
-				termNegDisjUnif[i] = uniformizeInEquality(termNegDisjInv[i]);
-				checkNumber(termNegDisjUnif[i],2);
-				
-				// Multiply both sides		
-				Term[] paramsTemp2 = new Term[2];
-				paramsTemp2[0] = calculateTerm(termNegDisjUnif[i].getParameters()[0]).mul(numbersSMT[i]);
-				paramsTemp2[1] = calculateTerm(termNegDisjUnif[i].getParameters()[1]).mul(numbersSMT[i]);
-				
-				termMultDisj[i] = convertApp(mSkript.term(relation, paramsTemp2));
-				
-				foundLe = (foundLe || pm_func_weak(termMultDisj[i], "<="));
-				foundLt = (foundLt || pm_func_weak(termMultDisj[i], "<"));
-				foundEq = (foundEq || pm_func_weak(termMultDisj[i], "="));
-			}
-			
-			// Step 2: Add them up
-			
-			SMTAffineTerm termSum = calculateTerm(termMultDisj[0].getParameters()[0]);
-			
-			for (int i = 1; i < arrayLength; i++)
-				termSum = termSum.add(calculateTerm(termMultDisj[i].getParameters()[0]));
-			
-			
-			// Step 3: The contradiction
-			if (!termSum.isConstant())
-				throw new AssertionError("Error 2 in @lemma_:LA");
-							
-			Rational constant = termSum.getConstant();
-			
-			
-			// < is strictly stronger than <= is strictly stronger than =
-			if (foundLt) {
-				if (constant.isNegative())
-					throw new AssertionError("Error 4 in @lemma_:LA");
-			} else if (foundLe) {
-				if (constant.isNegative() || constant.equals(Rational.ZERO))
-					throw new AssertionError("Error 3 in @lemma_:LA");
-			} else if (foundEq)
-				if (constant == Rational.ZERO)
-					throw new AssertionError("Error 5 in @lemma_:LA");
-			
+			checkLALemma(termToClause(lemma), (Term[]) lemmaAnnotation);
 		} else if (lemmaType == ":CC") {
-			//Syntactical correctness
-			ApplicationTerm termLemmaApp = convertApp(lemma);
-			Object[] ccAnnotation = (Object[]) lemmaAnnotation;
-			
-			pm_func(termLemmaApp,"or");
-			
-			int arrayShortLength;
-			
-			Term termGoal;
-			if (ccAnnotation[0] instanceof Term) {
-				termGoal = (Term) ccAnnotation[0];
-				arrayShortLength = termLemmaApp.getParameters().length - 1;
-			} else {
-				termGoal = mSkript.term("false");
-				arrayShortLength = termLemmaApp.getParameters().length;
-			}
-			
-			
-			
-			// The negated disjuncts
-			ApplicationTerm[] termLemmaAppNegDisj = new ApplicationTerm[arrayShortLength]; //Negated Disjuncts WITHOUT not
-			
-			int j = 0;
-			
-			for (Term param : termLemmaApp.getParameters()) {
-				ApplicationTerm paramApp = convertApp_hard(param);
-				
-				if (paramApp.equals(termGoal))
-					continue;
-				
-				// Else: It must be a negation
-				pm_func(paramApp,"not");
-				
-				if (j >= termLemmaAppNegDisj.length)
-					throw new AssertionError("Error 0.5 in Lemma_:CC");
-				
-				termLemmaAppNegDisj[j] = convertApp_hard(paramApp.getParameters()[0]);
-				j++;
-			}
-			
-			if (j != termLemmaAppNegDisj.length)
-				throw new AssertionError("Error 1 in Lemma_:CC");
-			
-			// Get the equalities, the annotations are ignored
-			/* Old and wrong: The first equality is the goal, the others are the premises
-			 * It doesn't have to be the first one.
-			 */
-			
-			if (termGoal != mSkript.term("false"))
-				pm_func(termGoal,"=");
-			
-			for (Term equality : termLemmaAppNegDisj)
-				pm_func(equality,"=");
-			
-			Object[] annotValues = ccAnnotation;
-			
-			/* Get the subpaths. The HashMap contains pairs:
-			 * - Key: Start & End of the path as Pair
-			 * - Object: Path
-			 */
-			
-			HashMap<SymmetricPair<Term>, Term[]> subpaths =
-					new HashMap<SymmetricPair<Term>,Term[]>();
-					
-			Term termMainPathStart = null;
-			Term termMainPathEnd = null;
-			boolean mainPathFound = false;
-			
-			for (int i = 1; i < annotValues.length; i++) {
-				if (annotValues[i] instanceof String)
-					if (annotValues[i] == ":subpath")
-						continue;
-				
-				if (annotValues[i] instanceof Term[]) {
-					Term[] arrayTemp = (Term[]) annotValues[i];
-					SymmetricPair<Term> pairTemp =
-							new SymmetricPair<Term>(arrayTemp[0],arrayTemp[arrayTemp.length - 1]);
-					
-					if (arrayTemp.length < 2)
-						System.out.println("");
-					//System.out.println("Lange: " + arrayTemp.length);
-					subpaths.put(pairTemp, arrayTemp);
-					
-					if (!mainPathFound) {
-						termMainPathStart = arrayTemp[0];
-						termMainPathEnd = arrayTemp[arrayTemp.length - 1];
-						mainPathFound = true;
-					}
-				}
-			}
-			
-			/* Get the premises. The HashMap contains pairs:
-			 * - Key: Pair of the left term and the right term (which are equal by premise)
-			 * - Object: Array of those terms
-			 */
-			HashSet<SymmetricPair<Term>> premises =
-					new HashSet<SymmetricPair<Term>>();
-									
-			for (int i = 0; i < arrayShortLength; i++) {
-				checkNumber(termLemmaAppNegDisj[i],2);							
-				
-				SymmetricPair<Term> pairTemp = new SymmetricPair<Term>(
-						termLemmaAppNegDisj[i].getParameters()[0],
-						termLemmaAppNegDisj[i].getParameters()[1]);
-				premises.add(pairTemp);
-			}
-			
-			// Real termGoal
-			ApplicationTerm termGoalRealApp;
-			if (termGoal.equals(mSkript.term("false"))) {
-				termGoalRealApp = convertApp(mSkript.term("=", termMainPathStart, termMainPathEnd));
-				SMTAffineTerm controlDiff =
-						calculateTerm(termMainPathStart).add(
-								calculateTerm(termMainPathEnd).negate());
-				
-				if (!controlDiff.isConstant() 
-						|| controlDiff.getConstant().equals(Rational.ZERO))
-					throw new AssertionError("Error 2 in Lemma_:CC");
-			} else
-				termGoalRealApp = convertApp(termGoal);
-			
-			
-			// Now for the pathfinding
-			checkNumber(termGoalRealApp,2);
-			Term termStart = termGoalRealApp.getParameters()[0];
-			Term termEnd = termGoalRealApp.getParameters()[1];
-			
-			checkEqualityPath(subpaths,premises,termStart,termEnd);
+			checkCCLemma(termToClause(lemma), (Object[]) lemmaAnnotation);
 		} else if (lemmaType == ":trichotomy") {
-			ApplicationTerm termDisj = convertApp(lemma);
-			
-			pm_func(termDisj, "or");
-			
-			checkNumber(termDisj,3);
-			
-			ApplicationTerm disjunct1App = convertApp_hard(termDisj.getParameters()[0]);
-			ApplicationTerm disjunct2App = convertApp_hard(termDisj.getParameters()[1]);
-			ApplicationTerm disjunct3App = convertApp_hard(termDisj.getParameters()[2]);
-			
-			// Find the equality
-			
-			ApplicationTerm equality;
-
-			if (pm_func_weak(disjunct1App, "="))
-				equality = disjunct1App;
-			else if (pm_func_weak(disjunct2App, "="))
-				equality = disjunct2App;
-			else if (pm_func_weak(disjunct3App, "="))
-				equality = disjunct3App;
-			else
-				throw new AssertionError("Error 1 in Lemma_trichotomy");
-			
-			if (!(SMTAffineTerm.create(equality.getParameters()[1]).isConstant()
-					&& SMTAffineTerm.create(equality.getParameters()[1]).getConstant() == Rational.ZERO)
-				&& !(SMTAffineTerm.create(equality.getParameters()[0]).isConstant()
-					&& SMTAffineTerm.create(equality.getParameters()[0]).getConstant() == Rational.ZERO)) {
-				throw new AssertionError("Error 2 in Lemma_trichotomy");
-			}					
-							
-			// Uniformize the real disjuncts and the artificial should-be's and compare them
-			HashSet<Term> disjunctsRealCalc = new HashSet<Term>(); //Disjuncts: real then calculated
-			HashSet<Term> disjunctsArtCalc = new HashSet<Term>(); // Disjuncts: artificial then calculated
-			
-			disjunctsRealCalc.add(uniformizeInEquality(disjunct1App));
-			disjunctsRealCalc.add(uniformizeInEquality(disjunct2App));
-			disjunctsRealCalc.add(uniformizeInEquality(disjunct3App));
-
-			disjunctsArtCalc.add(uniformizeInEquality(
-					equality));
-			disjunctsArtCalc.add(uniformizeInEquality(
-					convertApp(mSkript.term("<", equality.getParameters()))));
-			disjunctsArtCalc.add(uniformizeInEquality(
-					convertApp(mSkript.term(">", equality.getParameters()))));
-			
-			if (!disjunctsRealCalc.equals(disjunctsArtCalc))
-				throw new AssertionError("Error at the end of Lemma_trichotomy");
-			
-				
+			checkTrichotomy(termToClause(lemma));
 		} else {
 			reportError("Cannot deal with lemma " + lemmaType);
-		}				
+		}
 		
 		stackPush(lemma, lemmaApp);
 	}
 	
-	
+	/**
+	 * Check a CC lemma for correctness.  If a problem is found, an error
+	 * is reported.
+	 * @param clause  the clause to check
+	 * @param ccAnnotation the argument of the :CC annotation.
+	 */
+	private void checkCCLemma(Term[] clause, Object[] ccAnnotation) {
+		int arrayShortLength;
+		
+		Term termGoal;
+		if (ccAnnotation[0] instanceof Term) {
+			termGoal = (Term) ccAnnotation[0];
+			arrayShortLength = clause.length - 1;
+		} else {
+			termGoal = mSkript.term("false");
+			arrayShortLength = clause.length;
+		}
+		
+		// The negated disjuncts
+		ApplicationTerm[] termLemmaAppNegDisj = new ApplicationTerm[arrayShortLength]; //Negated Disjuncts WITHOUT not
+		
+		int j = 0;
+		
+		for (Term param : clause) {
+			ApplicationTerm paramApp = convertApp_hard(param);
+			
+			if (paramApp.equals(termGoal))
+				continue;
+			
+			// Else: It must be a negation
+			pm_func(paramApp,"not");
+			
+			if (j >= termLemmaAppNegDisj.length)
+				throw new AssertionError("Error 0.5 in Lemma_:CC");
+			
+			termLemmaAppNegDisj[j] = convertApp_hard(paramApp.getParameters()[0]);
+			j++;
+		}
+		
+		if (j != termLemmaAppNegDisj.length)
+			throw new AssertionError("Error 1 in Lemma_:CC");
+		
+		// Get the equalities, the annotations are ignored
+		/* Old and wrong: The first equality is the goal, the others are the premises
+		 * It doesn't have to be the first one.
+		 */
+		
+		if (termGoal != mSkript.term("false"))
+			pm_func(termGoal,"=");
+		
+		for (Term equality : termLemmaAppNegDisj)
+			pm_func(equality,"=");
+		
+		/* Get the subpaths. The HashMap contains pairs:
+		 * - Key: Start & End of the path as Pair
+		 * - Object: Path
+		 */
+		
+		HashMap<SymmetricPair<Term>, Term[]> subpaths =
+				new HashMap<SymmetricPair<Term>,Term[]>();
+		
+		Term termMainPathStart = null;
+		Term termMainPathEnd = null;
+		boolean mainPathFound = false;
+		
+		for (int i = 1; i < ccAnnotation.length; i++) {
+			if (ccAnnotation[i] instanceof String)
+				if (ccAnnotation[i] == ":subpath")
+					continue;
+			
+			if (ccAnnotation[i] instanceof Term[]) {
+				Term[] arrayTemp = (Term[]) ccAnnotation[i];
+				SymmetricPair<Term> pairTemp =
+						new SymmetricPair<Term>(arrayTemp[0],arrayTemp[arrayTemp.length - 1]);
+				
+				if (arrayTemp.length < 2)
+					System.out.println("");
+				subpaths.put(pairTemp, arrayTemp);
+				
+				if (!mainPathFound) {
+					termMainPathStart = arrayTemp[0];
+					termMainPathEnd = arrayTemp[arrayTemp.length - 1];
+					mainPathFound = true;
+				}
+			}
+		}
+		
+		/* Get the premises. The HashMap contains pairs:
+		 * - Key: Pair of the left term and the right term (which are equal by premise)
+		 * - Object: Array of those terms
+		 */
+		HashSet<SymmetricPair<Term>> premises =
+				new HashSet<SymmetricPair<Term>>();
+		
+		for (int i = 0; i < arrayShortLength; i++) {
+			checkNumber(termLemmaAppNegDisj[i],2);
+			
+			SymmetricPair<Term> pairTemp = new SymmetricPair<Term>(
+					termLemmaAppNegDisj[i].getParameters()[0],
+					termLemmaAppNegDisj[i].getParameters()[1]);
+			premises.add(pairTemp);
+		}
+		
+		// Real termGoal
+		ApplicationTerm termGoalRealApp;
+		if (termGoal.equals(mSkript.term("false"))) {
+			termGoalRealApp = convertApp(mSkript.term("=", termMainPathStart, termMainPathEnd));
+			SMTAffineTerm controlDiff =
+					calculateTerm(termMainPathStart).add(
+							calculateTerm(termMainPathEnd).negate());
+			
+			if (!controlDiff.isConstant() 
+					|| controlDiff.getConstant().equals(Rational.ZERO))
+				throw new AssertionError("Error 2 in Lemma_:CC");
+		} else
+			termGoalRealApp = convertApp(termGoal);
+		
+		
+		// Now for the pathfinding
+		checkNumber(termGoalRealApp,2);
+		Term termStart = termGoalRealApp.getParameters()[0];
+		Term termEnd = termGoalRealApp.getParameters()[1];
+		
+		checkEqualityPath(subpaths,premises,termStart,termEnd);
+	}
+
+	/**
+	 * Check if there is an equality path from termStart to termEnd.
+	 * This reports errors using reportError.
+	 * 
+	 * @param subpaths the subpaths from the CC-lemma annotations.  To ensure
+	 * 	termination, currently investigated subpaths are removed.
+	 * @param premises the already proven equalities.  This is initialized to 
+	 *  the equalities occurring in the conflict. 
+	 * @param termStart one side of the equality.
+	 * @param termEnd the other side of the equality.
+	 */
+	void checkEqualityPath(HashMap<SymmetricPair<Term>,Term[]> subpaths, 
+			HashSet<SymmetricPair<Term>> premises,
+			Term termStart, Term termEnd) {
+		if (mDebug.contains("LemmaCC")) {
+			mLogger.debug("Searching for a way from " + termStart.toStringDirect()
+					+ " \n to " + termEnd.toStringDirect());
+		}
+		
+		if (mDebug.contains("allSubpaths")) {
+			mLogger.debug("All subpaths:");
+			for (Term[] values : subpaths.values()) {
+				StringBuilder sb = new StringBuilder();
+				for (Term value : values)
+					sb.append(" ~~ ").append(value.toStringDirect());
+				mLogger.debug(sb.toString());
+			}
+		}
+		
+		// Are the terms already equal?
+		if (termStart == termEnd) {
+			if (mDebug.contains("LemmaCC"))
+				mLogger.debug("It's equal.");
+			return;
+		}
+		SymmetricPair<Term> searchPair = new SymmetricPair<Term>(termStart, termEnd);
+		
+		/* The reason for checking the premises before the subpaths is,
+		 * that the subpaths may contain the same equality as the premises, which
+		 * could lead to infinite loops.
+		 */
+		
+		// Is the searched equality already a premise?
+		if (premises.contains(searchPair)) {
+			if (mDebug.contains("LemmaCC"))
+				mLogger.debug("It's a premise or already proven");
+			return;
+		}
+		
+		// Does a path for the searched equality exist?
+		if (subpaths.containsKey(searchPair)) {
+			if (mDebug.contains("LemmaCC"))
+				mLogger.debug("It's solvable via a subpath");
+			
+			Term[] path = subpaths.remove(searchPair);
+			assert (path[0] == termStart && path[path.length - 1] == termEnd)
+				|| (path[0] == termEnd && path[path.length - 1] == termStart);
+			for (int i = 0; i < path.length - 1; i++) {
+				// TODO: Make it non-recursive?
+				checkEqualityPath(subpaths, premises, path[i], path[i + 1]);
+			}
+			/* Path is proven, add it to cache */
+			premises.add(searchPair);
+			return;
+		}
+		
+		/* So the pair can't be found, then
+		 * it must be a pair of two functions with the same
+		 * function symbol and parameters which can be found.
+		 */
+		if (termStart instanceof ApplicationTerm
+				&& termEnd instanceof ApplicationTerm) {
+			ApplicationTerm startApp = (ApplicationTerm) termStart;
+			ApplicationTerm endApp = (ApplicationTerm) termEnd;
+			Term[] startParams = startApp.getParameters();
+			Term[] endParams = endApp.getParameters();
+		
+			if (startApp.getFunction() == endApp.getFunction()
+				&& startParams.length == endParams.length) {
+				if (mDebug.contains("LemmaCC"))
+					mLogger.debug("It's a function-equality");
+				
+				// check if for each parameter-pair a path can be found
+				
+				for (int i = 0; i < startApp.getParameters().length; i++) {
+					checkEqualityPath(subpaths, premises, 
+							startParams[i],	endParams[i]);
+				}
+				return;
+			}
+		}
+		reportError("Cannot explain equality " + termStart + " = " + termEnd);
+	}
+
+	/**
+	 * Check an LA lemma for correctness.  If a problem is found, an error
+	 * is reported.
+	 * @param clause  the clause to check
+	 * @param coefficients the argument of the :LA annotation, which is
+	 * the list of Farkas coefficients.
+	 */
+	private void checkLALemma(Term[] clause, Term[] coefficients) {
+		int arrayLength = clause.length;
+		// multiplied [negated] disjuncts
+		ApplicationTerm[] termMultDisj = new ApplicationTerm[arrayLength];
+		// negated disjuncts
+		ApplicationTerm[] termNegDisj = new ApplicationTerm[arrayLength];
+		// negated disjuncts maybe one level deeper
+		ApplicationTerm[] termNegDisjMayDeep = new ApplicationTerm[arrayLength];
+		// disjuncts with potentially turned <=/</>=/>
+		ApplicationTerm[] termTurnDisj = new ApplicationTerm[arrayLength];
+		ApplicationTerm[] termNegDisjUnif = new ApplicationTerm[arrayLength];
+		ApplicationTerm[] termNegDisjInv = new ApplicationTerm[arrayLength];
+		
+		// Now get the factors:
+		Rational[] numbersSMT = new Rational[coefficients.length];
+		for (int i = 0; i < coefficients.length; i++)
+			numbersSMT[i] = calculateTerm(coefficients[i]).getConstant();
+		
+		// New: Transform all to ... <= 0 if possible, otherwise to ... <= 0 and ... < 0 
+		
+		// Step 1: Uniformize the negated disjuncts and multiply with factor
+		
+		boolean foundLe = false; // found lower-equal (<=)
+		boolean foundLt = false; // found lower-than (<)
+		boolean foundEq = false; // found equality (=)
+		
+		for (int i = 0; i < arrayLength; i++) {
+			// The convertApp_hard's are used to remove the ":quoted"-annotation
+			
+			// Negate them and remove the annotation
+			termNegDisj[i] = convertApp_hard(negate(convertApp_hard(clause[i])));
+			
+			// Get rid of each negation
+			String prerelation = termNegDisj[i].getFunction().getName();
+			String relation;
+			if (prerelation == "not") {
+				// Dig one level deeper
+				termNegDisjMayDeep[i] = convertApp_hard(termNegDisj[i].getParameters()[0]);
+				
+				prerelation = termNegDisjMayDeep[i].getFunction().getName();
+				
+				//Turn the relation around
+				if (prerelation == "<=")
+					relation = ">";
+				else if (prerelation == ">=")
+					relation = "<";
+				else if (prerelation == "<")
+					relation = ">=";
+				else if (prerelation == ">")
+					relation = "<=";
+				else
+					relation = prerelation;
+			} else {
+				termNegDisjMayDeep[i] = termNegDisj[i];
+				relation = prerelation;
+			}
+			
+			// If the factor is negative switch the function symbol
+			if (numbersSMT[i].isNegative())
+				if (relation == "<=")
+					relation = ">=";
+				else if (relation == ">=")
+					relation = "<=";
+				else if (relation == "<")
+					relation = ">";
+				else if (relation == ">")
+					relation = "<";
+			
+			checkNumber(termNegDisjMayDeep[i].getParameters(),2);
+			
+			termTurnDisj[i] = convertApp(mSkript.term(relation, termNegDisjMayDeep[i].getParameters()));
+			checkNumber(termTurnDisj[i],2);
+			
+			// Multiply with -1			
+			Term[] paramsTemp1 = new Term[2];
+			if (numbersSMT[i].isNegative()) {
+				paramsTemp1[0] = calculateTerm(termTurnDisj[i].getParameters()[0]).negate();
+				paramsTemp1[1] = calculateTerm(termTurnDisj[i].getParameters()[1]).negate();
+				numbersSMT[i] = numbersSMT[i].negate();
+			} else {
+				paramsTemp1 = termTurnDisj[i].getParameters();
+			}
+			
+			termNegDisjInv[i] = convertApp(mSkript.term(relation, paramsTemp1));
+					
+			//Uniformize them
+			termNegDisjUnif[i] = uniformizeInEquality(termNegDisjInv[i]);
+			checkNumber(termNegDisjUnif[i],2);
+			
+			// Multiply both sides		
+			Term[] paramsTemp2 = new Term[2];
+			paramsTemp2[0] = calculateTerm(termNegDisjUnif[i].getParameters()[0]).mul(numbersSMT[i]);
+			paramsTemp2[1] = calculateTerm(termNegDisjUnif[i].getParameters()[1]).mul(numbersSMT[i]);
+			
+			termMultDisj[i] = convertApp(mSkript.term(relation, paramsTemp2));
+			
+			foundLe = (foundLe || pm_func_weak(termMultDisj[i], "<="));
+			foundLt = (foundLt || pm_func_weak(termMultDisj[i], "<"));
+			foundEq = (foundEq || pm_func_weak(termMultDisj[i], "="));
+		}
+		
+		// Step 2: Add them up
+		
+		SMTAffineTerm termSum = calculateTerm(termMultDisj[0].getParameters()[0]);
+		
+		for (int i = 1; i < arrayLength; i++)
+			termSum = termSum.add(calculateTerm(termMultDisj[i].getParameters()[0]));
+		
+		
+		// Step 3: The contradiction
+		if (!termSum.isConstant())
+			throw new AssertionError("Error 2 in @lemma_:LA");
+						
+		Rational constant = termSum.getConstant();
+		
+		
+		// < is strictly stronger than <= is strictly stronger than =
+		if (foundLt) {
+			if (constant.isNegative())
+				throw new AssertionError("Error 4 in @lemma_:LA");
+		} else if (foundLe) {
+			if (constant.isNegative() || constant.equals(Rational.ZERO))
+				throw new AssertionError("Error 3 in @lemma_:LA");
+		} else if (foundEq)
+			if (constant == Rational.ZERO)
+				throw new AssertionError("Error 5 in @lemma_:LA");
+	}
+
+	/**
+	 * Check an trichotomy lemma for correctness.  If a problem is found, 
+	 * an error is reported.
+	 * @param clause  the clause to check.
+	 */
+	private void checkTrichotomy(Term[] clause) {
+		if (clause.length != 3) { // NOCHECKSTYLE
+			reportError("Malformed Trichotomy clause: "
+					+ Arrays.toString(clause));
+			return;
+		}
+		
+		ApplicationTerm disjunct1App = convertApp_hard(clause[0]);
+		ApplicationTerm disjunct2App = convertApp_hard(clause[1]);
+		ApplicationTerm disjunct3App = convertApp_hard(clause[2]);
+		
+		// Find the equality
+		
+		ApplicationTerm equality;
+
+		if (pm_func_weak(disjunct1App, "="))
+			equality = disjunct1App;
+		else if (pm_func_weak(disjunct2App, "="))
+			equality = disjunct2App;
+		else if (pm_func_weak(disjunct3App, "="))
+			equality = disjunct3App;
+		else {
+			reportError("Error 1 in Lemma_trichotomy");
+			return;
+		}
+		
+		if (!(SMTAffineTerm.create(equality.getParameters()[1]).isConstant()
+				&& SMTAffineTerm.create(equality.getParameters()[1]).getConstant() == Rational.ZERO)
+			&& !(SMTAffineTerm.create(equality.getParameters()[0]).isConstant()
+				&& SMTAffineTerm.create(equality.getParameters()[0]).getConstant() == Rational.ZERO)) {
+			reportError("Error 2 in Lemma_trichotomy");
+			return;
+		}
+		
+		// Uniformize the real disjuncts and the artificial should-be's and compare them
+		HashSet<Term> disjunctsRealCalc = new HashSet<Term>(); //Disjuncts: real then calculated
+		HashSet<Term> disjunctsArtCalc = new HashSet<Term>(); // Disjuncts: artificial then calculated
+		
+		disjunctsRealCalc.add(uniformizeInEquality(disjunct1App));
+		disjunctsRealCalc.add(uniformizeInEquality(disjunct2App));
+		disjunctsRealCalc.add(uniformizeInEquality(disjunct3App));
+
+		disjunctsArtCalc.add(uniformizeInEquality(
+				equality));
+		disjunctsArtCalc.add(uniformizeInEquality(
+				convertApp(mSkript.term("<", equality.getParameters()))));
+		disjunctsArtCalc.add(uniformizeInEquality(
+				convertApp(mSkript.term(">", equality.getParameters()))));
+		
+		if (!disjunctsRealCalc.equals(disjunctsArtCalc))
+			reportError("Error at the end of Lemma_trichotomy");
+	}
+
 	public void walkTautology(ApplicationTerm tautologyApp) {
 		AnnotatedTerm annTerm = (AnnotatedTerm) tautologyApp.getParameters()[0];
 		String tautType = annTerm.getAnnotations()[0].getKey();
@@ -629,7 +748,7 @@ public class ProofChecker extends NonRecursive {
 			
 			ApplicationTerm termNegUnif = uniformizeInEquality(termNegApp);
 			ApplicationTerm termPosUnif = uniformizeInEquality(termPosApp);
-													
+			
 			if (!uniformedSame(termNegUnif,termPosUnif))
 				throw new AssertionError("Error in @taut_eq");
 		} else if (tautType == ":or+") {
@@ -707,7 +826,6 @@ public class ProofChecker extends NonRecursive {
 				if (equalityNotIte != equalityIteApp.getParameters()[1])
 					throw new AssertionError("Error 2 in @taut_termITE");
 			}
-					
 			
 		} else {
 			reportError("Unknown tautology rule " + tautType);
@@ -3181,100 +3299,6 @@ public class ProofChecker extends NonRecursive {
 					+ "\n It should have length " + n);
 	}
 	
-	/**
-	 * Check if there is an equality path from termStart to termEnd.
-	 * This reports errors using reportError.
-	 * 
-	 * @param subpaths the subpaths from the CC-lemma annotations.  To ensure
-	 * 	termination, currently investigated subpaths are removed.
-	 * @param premises the already proven equalities.  This is initialized to 
-	 *  the equalities occurring in the conflict. 
-	 * @param termStart one side of the equality.
-	 * @param termEnd the other side of the equality.
-	 */
-	void checkEqualityPath(HashMap<SymmetricPair<Term>,Term[]> subpaths, 
-			HashSet<SymmetricPair<Term>> premises,
-			Term termStart, Term termEnd) {
-		if (mDebug.contains("LemmaCC")) {
-			mLogger.debug("Searching for a way from " + termStart.toStringDirect()
-					+ " \n to " + termEnd.toStringDirect());
-		}
-		
-		if (mDebug.contains("allSubpaths")) {
-			mLogger.debug("All subpaths:");
-			for (Term[] values : subpaths.values()) {
-				StringBuilder sb = new StringBuilder();
-				for (Term value : values)
-					sb.append(" ~~ ").append(value.toStringDirect());
-				mLogger.debug(sb.toString());
-			}
-		}
-				
-		
-		// Are the terms already equal?
-		if (termStart == termEnd) {
-			if (mDebug.contains("LemmaCC"))
-				mLogger.debug("It's equal.");
-			return;
-		}
-		SymmetricPair<Term> searchPair = new SymmetricPair<Term>(termStart, termEnd);
-		
-		/* The reason for checking the premises before the subpaths is,
-		 * that the subpaths may contain the same equality as the premises, which
-		 * could lead to infinite loops.
-		 */
-		
-		// Is the searched equality already a premise?
-		if (premises.contains(searchPair)) {
-			if (mDebug.contains("LemmaCC"))
-				mLogger.debug("It's a premise or already proven");
-			return;
-		}
-		
-		// Does a path for the searched equality exist?
-		if (subpaths.containsKey(searchPair)) {
-			if (mDebug.contains("LemmaCC"))
-				mLogger.debug("It's solvable via a subpath");
-			
-			Term[] path = subpaths.remove(searchPair);
-			assert (path[0] == termStart && path[path.length - 1] == termEnd)
-				|| (path[0] == termEnd && path[path.length - 1] == termStart);
-			for (int i = 0; i < path.length - 1; i++) {
-				// TODO: Make it non-recursive?
-				checkEqualityPath(subpaths, premises, path[i], path[i + 1]);
-			}
-			/* Path is proven, add it to cache */
-			premises.add(searchPair);
-			return;
-		}
-		
-		/* So the pair can't be found, then
-		 * it must be a pair of two functions with the same
-		 * function symbol and parameters which can be found.
-		 */
-		if (termStart instanceof ApplicationTerm
-				&& termEnd instanceof ApplicationTerm) {
-			ApplicationTerm startApp = (ApplicationTerm) termStart;
-			ApplicationTerm endApp = (ApplicationTerm) termEnd;
-			Term[] startParams = startApp.getParameters();
-			Term[] endParams = endApp.getParameters();
-		
-			if (startApp.getFunction() == endApp.getFunction()
-				&& startParams.length == endParams.length) {
-				if (mDebug.contains("LemmaCC"))
-					mLogger.debug("It's a function-equality");
-				
-				// check if for each parameter-pair a path can be found
-				
-				for (int i = 0; i < startApp.getParameters().length; i++) {
-					checkEqualityPath(subpaths, premises, 
-							startParams[i],	endParams[i]);
-				}
-				return;
-			}
-		}
-		reportError("Cannot explain equality " + termStart + " = " + termEnd);
-	}
 	
 	ApplicationTerm uniformizeInEquality(ApplicationTerm termApp) {
 		ApplicationTerm termIneq;
