@@ -225,8 +225,7 @@ public class ProofChecker extends NonRecursive {
 					+ " \t (function)");
 		
 		/* Look at the rule name and treat each different */
-		switch (rulename) {
-		case "@res":
+		if (rulename == "@res") {
 			/* The resolution rule.
 			 * 
 			 * This function is expected to have as first argument the 
@@ -239,46 +238,29 @@ public class ProofChecker extends NonRecursive {
 				enqueueWalker(new ProofWalker(pivotClause.getSubterm()));
 			}
 			enqueueWalker(new ProofWalker(params[0]));
-			break;
-			
-		case "@eq":
+		} else if (rulename == "@eq") {
 			enqueueWalker(new EqualityWalker(proofTerm));
 			for (int i = params.length - 1; i >= 0; i--) {
 				enqueueWalker(new ProofWalker(params[i]));
 			}
-			break;
-			
-		case "@lemma":
+		} else if (rulename == "@lemma") {
 			walkLemma(proofTerm);
-			break;
-			
-		case "@tautology":
+		} else if (rulename == "@tautology") {
 			walkTautology(proofTerm);
-			break;
-		case "@asserted":
+		} else if (rulename == "@asserted") {
 			walkAsserted(proofTerm);
-			break;
-			
-		case "@rewrite": 
+		} else if (rulename == "@rewrite") {
 			walkRewrite(proofTerm);
-			break;
-			
-		case "@intern":
+		} else if (rulename == "@intern") {
 			walkIntern(proofTerm);
-			break;
-
-		case "@split":
+		} else if (rulename == "@split") {
 			enqueueWalker(new SplitWalker(proofTerm));
 			enqueueWalker(new ProofWalker(
 					((AnnotatedTerm) params[0]).getSubterm()));
-			break;
-			
-		case "@clause":
+		} else if (rulename == "@clause") {
 			enqueueWalker(new ClauseWalker(proofTerm));
 			enqueueWalker(new ProofWalker(params[0]));
-			break;				
-			
-		default:
+		} else {
 			throw new AssertionError("Unknown proof rule " + rulename + ".");
 		}
 	}
