@@ -779,6 +779,9 @@ public class ProofChecker extends NonRecursive {
 		String tautType = annTerm.getAnnotations()[0].getKey();
 		Term tautology = annTerm.getSubterm();
 		Term[] clause = termToClause(tautology);
+		
+		/* push it and check later */
+		stackPush(tautology, tautologyApp);
 
 		if (tautType == ":eq") {
 			if (clause.length != 2)
@@ -890,12 +893,36 @@ public class ProofChecker extends NonRecursive {
 				if (equalityNotIte != equalityIteApp.getParameters()[1])
 					throw new AssertionError("Error 2 in @taut_termITE");
 			}
-			
+		} else if (tautType == ":excludedMiddle1") {
+			if (clause.length == 2) {
+				Term falseEq = unquote(clause[1]);
+				if (isApplication("not", clause[0]) 
+						&& isApplication("=", falseEq)) {
+					Term negClause0 = ((ApplicationTerm) clause[0])
+							.getParameters()[0];
+					Term[] ps = ((ApplicationTerm)falseEq).getParameters();
+					if (isApplication("true", ps[1])
+							&& negClause0 == ps[0])
+						return;
+				}
+			}
+			reportError("Invalid application of rule :excludedMiddle1");
+			return;
+		} else if (tautType == ":excludedMiddle2") {
+			if (clause.length == 2) {
+				Term falseEq = unquote(clause[1]);
+				if (isApplication("=", falseEq)) {
+					Term[] ps = ((ApplicationTerm)falseEq).getParameters();
+					if (isApplication("false", ps[1])
+							&& clause[0] == ps[0])
+						return;
+				}
+			}
+			reportError("Invalid application of rule :excludedMiddle2");
+			return;
 		} else {
-			reportError("Unknown tautology rule " + tautType);
-		}
-		
-		stackPush(tautology, tautologyApp);
+			reportError("Unknown tautology rule " + tautologyApp);
+		}		
 	}
 
 	void walkAsserted(ApplicationTerm assertedApp) {
@@ -2540,6 +2567,18 @@ public class ProofChecker extends NonRecursive {
 				&& !isNegated) {
 			Term[] oldArgs = ((ApplicationTerm) oldTerm).getParameters();
 			Term[] newArgs = ((ApplicationTerm) newTerm).getParameters();
+			
+			if (oldArgs.length != 2 || newArgs.length != 2) {
+				reportError("Not a binary equality rewrite: "+equality);
+				return;
+			}
+			
+			/* Check for reversed CC equalities */
+			if (oldArgs[0] == newArgs[1]
+					&& oldArgs[1] == newArgs[0])
+				return;
+			
+			/* Otherwise this is an CC to LA intern */
 			SMTAffineTerm zero = convertAffineTerm(newArgs[1]);
 			if (newArgs.length != 2
 					|| !zero.isConstant()
@@ -2571,7 +2610,15 @@ public class ProofChecker extends NonRecursive {
 			return;
 		}
 
-		reportError ("Unhandled @intern rule " + equality);
+		/* Check for boolean literals */
+		if (!isApplication("=", oldTerm) && isApplication("=", newTerm)) {
+			Term[] sides = ((ApplicationTerm) newTerm).getParameters();
+			if (sides.length == 2
+					&& isApplication("true", sides[1])
+					&& sides[0] == oldTerm)
+				return;
+		}
+		reportError ("Unhandled @intern rule " + equality.toStringDirect());
 	}	
 	
 	/**
