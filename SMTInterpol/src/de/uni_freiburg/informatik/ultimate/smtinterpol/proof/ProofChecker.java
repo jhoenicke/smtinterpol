@@ -2445,214 +2445,133 @@ public class ProofChecker extends NonRecursive {
 	}
 	
 	public void walkIntern(ApplicationTerm internApp) {
-		// Step 1: The syntactical check				
-		
-		ApplicationTerm termEqApp = convertApp(internApp.getParameters()[0]);
-		
-		/* The result is simply the first argument.  Compute it first 
-		 * and check later.
+		Term equality = internApp.getParameters()[0];
+
+		/* The result is simply the equality.
 		 */
-		stackPush(termEqApp, internApp);
+		stackPush(equality, internApp);
 		
-		
-		pm_func(termEqApp,"=");
-		
-		// Step 1,5: Maybe the internal rewrite is just an addition of :quoted
-		if (convertApp_hard(termEqApp.getParameters()[0])
-				== convertApp_hard(termEqApp.getParameters()[1])) {
+		if (!isApplication("=", equality)
+				|| ((ApplicationTerm) equality).getParameters().length != 2) {
+			reportError("Not an equality");
 			return;
 		}
-		// Not nice: Not checked if the annotation really is quoted, but otherwise
-		// it's still correct.
+		Term oldTerm = ((ApplicationTerm) equality).getParameters()[0];
+		Term newTerm = ((ApplicationTerm) equality).getParameters()[1];
 		
-		/* Step 1,75: Maybe the first term is a negation of a Term t and 
-		 * the second is the negation of (! t :quoted) 
-		 */
+		boolean isNegated = isApplication("not", newTerm);
+		if (isNegated)
+			newTerm = ((ApplicationTerm) newTerm).getParameters()[0];
 		
-		if (termEqApp.getParameters()[0] instanceof ApplicationTerm
-				&& termEqApp.getParameters()[1] instanceof ApplicationTerm) {
-			ApplicationTerm termLeftApp = convertApp(termEqApp.getParameters()[0]); // Term on the left side of the rewrite-"="
-			ApplicationTerm termRightApp = convertApp(termEqApp.getParameters()[1]);
-			
-			if (pm_func_weak(termLeftApp,"not") 
-					&& pm_func_weak(termRightApp,"not"))
-				if (termRightApp.getParameters()[0] instanceof AnnotatedTerm) {
-					AnnotatedTerm termRightAppInnerAnn = convertAnn(termRightApp.getParameters()[0]);
-					if (termLeftApp.getParameters()[0].equals(
-							termRightAppInnerAnn.getSubterm())) {
-						return;
-					}
-				}
+		newTerm = unquote(newTerm);
+		
+		if (isApplication("not", oldTerm)) {
+			oldTerm = ((ApplicationTerm) oldTerm).getParameters()[0];
+			isNegated = !isNegated;
 		}
 		
-		// Step 2: Find out if one is negated
-		boolean firstNeg = false;
-		boolean secondNeg = false;
-		
-		if (termEqApp.getParameters()[0] instanceof ApplicationTerm)
-			if (pm_func_weak(termEqApp.getParameters()[0], "not"))
-				firstNeg = true;
-		
-		if (termEqApp.getParameters()[1] instanceof ApplicationTerm)
-			if (pm_func_weak(termEqApp.getParameters()[1], "not"))
-				secondNeg = true;
-		
-		// Step 3: Get the (in)equalities, that have to be compared.
-		ApplicationTerm termOldRel; // Rel stands for relation, which is used as a generic term for in-/equality
-		ApplicationTerm termNewRel;
-		
-		// The outmost annotation is not important for the correctness-check				
-		if (firstNeg)
-			termOldRel = convertApp_hard(
-					((ApplicationTerm) termEqApp.getParameters()[0]).getParameters()[0]);
-		else
-			termOldRel = convertApp_hard(termEqApp.getParameters()[0]);
-		
-		if (secondNeg)
-			termNewRel = convertApp_hard(
-					((ApplicationTerm) termEqApp.getParameters()[1]).getParameters()[0]);
-		else
-			termNewRel = convertApp_hard(termEqApp.getParameters()[1]);				
-		
-		checkNumber(termOldRel, 2);
-		checkNumber(termNewRel, 2);
-		
-		/* Step 4: Get the terms which have to be compared
-		 * For this, the (in)equality-term has to be transformed,
-		 * depending on the relation-symbol
-		 */
-						
-		if (pm_func_weak(termOldRel,"=")) {
-			// Case 4.1: It's an equality
-			if ((firstNeg && !secondNeg)		||		(!firstNeg && secondNeg))
-				throw new AssertionError("Error 4.1.1");
-			
-			// term_compare = Left Side - Right Side
-			SMTAffineTerm termOldCompAff =
-					convertAffineTerm(termOldRel.getParameters()[0]).add(
-							convertAffineTerm(termOldRel.getParameters()[1]).negate());
+		/* check if this was just introducing a quote */
+		if (oldTerm == newTerm && !isNegated)
+			return;
 
-			SMTAffineTerm termNewCompAff =
-					convertAffineTerm(termNewRel.getParameters()[0]).add(
-							convertAffineTerm(termNewRel.getParameters()[1]).negate());
-			
-			// Precheck for better runtime - Warning: Code duplicates start here - a random number: 589354
-			if (termOldCompAff.equals(termNewCompAff)) {
+		/* Check for normalization of <= */ 
+		if (isApplication("<=", oldTerm)
+				|| isApplication("<", oldTerm)) {
+			Term[] oldArgs = ((ApplicationTerm) oldTerm).getParameters();
+			SMTAffineTerm zero = convertAffineTerm(oldArgs[1]);
+			if (oldArgs.length != 2
+					|| !zero.isConstant()
+					|| !zero.getConstant().equals(Rational.ZERO)) {
+				reportError("Not a normalized <= on LHS: "+equality);
+				return;
+			}
+			Term[] newArgs = ((ApplicationTerm) newTerm).getParameters();
+			zero = convertAffineTerm(newArgs[1]);
+			if (newArgs.length != 2
+					|| !zero.isConstant()
+					|| !zero.getConstant().equals(Rational.ZERO)) {
+				reportError("Not a normalized <= on RHS: "+equality);
 				return;
 			}
 			
-			// Check for a multiplication with a rational
-			Rational constOld = termOldCompAff.getConstant();
-			Rational constNew = termNewCompAff.getConstant();
+			SMTAffineTerm oldAffine = convertAffineTerm(oldArgs[0]);
+			SMTAffineTerm newAffine = convertAffineTerm(newArgs[0]);
+
+			if (oldAffine.isConstant() || newAffine.isConstant()) {
+				reportError("Invalid @intern rule " + equality);
+			}
+			if (!oldAffine.getGcd().equals(Rational.ONE)) {
+				oldAffine = oldAffine.mul(oldAffine.getGcd().inverse());
+			}
+			if (!newAffine.getGcd().equals(Rational.ONE)) {
+				reportError("Not normalized RHS: " + equality);
+				return;
+			}
 			
-			if (constOld.equals(Rational.ZERO) && constNew.equals(Rational.ZERO)) {
-				// Find the multiplication in a cofactor
-				Rational oldGcd = termOldCompAff.getGcd();
-				Rational newGcd = termNewCompAff.getGcd();
-										
-				if (termOldCompAff.mul(newGcd).equals(termNewCompAff)
-						|| termOldCompAff.mul(newGcd).equals(termNewCompAff.negate())
-						|| termNewCompAff.mul(oldGcd).equals(termOldCompAff)
-						|| termNewCompAff.mul(oldGcd).equals(termOldCompAff.negate())) // Note: == doesn't work
-				{
+			if (newArgs[0].getSort().getName().equals("Int")) {
+				if (!isApplication("<=", oldTerm)
+					|| !isApplication("<=", newTerm))
 					return;
+				oldAffine = oldAffine.add(
+						oldAffine.getConstant().frac().negate());
+			}
+			
+			boolean newIsStrict = isApplication("<", newTerm);
+			if (isNegated) {
+				newAffine = newAffine.negate();
+				if (newArgs[0].getSort().getName().equals("Int")) {
+					newAffine = newAffine.add(Rational.ONE);  
+						// x > 0 iff -x + 1 <= 0)
+				} else {
+					newIsStrict = ! newIsStrict;
 				}
-				
-				if (termOldCompAff.equals(termNewCompAff.negate()))	{
-					return;
-				}
-				reportError("Sadly1, I couldn't find a factorial constant in the internal rewrite: "
-						+ internApp.getParameters()[0].toStringDirect() + " .");
-				return;
 			}
-								
-			if (constOld.equals(Rational.ZERO) || constNew.equals(Rational.ZERO))
-				throw new AssertionError("Error 4.1.2");
-			
-			// Calculate the factors
-			Rational constGcd = constOld.gcd(constNew); // greatest common divisor
-			Rational constLcm = constOld.mul(constNew).div(constGcd); // least common multiple
-			Rational constOldFactor = constLcm.div(constOld);
-			Rational constNewFactor = constLcm.div(constNew);
-			
-			termOldCompAff = termOldCompAff.mul(constOldFactor);
-			termNewCompAff = termNewCompAff.mul(constNewFactor);
-			
-			if (termOldCompAff.equals(termNewCompAff)) {
-				return;
+			if (!oldAffine.equals(newAffine)
+				|| newIsStrict != isApplication("<", oldTerm)) {
+				reportError("LHS and RHS not equal: " + oldAffine
+						+ " != " + newAffine + " in " + equality);
 			}
-			
-			System.out.println("Sadly1, I couldn't understand the internal rewrite: "
-					+ internApp.getParameters()[0].toStringDirect() + " .");
-			// Warning: Code duplicates end here - a random number: 589354
-		} else {
-			// Case 4.2: Then both have to be brought to either ... < 0 or ... <= 0
-			ApplicationTerm termOldComp = uniformizeInEquality(convertApp_hard(termEqApp.getParameters()[0]));
-			ApplicationTerm termNewComp = uniformizeInEquality(convertApp_hard(termEqApp.getParameters()[1]));
-			
-			if (termOldComp.getFunction().getName() != termNewComp.getFunction().getName())
-				throw new AssertionError("Error 4.2.2");
-			
-			if (!pm_func_weak(termOldComp,"<=") && !pm_func_weak(termOldComp,"<"))
-				throw new AssertionError("Error 4.2.3");
-								
-			if (!pm_func_weak(termNewComp,"<=") && !pm_func_weak(termNewComp,"<"))
-				throw new AssertionError("Error 4.2.4");
-			
-			// Just the left side of the inequality
-			SMTAffineTerm termOldCompAff = convertAffineTerm(termOldComp.getParameters()[0]);
-			SMTAffineTerm termNewCompAff = convertAffineTerm(termNewComp.getParameters()[0]);
-			
-			// Precheck for better runtime - Warning: Code duplicates start here - a random number: 589354
-			if (termOldCompAff.equals(termNewCompAff)) {
-				return;
-			}
-			
-			// Check for a multiplication with a rational
-			Rational constOld = termOldCompAff.getConstant();
-			Rational constNew = termNewCompAff.getConstant();
-			
-			if (constOld.equals(Rational.ZERO) && constNew.equals(Rational.ZERO)) {
-				// Find the multiplication in a cofactor
-				Rational oldGcd = termOldCompAff.getGcd();
-				Rational newGcd = termNewCompAff.getGcd();
-										
-				if (termOldCompAff.mul(newGcd).equals(termNewCompAff)
-						|| termOldCompAff.mul(newGcd).equals(termNewCompAff.negate())
-						|| termNewCompAff.mul(oldGcd).equals(termOldCompAff)
-						|| termNewCompAff.mul(oldGcd).equals(termOldCompAff.negate())) // Note: == doesn't work
-				{
-					return;
-				}
-				
-				reportError("Sadly2, I couldn't find a factorial constant in the internal rewrite: "
-						+ internApp.getParameters()[0].toStringDirect() + " .");
-				return;
-			}
-			
-			if (constOld.equals(Rational.ZERO) || constNew.equals(Rational.ZERO))
-				throw new AssertionError("Error 4.2.5");
-			
-			// Calculate the factors
-			Rational constGcd = constOld.gcd(constNew); // greatest common divisor
-			Rational constLcm = constOld.mul(constNew).div(constGcd); // least common multiple
-			Rational constOldFactor = constLcm.div(constOld);
-			Rational constNewFactor = constLcm.div(constNew);
-			
-			termOldCompAff = termOldCompAff.mul(constOldFactor);
-			termNewCompAff = termNewCompAff.mul(constNewFactor);
-			
-			if (termOldCompAff.equals(termNewCompAff)) {
-				return;
-			}
-			
-			reportError("Sadly2, I couldn't understand the internal rewrite: "
-					+ internApp.getParameters()[0].toStringDirect() + " .");
+			return;
 		}
 		
-		reportError("Sadly, I had to believe the following internal rewrite: "
-				+ internApp.getParameters()[0].toStringDirect() + " .");
-		return;
+		/* Check for normalization of = */ 
+		if (isApplication("=", oldTerm)
+				&& isApplication("=", newTerm)
+				&& !isNegated) {
+			Term[] oldArgs = ((ApplicationTerm) oldTerm).getParameters();
+			Term[] newArgs = ((ApplicationTerm) newTerm).getParameters();
+			SMTAffineTerm zero = convertAffineTerm(newArgs[1]);
+			if (newArgs.length != 2
+					|| !zero.isConstant()
+					|| !zero.getConstant().equals(Rational.ZERO)) {
+				reportError("Not a normalized = on RHS: "+equality);
+				return;
+			}
+			
+			SMTAffineTerm oldAffine = convertAffineTerm(oldArgs[0]).add(
+					convertAffineTerm(oldArgs[1]).negate());
+			SMTAffineTerm newAffine = convertAffineTerm(newArgs[0]);
+
+			if (oldAffine.isConstant() || newAffine.isConstant()) {
+				reportError("Invalid @intern rule " + equality);
+			}
+			if (!oldAffine.getGcd().equals(Rational.ONE)) {
+				oldAffine = oldAffine.mul(oldAffine.getGcd().inverse());
+			}
+			if (!newAffine.getGcd().equals(Rational.ONE)) {
+				reportError("Not normalized RHS: " + equality);
+				return;
+			}
+			
+			if (!oldAffine.equals(newAffine)
+					&& !oldAffine.negate().equals(newAffine)) {
+				reportError("LHS and RHS not equal: " + oldAffine
+						+ " != " + newAffine + " in " + equality);
+			}
+			return;
+		}
+
+		reportError ("Unhandled @intern rule " + equality);
 	}	
 	
 	/**
