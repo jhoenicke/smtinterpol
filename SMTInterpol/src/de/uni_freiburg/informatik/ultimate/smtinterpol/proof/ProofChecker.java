@@ -177,6 +177,10 @@ public class ProofChecker extends NonRecursive {
 		mError++;
 	}
 
+	private void reportWarning(String msg) {
+		mLogger.warn(msg);
+	}
+
 	public Term negate(Term formula) {
 		if (formula instanceof ApplicationTerm) {
 			ApplicationTerm appFormula = (ApplicationTerm) formula;
@@ -304,123 +308,99 @@ public class ProofChecker extends NonRecursive {
 	 * @param ccAnnotation the argument of the :CC annotation.
 	 */
 	private void checkCCLemma(Term[] clause, Object[] ccAnnotation) {
-		int arrayShortLength;
+		int startSubpathAnnot = 0;
 		
-		Term termGoal;
+		Term goalEquality;
 		if (ccAnnotation[0] instanceof Term) {
-			termGoal = (Term) ccAnnotation[0];
-			arrayShortLength = clause.length - 1;
+			startSubpathAnnot++;
+			goalEquality = (Term) ccAnnotation[0];
 		} else {
-			termGoal = mSkript.term("false");
-			arrayShortLength = clause.length;
+			goalEquality = mSkript.term("false");
 		}
 		
-		// The negated disjuncts
-		ApplicationTerm[] termLemmaAppNegDisj = new ApplicationTerm[arrayShortLength]; //Negated Disjuncts WITHOUT not
+		boolean foundDiseq = false;
 		
-		int j = 0;
-		
-		for (Term param : clause) {
-			ApplicationTerm paramApp = convertApp_hard(param);
-			
-			if (paramApp.equals(termGoal))
-				continue;
-			
-			// Else: It must be a negation
-			pm_func(paramApp,"not");
-			
-			if (j >= termLemmaAppNegDisj.length)
-				throw new AssertionError("Error 0.5 in Lemma_:CC");
-			
-			termLemmaAppNegDisj[j] = convertApp_hard(paramApp.getParameters()[0]);
-			j++;
-		}
-		
-		if (j != termLemmaAppNegDisj.length)
-			throw new AssertionError("Error 1 in Lemma_:CC");
-		
-		// Get the equalities, the annotations are ignored
-		/* Old and wrong: The first equality is the goal, the others are the premises
-		 * It doesn't have to be the first one.
-		 */
-		
-		if (termGoal != mSkript.term("false"))
-			pm_func(termGoal,"=");
-		
-		for (Term equality : termLemmaAppNegDisj)
-			pm_func(equality,"=");
-		
-		/* Get the subpaths. The HashMap contains pairs:
-		 * - Key: Start & End of the path as Pair
-		 * - Object: Path
-		 */
-		
-		HashMap<SymmetricPair<Term>, Term[]> subpaths =
-				new HashMap<SymmetricPair<Term>,Term[]>();
-		
-		Term termMainPathStart = null;
-		Term termMainPathEnd = null;
-		boolean mainPathFound = false;
-		
-		for (int i = 1; i < ccAnnotation.length; i++) {
-			if (ccAnnotation[i] instanceof String)
-				if (ccAnnotation[i] == ":subpath")
-					continue;
-			
-			if (ccAnnotation[i] instanceof Term[]) {
-				Term[] arrayTemp = (Term[]) ccAnnotation[i];
-				SymmetricPair<Term> pairTemp =
-						new SymmetricPair<Term>(arrayTemp[0],arrayTemp[arrayTemp.length - 1]);
-				
-				if (arrayTemp.length < 2)
-					System.out.println("");
-				subpaths.put(pairTemp, arrayTemp);
-				
-				if (!mainPathFound) {
-					termMainPathStart = arrayTemp[0];
-					termMainPathEnd = arrayTemp[arrayTemp.length - 1];
-					mainPathFound = true;
-				}
-			}
-		}
-		
-		/* Get the premises. The HashMap contains pairs:
-		 * - Key: Pair of the left term and the right term (which are equal by premise)
-		 * - Object: Array of those terms
+		/* Get the premises. The HashSet contains all equalities,
+		 * that are negated in the clause, or already proven in the process.
 		 */
 		HashSet<SymmetricPair<Term>> premises =
 				new HashSet<SymmetricPair<Term>>();
 		
-		for (int i = 0; i < arrayShortLength; i++) {
-			checkNumber(termLemmaAppNegDisj[i],2);
+		for (Term literal : clause) {
+			if (isApplication("not", literal)) {
+				Term atom = ((ApplicationTerm) literal).getParameters()[0];
+				atom = unquote(atom);
+				if (!isApplication("=", atom)) {
+					reportError("Unknown literal in CC lemma.");
+					return;
+				}
+				Term[] sides = ((ApplicationTerm) atom).getParameters();
+				if (sides.length != 2) {
+					reportError("Expected binary equality, found " + atom);
+					return;
+				}
+				premises.add(new SymmetricPair<Term>(sides[0], sides[1]));
+			} else {
+				if (unquote(literal) != goalEquality) {
+					reportError("Unexpected positive literal in CC lemma.");
+					return;
+				}
+				foundDiseq = true;
+			}
+		}
+
+		/* Get the sub-paths from the annotation.  Remember the main path,
+		 * which is the first sub-path.
+		 */
+		HashMap<SymmetricPair<Term>, Term[]> subpaths =
+				new HashMap<SymmetricPair<Term>,Term[]>();
+		
+		SymmetricPair<Term> mainPath = null;
+		
+		for (int i = startSubpathAnnot; i < ccAnnotation.length; i += 2) {
+			if (!ccAnnotation[i].equals(":subpath")
+					|| !(ccAnnotation[i + 1] instanceof Term[])) {
+				reportWarning("Expected subpath annotation.");
+				continue;
+			}
 			
-			SymmetricPair<Term> pairTemp = new SymmetricPair<Term>(
-					termLemmaAppNegDisj[i].getParameters()[0],
-					termLemmaAppNegDisj[i].getParameters()[1]);
-			premises.add(pairTemp);
+			Term[] path = (Term[]) ccAnnotation[i + 1];
+			SymmetricPair<Term> pair =
+					new SymmetricPair<Term>(path[0], path[path.length - 1]);
+			
+			subpaths.put(pair, path);
+			if (mainPath == null)
+				mainPath = pair;
 		}
 		
-		// Real termGoal
-		ApplicationTerm termGoalRealApp;
-		if (termGoal.equals(mSkript.term("false"))) {
-			termGoalRealApp = convertApp(mSkript.term("=", termMainPathStart, termMainPathEnd));
-			SMTAffineTerm controlDiff =
-					calculateTerm(termMainPathStart).add(
-							calculateTerm(termMainPathEnd).negate());
-			
-			if (!controlDiff.isConstant() 
-					|| controlDiff.getConstant().equals(Rational.ZERO))
-				throw new AssertionError("Error 2 in Lemma_:CC");
-		} else
-			termGoalRealApp = convertApp(termGoal);
-		
+		if (startSubpathAnnot == 0) {
+			/* check that the mainPath is really a contradiction */
+			SMTAffineTerm diff = calculateTerm(mainPath.getFirst()).add(
+					calculateTerm(mainPath.getSecond()).negate());
+			if (!diff.isConstant()
+					|| diff.getConstant().equals(Rational.ZERO)) {
+				reportError("No diseq, but main path is " + mainPath);
+			}
+		} else {
+			if (!foundDiseq)
+				reportError("Did not find goal equality in CC lemma");
+			if (!isApplication("=", goalEquality)) {
+				reportError("Goal equality is not an equality in CC lemma");
+				return;
+			}
+			Term[] sides = ((ApplicationTerm) goalEquality).getParameters();
+			if (sides.length != 2) {
+				reportError("Expected binary equality in CC lemma");
+				return;
+			}
+			if (!new SymmetricPair<Term>(sides[0], sides[1]).equals(mainPath)) {
+				reportError("Main Path does not prove goal equality");
+			}
+		}
 		
 		// Now for the pathfinding
-		checkNumber(termGoalRealApp,2);
-		Term termStart = termGoalRealApp.getParameters()[0];
-		Term termEnd = termGoalRealApp.getParameters()[1];
-		
-		checkEqualityPath(subpaths,premises,termStart,termEnd);
+		checkEqualityPath(subpaths, premises, 
+				mainPath.getFirst(), mainPath.getSecond());
 	}
 
 	/**
@@ -2599,18 +2579,14 @@ public class ProofChecker extends NonRecursive {
 	 */
 	private Term[] termToClause(Term clauseTerm) {
 		assert clauseTerm != null && clauseTerm.getSort().getName() == "Bool";
-		if (clauseTerm instanceof ApplicationTerm) {
-			ApplicationTerm appTerm = (ApplicationTerm) clauseTerm;
-			FunctionSymbol func = appTerm.getFunction();
-			if (func.isIntern()) {
-				if (func.getName().equals("false"))
-					return new Term[0];
-				if (func.getName().equals("or"))
-					return appTerm.getParameters();
-			}
+		if (isApplication("or", clauseTerm)) {
+			return ((ApplicationTerm) clauseTerm).getParameters();
+		} else if (isApplication("false", clauseTerm)) {
+			return new Term[0];
+		} else {
+			/* in all other cases, this is a singleton clause. */
+			return new Term[] { clauseTerm };
 		}
-		/* in all other cases, this is a singleton clause. */
-		return new Term[] { clauseTerm };
 	}
 
 	/**
@@ -2676,7 +2652,7 @@ public class ProofChecker extends NonRecursive {
 		for (int i = 1; i < termArgs.length; i++) {
 			/* Remove the negated pivot from allDisjuncts */
 			if (!allDisjuncts.remove(negate(pivots[i]))) {
-				reportError("Could not find negated pivot in main clause");
+				reportWarning("Could not find negated pivot in main clause");
 			}
 
 			/* For each clause check for the pivot and add all other
@@ -2693,7 +2669,7 @@ public class ProofChecker extends NonRecursive {
 			}
 			
 			if (!pivotFound) {
-				reportError("Could not find pivot in secondary clause");
+				reportWarning("Could not find pivot in secondary clause");
 			}
 		}
 
@@ -3504,6 +3480,23 @@ public class ProofChecker extends NonRecursive {
 		}
 		reportError("Expected quoted literal, but got " + quotedTerm);
 		return quotedTerm;
+	}
+	
+	/**
+	 * Checks if a term is an application of an internal function symbol.
+	 * @param funcSym the expected function symbol.
+	 * @param term the term to check.
+	 * @return true if term is an application of funcSym.
+	 */
+	public boolean isApplication(String funcSym, Term term) {
+		if (term instanceof ApplicationTerm) {
+			ApplicationTerm appTerm = (ApplicationTerm) term;
+			FunctionSymbol func = appTerm.getFunction();
+			if (func.isIntern() && func.getName().equals(funcSym)) {
+				return true;
+			}
+		}
+		return false;
 	}
 	
 	public boolean checkOrMinus(Term orTerm, Term literal) {
