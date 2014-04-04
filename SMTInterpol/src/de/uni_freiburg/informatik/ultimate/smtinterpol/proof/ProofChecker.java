@@ -505,131 +505,91 @@ public class ProofChecker extends NonRecursive {
 	 * the list of Farkas coefficients.
 	 */
 	private void checkLALemma(Term[] clause, Term[] coefficients) {
-		int arrayLength = clause.length;
-		// multiplied [negated] disjuncts
-		ApplicationTerm[] termMultDisj = new ApplicationTerm[arrayLength];
-		// negated disjuncts
-		ApplicationTerm[] termNegDisj = new ApplicationTerm[arrayLength];
-		// negated disjuncts maybe one level deeper
-		ApplicationTerm[] termNegDisjMayDeep = new ApplicationTerm[arrayLength];
-		// disjuncts with potentially turned <=/</>=/>
-		ApplicationTerm[] termTurnDisj = new ApplicationTerm[arrayLength];
-		ApplicationTerm[] termNegDisjUnif = new ApplicationTerm[arrayLength];
-		ApplicationTerm[] termNegDisjInv = new ApplicationTerm[arrayLength];
-		
-		// Now get the factors:
-		Rational[] numbersSMT = new Rational[coefficients.length];
-		for (int i = 0; i < coefficients.length; i++)
-			numbersSMT[i] = calculateTerm(coefficients[i]).getConstant();
-		
-		// New: Transform all to ... <= 0 if possible, otherwise to ... <= 0 and ... < 0 
-		
-		// Step 1: Uniformize the negated disjuncts and multiply with factor
-		
-		boolean foundLe = false; // found lower-equal (<=)
-		boolean foundLt = false; // found lower-than (<)
-		boolean foundEq = false; // found equality (=)
-		
-		for (int i = 0; i < arrayLength; i++) {
-			// The convertApp_hard's are used to remove the ":quoted"-annotation
-			
-			// Negate them and remove the annotation
-			termNegDisj[i] = convertApp_hard(negate(convertApp_hard(clause[i])));
-			
-			// Get rid of each negation
-			String prerelation = termNegDisj[i].getFunction().getName();
-			String relation;
-			if (prerelation == "not") {
-				// Dig one level deeper
-				termNegDisjMayDeep[i] = convertApp_hard(termNegDisj[i].getParameters()[0]);
-				
-				prerelation = termNegDisjMayDeep[i].getFunction().getName();
-				
-				//Turn the relation around
-				if (prerelation == "<=")
-					relation = ">";
-				else if (prerelation == ">=")
-					relation = "<";
-				else if (prerelation == "<")
-					relation = ">=";
-				else if (prerelation == ">")
-					relation = "<=";
-				else
-					relation = prerelation;
-			} else {
-				termNegDisjMayDeep[i] = termNegDisj[i];
-				relation = prerelation;
-			}
-			
-			// If the factor is negative switch the function symbol
-			if (numbersSMT[i].isNegative())
-				if (relation == "<=")
-					relation = ">=";
-				else if (relation == ">=")
-					relation = "<=";
-				else if (relation == "<")
-					relation = ">";
-				else if (relation == ">")
-					relation = "<";
-			
-			checkNumber(termNegDisjMayDeep[i].getParameters(),2);
-			
-			termTurnDisj[i] = convertApp(mSkript.term(relation, termNegDisjMayDeep[i].getParameters()));
-			checkNumber(termTurnDisj[i],2);
-			
-			// Multiply with -1			
-			Term[] paramsTemp1 = new Term[2];
-			if (numbersSMT[i].isNegative()) {
-				paramsTemp1[0] = calculateTerm(termTurnDisj[i].getParameters()[0]).negate();
-				paramsTemp1[1] = calculateTerm(termTurnDisj[i].getParameters()[1]).negate();
-				numbersSMT[i] = numbersSMT[i].negate();
-			} else {
-				paramsTemp1 = termTurnDisj[i].getParameters();
-			}
-			
-			termNegDisjInv[i] = convertApp(mSkript.term(relation, paramsTemp1));
-					
-			//Uniformize them
-			termNegDisjUnif[i] = uniformizeInEquality(termNegDisjInv[i]);
-			checkNumber(termNegDisjUnif[i],2);
-			
-			// Multiply both sides		
-			Term[] paramsTemp2 = new Term[2];
-			paramsTemp2[0] = calculateTerm(termNegDisjUnif[i].getParameters()[0]).mul(numbersSMT[i]);
-			paramsTemp2[1] = calculateTerm(termNegDisjUnif[i].getParameters()[1]).mul(numbersSMT[i]);
-			
-			termMultDisj[i] = convertApp(mSkript.term(relation, paramsTemp2));
-			
-			foundLe = (foundLe || pm_func_weak(termMultDisj[i], "<="));
-			foundLt = (foundLt || pm_func_weak(termMultDisj[i], "<"));
-			foundEq = (foundEq || pm_func_weak(termMultDisj[i], "="));
+		if (clause.length != coefficients.length) {
+			reportError("Clause and coefficients have different length");
+			return;
 		}
 		
-		// Step 2: Add them up
-		
-		SMTAffineTerm termSum = calculateTerm(termMultDisj[0].getParameters()[0]);
-		
-		for (int i = 1; i < arrayLength; i++)
-			termSum = termSum.add(calculateTerm(termMultDisj[i].getParameters()[0]));
-		
-		
-		// Step 3: The contradiction
-		if (!termSum.isConstant())
-			throw new AssertionError("Error 2 in @lemma_:LA");
-						
-		Rational constant = termSum.getConstant();
-		
-		
-		// < is strictly stronger than <= is strictly stronger than =
-		if (foundLt) {
-			if (constant.isNegative())
-				throw new AssertionError("Error 4 in @lemma_:LA");
-		} else if (foundLe) {
-			if (constant.isNegative() || constant.equals(Rational.ZERO))
-				throw new AssertionError("Error 3 in @lemma_:LA");
-		} else if (foundEq)
-			if (constant == Rational.ZERO)
-				throw new AssertionError("Error 5 in @lemma_:LA");
+		boolean sumHasStrict = false;
+		SMTAffineTerm sum = null;
+		for (int i = 0; i < clause.length; i++) {
+			Rational coeff = calculateTerm(coefficients[i]).getConstant();
+			if (coeff.equals(Rational.ZERO)) {
+				reportWarning("Coefficient in LA lemma is zero.");
+				continue;
+			}
+			Term literal = clause[i];
+			boolean isNegated = false;
+			if (isApplication("not", literal)) {
+				literal = ((ApplicationTerm) literal).getParameters()[0];
+				isNegated = true;
+			}
+			literal = unquote(literal);
+			boolean isStrict;
+			if (isNegated) {
+				if (isApplication("<=", literal)) {
+					isStrict = false;
+					if (coeff.isNegative())
+						reportError("Negative coefficient for <=");
+				} else if (isApplication("=", literal)) {
+					isStrict = false;
+				} else if (isApplication("<", literal)) {
+					isStrict = true;
+					if (coeff.isNegative())
+						reportError("Negative coefficient for <");
+				} else {
+					reportError("Unknown atom in LA lemma: " + literal);
+					continue;
+				}
+			} else  {
+				if (isApplication("<=", literal)) {
+					isStrict = true;
+					if (!coeff.isNegative())
+						reportError("Positive coefficient for negated <=");
+				} else if (isApplication("<", literal)) {
+					isStrict = false;
+					if (!coeff.isNegative())
+						reportError("Positive coefficient for negated <");
+				} else {
+					reportError("Unknown atom in LA lemma: " + literal);
+					continue;
+				}
+			}
+			Term[] params = ((ApplicationTerm)literal).getParameters();
+			if (params.length != 2) {
+				reportError("not a binary comparison in LA lemma");
+				continue;
+			}
+			SMTAffineTerm affine = calculateTerm(params[1]);
+			if (!affine.isConstant() 
+					|| !affine.getConstant().equals(Rational.ZERO)) {
+				reportError("Right hand side is not zero");
+			}
+			affine = calculateTerm(params[0]);
+			if (isStrict && params[0].getSort().getName().equals("Int")) {
+				/* make integer equalities non-strict by adding one. 
+				 * x < 0 iff x + 1 <= 0
+				 * x > 0 iff x - 1 >= 0
+				 */
+				affine = affine.add(isNegated ? Rational.ONE : Rational.MONE);
+				isStrict = false;
+			}
+			affine = affine.mul(coeff);
+			if (sum == null)
+				sum = affine;
+			else
+				sum = sum.add(affine);
+			sumHasStrict |= isStrict;
+		}
+		Rational sumConstant = sum.getConstant();
+		if (sum.isConstant()) {
+			int signum = sumConstant.signum();
+			if (signum > 0
+					|| (sumHasStrict && signum == 0))
+				return;
+		}
+		reportError("LA lemma sums up to " + sum
+				+ (sumHasStrict ? " < 0" : " <= 0"));
 	}
 
 	/**
@@ -643,51 +603,85 @@ public class ProofChecker extends NonRecursive {
 					+ Arrays.toString(clause));
 			return;
 		}
-		
-		ApplicationTerm disjunct1App = convertApp_hard(clause[0]);
-		ApplicationTerm disjunct2App = convertApp_hard(clause[1]);
-		ApplicationTerm disjunct3App = convertApp_hard(clause[2]);
-		
-		// Find the equality
-		
-		ApplicationTerm equality;
 
-		if (pm_func_weak(disjunct1App, "="))
-			equality = disjunct1App;
-		else if (pm_func_weak(disjunct2App, "="))
-			equality = disjunct2App;
-		else if (pm_func_weak(disjunct3App, "="))
-			equality = disjunct3App;
-		else {
-			reportError("Error 1 in Lemma_trichotomy");
-			return;
+		SMTAffineTerm trichotomyTerm = null;
+		final int NEQ = 1;
+		final int LEQ = 2;
+		final int GEQ = 4;
+		int foundlits = 0;
+		for (Term lit : clause) {
+			boolean isNegated = isApplication("not", lit);
+			if (isNegated)
+				lit = ((ApplicationTerm) lit).getParameters()[0];
+			lit = unquote(lit);
+			
+			Rational offset = Rational.ZERO;
+			if (isApplication("=", lit)) {
+				if (isNegated) {
+					reportError("Equality in trichotomy has wrong polarity");
+					return;
+				}
+				if ((foundlits & NEQ) != 0) {
+					reportError("Two Disequalities in trichotomy");
+					return;
+				}
+				foundlits |= NEQ;
+			} else if (isApplication("<=", lit)) {
+				if (isNegated) {
+					if ((foundlits & GEQ) != 0) {
+						reportError("Two > in trichotomy");
+						return;
+					}
+					foundlits |= GEQ;
+				} else {
+					if ((foundlits & LEQ) != 0) {
+						reportError("Two <= in trichotomy");
+						return;
+					}
+					foundlits |= LEQ;
+					offset = Rational.MONE; // x <= 0 iff x - 1 < 0
+				}
+			} else if (isApplication("<", lit)) {
+				if (isNegated) {
+					if ((foundlits & GEQ) != 0) {
+						reportError("Two >= in trichotomy");
+						return;
+					}
+					foundlits |= GEQ;
+					offset = Rational.ONE; // x >= 0 iff x + 1 > 0
+				} else {
+					if ((foundlits & LEQ) != 0) {
+						reportError("Two < in trichotomy");
+						return;
+					}
+					foundlits |= LEQ;
+				}
+			} else {
+				reportError("Unknown literal in trichotomy " + lit);
+				return;
+			}
+			Term[] params = ((ApplicationTerm) lit).getParameters();
+			if (params.length != 2) {
+				reportError("not a binary comparison in LA lemma");
+				return;
+			}
+			SMTAffineTerm affine = calculateTerm(params[1]);
+			if (!affine.isConstant() 
+					|| !affine.getConstant().equals(Rational.ZERO)) {
+				reportError("Right hand side is not zero");
+			}
+			if (offset != Rational.ZERO
+					&& !params[1].getSort().getName().equals("Int")) {
+				reportError("<= or >= in non-integer trichotomy");
+			}
+			affine = calculateTerm(params[0]).add(offset);
+			if (trichotomyTerm == null) {
+				trichotomyTerm = affine;
+			} else if (!trichotomyTerm.equals(affine)) {
+				reportError("Invalid trichotomy");
+			}
 		}
-		
-		if (!(SMTAffineTerm.create(equality.getParameters()[1]).isConstant()
-				&& SMTAffineTerm.create(equality.getParameters()[1]).getConstant() == Rational.ZERO)
-			&& !(SMTAffineTerm.create(equality.getParameters()[0]).isConstant()
-				&& SMTAffineTerm.create(equality.getParameters()[0]).getConstant() == Rational.ZERO)) {
-			reportError("Error 2 in Lemma_trichotomy");
-			return;
-		}
-		
-		// Uniformize the real disjuncts and the artificial should-be's and compare them
-		HashSet<Term> disjunctsRealCalc = new HashSet<Term>(); //Disjuncts: real then calculated
-		HashSet<Term> disjunctsArtCalc = new HashSet<Term>(); // Disjuncts: artificial then calculated
-		
-		disjunctsRealCalc.add(uniformizeInEquality(disjunct1App));
-		disjunctsRealCalc.add(uniformizeInEquality(disjunct2App));
-		disjunctsRealCalc.add(uniformizeInEquality(disjunct3App));
-
-		disjunctsArtCalc.add(uniformizeInEquality(
-				equality));
-		disjunctsArtCalc.add(uniformizeInEquality(
-				convertApp(mSkript.term("<", equality.getParameters()))));
-		disjunctsArtCalc.add(uniformizeInEquality(
-				convertApp(mSkript.term(">", equality.getParameters()))));
-		
-		if (!disjunctsRealCalc.equals(disjunctsArtCalc))
-			reportError("Error at the end of Lemma_trichotomy");
+		assert foundlits == (NEQ + LEQ + GEQ);
 	}
 
 	public void walkTautology(ApplicationTerm tautologyApp) {
@@ -3111,13 +3105,7 @@ public class ProofChecker extends NonRecursive {
 				return SMTAffineTerm.create(mSkript.term(termApp.getFunction().getName(), sides));
 			
 			} else {
-				//Throwing an Error would be wrong, because of self-defined functions.
-				Term[] termAppParamsCalc = new Term[termApp.getParameters().length];
-				for (int i = 0; i < termApp.getParameters().length; i++)
-					termAppParamsCalc[i] = calculateTerm(termApp.getParameters()[i]);
-				
-				return SMTAffineTerm.create(mSkript.term(termApp.getFunction().getName(),
-						termAppParamsCalc));
+				return SMTAffineTerm.create(termApp);
 			}
 		
 		
