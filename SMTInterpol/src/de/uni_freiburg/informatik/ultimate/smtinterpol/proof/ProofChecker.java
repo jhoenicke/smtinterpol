@@ -115,13 +115,13 @@ public class ProofChecker extends NonRecursive {
 	 * @author hoenicke
 	 */
 	class SMTAffineTermTransformer extends TermTransformer {
-		HashSet<String> funcSet = new HashSet<String>();
+		private final HashSet<String> mFuncSet = new HashSet<String>();
 		{
-			funcSet.add("+");
-			funcSet.add("-");
-			funcSet.add("*");
-			funcSet.add("/");
-			funcSet.add("to_real");
+			mFuncSet.add("+");
+			mFuncSet.add("-");
+			mFuncSet.add("*");
+			mFuncSet.add("/");
+			mFuncSet.add("to_real");
 		}
 		
 		@Override
@@ -130,7 +130,7 @@ public class ProofChecker extends NonRecursive {
 				ApplicationTerm appTerm = (ApplicationTerm) t;
 				FunctionSymbol funcSymb = appTerm.getFunction();
 				if (funcSymb.isIntern()
-						&& funcSet.contains(funcSymb.getName())) {
+						&& mFuncSet.contains(funcSymb.getName())) {
 					super.convert(t);
 					return;
 				}
@@ -143,7 +143,7 @@ public class ProofChecker extends NonRecursive {
 		public void convertApplicationTerm(ApplicationTerm appTerm, 
 				Term[] newArgs) {
 			String funcName = appTerm.getFunction().getName();
-			assert funcSet.contains(funcName);
+			assert mFuncSet.contains(funcName);
 			if (funcName == "+") {
 				SMTAffineTerm sum = SMTAffineTerm.create(newArgs[0]);
 				for (int i = 1; i < newArgs.length; i++) {
@@ -2509,7 +2509,7 @@ public class ProofChecker extends NonRecursive {
 			if (oldArgs.length != 2
 					|| !zero.isConstant()
 					|| !zero.getConstant().equals(Rational.ZERO)) {
-				reportError("Not a normalized <= on LHS: "+equality);
+				reportError("Not a normalized <= on LHS: " + equality);
 				return;
 			}
 			Term[] newArgs = ((ApplicationTerm) newTerm).getParameters();
@@ -2517,7 +2517,7 @@ public class ProofChecker extends NonRecursive {
 			if (newArgs.length != 2
 					|| !zero.isConstant()
 					|| !zero.getConstant().equals(Rational.ZERO)) {
-				reportError("Not a normalized <= on RHS: "+equality);
+				reportError("Not a normalized <= on RHS: " + equality);
 				return;
 			}
 			
@@ -2550,7 +2550,7 @@ public class ProofChecker extends NonRecursive {
 					newAffine = newAffine.add(Rational.ONE);  
 						// x > 0 iff -x + 1 <= 0)
 				} else {
-					newIsStrict = ! newIsStrict;
+					newIsStrict = !newIsStrict;
 				}
 			}
 			if (!oldAffine.equals(newAffine)
@@ -2569,7 +2569,7 @@ public class ProofChecker extends NonRecursive {
 			Term[] newArgs = ((ApplicationTerm) newTerm).getParameters();
 			
 			if (oldArgs.length != 2 || newArgs.length != 2) {
-				reportError("Not a binary equality rewrite: "+equality);
+				reportError("Not a binary equality rewrite: " + equality);
 				return;
 			}
 			
@@ -2583,7 +2583,7 @@ public class ProofChecker extends NonRecursive {
 			if (newArgs.length != 2
 					|| !zero.isConstant()
 					|| !zero.getConstant().equals(Rational.ZERO)) {
-				reportError("Not a normalized = on RHS: "+equality);
+				reportError("Not a normalized = on RHS: " + equality);
 				return;
 			}
 			
@@ -2618,7 +2618,7 @@ public class ProofChecker extends NonRecursive {
 					&& sides[0] == oldTerm)
 				return;
 		}
-		reportError ("Unhandled @intern rule " + equality.toStringDirect());
+		reportError("Unhandled @intern rule " + equality.toStringDirect());
 	}	
 	
 	/**
@@ -2741,7 +2741,7 @@ public class ProofChecker extends NonRecursive {
 		/* Get the rewrite equalities from the stack. These should be
 		 * proof nodes that come from an @intern or @rewrite rule.
 		 */
-		Term[] rewrites = new Term[eqParams.length-1];
+		Term[] rewrites = new Term[eqParams.length - 1];
 		for (int i = eqParams.length - 1; i >= 1; i--) {
 			rewrites[i - 1] = stackPopCheck(eqParams[i]);
 		}
