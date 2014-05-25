@@ -19,11 +19,13 @@
 package de.uni_freiburg.informatik.ultimate.smtinterpol.proof;
 
 import java.math.BigInteger;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Stack;
 
 import org.apache.log4j.Logger;
@@ -384,6 +386,8 @@ public class ProofChecker extends NonRecursive {
 			checkCCLemma(termToClause(lemma), (Object[]) lemmaAnnotation);
 		} else if (lemmaType == ":trichotomy") {
 			checkTrichotomy(termToClause(lemma));
+		} else if (lemmaType == ":store") {
+			checkStore(termToClause(lemma), (ApplicationTerm) lemmaAnnotation);
 		} else {
 			reportError("Cannot deal with lemma " + lemmaType);
 		}
@@ -774,6 +778,31 @@ public class ProofChecker extends NonRecursive {
 		assert foundlits == (NEQ + LEQ + GEQ);
 	}
 
+	/**
+	 * Check an select over store lemma for correctness.  If a problem is 
+	 * found, an error is reported.
+	 * @param clause  the clause to check.
+	 */
+	private void checkStore(Term[] clause, Term store) {
+		if (clause.length == 1) {
+			Term eqlit = unquote(clause[0]);
+			if (isApplication("=", eqlit)) {
+				Term[] sides = ((ApplicationTerm) eqlit).getParameters();
+				if (isApplication("select", sides[0])) {
+					ApplicationTerm select = (ApplicationTerm) sides[0];
+					if (store == select.getParameters()[0]
+						&& isApplication("store", store)) {
+						Term[] storeArgs = ((ApplicationTerm) store).getParameters();
+						if (storeArgs[1] == select.getParameters()[1]
+							&& storeArgs[2] == sides[1])
+							return;
+					}
+				}
+			}
+		}
+		reportError("Malformed store clause: " + Arrays.toString(clause));
+	}
+
 	public void walkTautology(ApplicationTerm tautologyApp) {
 		AnnotatedTerm annTerm = (AnnotatedTerm) tautologyApp.getParameters()[0];
 		String tautType = annTerm.getAnnotations()[0].getKey();
@@ -873,7 +902,7 @@ public class ProofChecker extends NonRecursive {
 				} else {
 					equalityIteApp = convertApp(equalityApp.getParameters()[1]);
 					equalityNotIte = equalityApp.getParameters()[0];
-				}								
+				}
 			}
 			
 			// Syntactical Correctness
@@ -2427,12 +2456,12 @@ public class ProofChecker extends NonRecursive {
 			// TODO: Testing
 			/* Assumption: All nested disjunctions are put into one, i.e.
 			 * no new disjunct is itself a disjunction
-			 */					
+			 */
 			
 			ApplicationTerm termOldApp = convertApp(termEqApp.getParameters()[0]);
 			ApplicationTerm termNewApp = convertApp(termEqApp.getParameters()[1]);
 			
-			pm_func(termOldApp, "or");					
+			pm_func(termOldApp, "or");
 			pm_func(termNewApp, "or");
 			
 			HashSet<Term> oldDisjuncts = new HashSet<Term>();
@@ -2454,8 +2483,8 @@ public class ProofChecker extends NonRecursive {
 					disjuncts.addAll(Arrays.asList(currentDisjunctApp.getParameters()));
 				} else {
 					oldDisjuncts.add(currentDisjunct);
-				}								
-			}		
+				}
+			}
 			
 			newDisjuncts.addAll(Arrays.asList(termNewApp.getParameters()));
 			
@@ -2465,7 +2494,7 @@ public class ProofChecker extends NonRecursive {
 		} else {
 			System.out.println("Can't handle the following rule " + termAppInnerAnn.getAnnotations()[0].getKey() + ", therefore...");
 			System.out.println("...believed as alright to be rewritten: " + rewriteApp.getParameters()[0].toStringDirect() + " .");
-		}				
+		}
 	
 		// The second part, cut the @rewrite and the annotation out, both aren't needed for the @eq-function.
 		// stackPush(innerAnnTerm.getSubterm(), term);
@@ -2760,7 +2789,7 @@ public class ProofChecker extends NonRecursive {
 			termEdit = rewriteTerm(termEdit, rewriteSides[0], rewriteSides[1]);
 		}
 		
-		stackPush(termEdit, eqApp);			
+		stackPush(termEdit, eqApp);
 	}
 	
 	public void walkClause(ApplicationTerm clauseApp) {
@@ -2778,14 +2807,14 @@ public class ProofChecker extends NonRecursive {
 		 * the first disjunction and reverse.
 		 */
 		
-		if (!param1Disjuncts.equals(param2Disjuncts)) {				
+		if (!param1Disjuncts.equals(param2Disjuncts)) {
 			reportError("The clause-operation didn't permute correctly!");
 		}
-										
-		stackPush(clauseTerm2, clauseApp);
-	}		
 		
-			
+		stackPush(clauseTerm2, clauseApp);
+	}
+	
+	
 	public void walkSplit(ApplicationTerm splitApp) {
 		// term is just the first term
 		
@@ -2797,9 +2826,9 @@ public class ProofChecker extends NonRecursive {
 		ApplicationTerm termOldCalcApp = (ApplicationTerm) 
 				stackPopCheck(termAppSplitInnerAnn.getSubterm());
 		Term termSplitReturnInner = termSplitReturnApp.getParameters()[0];
-								
+		
 		String splitRule = termAppSplitInnerAnn.getAnnotations()[0].getKey();
-					
+		
 		if (mDebug.contains("currently"))
 			System.out.println("Split-Rule: " + splitRule);
 		if (mDebug.contains("hardTerm"))
@@ -2824,7 +2853,7 @@ public class ProofChecker extends NonRecursive {
 				if (disjunct == termSplitReturnInner) {
 					stackPush(splitApp.getParameters()[1], splitApp);
 					return;
-				}					
+				}
 			}
 			
 			throw new AssertionError("Error in \"split\"");
@@ -2898,8 +2927,8 @@ public class ProofChecker extends NonRecursive {
 			
 				pm_func(termNewAppInner1App,"not");
 				pm_func(termNewAppInner2App,"not");
-									
-				// or is commutative						
+				
+				// or is commutative
 				if (termNewAppInner1App.getParameters()[0] != termF1
 					&& termNewAppInner2App.getParameters()[0] != termF1)
 					throw new AssertionError("Error 3 at " + splitRule);
@@ -2907,12 +2936,12 @@ public class ProofChecker extends NonRecursive {
 				if (termNewAppInner1App.getParameters()[0] != termF2
 					&& termNewAppInner2App.getParameters()[0] != termF2)
 					throw new AssertionError("Error 4 at " + splitRule);
-			}	
+			}
 			
 			/* Not nice: Not checked, if the F are boolean, which
 			 * they should.
 			 */
-				
+			
 			stackPush(splitApp.getParameters()[1], splitApp);
 			return;
 		} else if (splitRule == ":ite+1" || splitRule == ":ite+2") {
@@ -2921,7 +2950,7 @@ public class ProofChecker extends NonRecursive {
 			ApplicationTerm termOldApp = termOldCalcApp;
 			ApplicationTerm termNewApp = termSplitReturnApp;
 			
-			checkNumber(termOldApp,3);				
+			checkNumber(termOldApp,3);
 			checkNumber(termNewApp,2);
 			
 			Term termF1 = termOldApp.getParameters()[0];
@@ -2940,7 +2969,7 @@ public class ProofChecker extends NonRecursive {
 				if (termNewApp.getParameters()[0] != termF3
 						&& termNewApp.getParameters()[1] != termF3)
 						throw new AssertionError("Error 1b at " + splitRule);
-			} else {					
+			} else {
 				if (termNewApp.getParameters()[0] != termF2
 					&& termNewApp.getParameters()[1] != termF2)
 					throw new AssertionError("Error 2a at " + splitRule);
@@ -2949,13 +2978,11 @@ public class ProofChecker extends NonRecursive {
 					&& termNewApp.getParameters()[1] != mSkript.term("not", termF1))
 					throw new AssertionError("Error 2b at " + splitRule);
 			}
-					
-						
+			
 			
 			/* Not nice: Not checked, if the F are boolean, which
 			 * they should.
 			 */
-			
 			stackPush(splitApp.getParameters()[1], splitApp);
 			return;
 		
@@ -2970,7 +2997,7 @@ public class ProofChecker extends NonRecursive {
 			
 			ApplicationTerm termOldAppInnerApp = convertApp(termOldApp.getParameters()[0]);
 			
-			checkNumber(termOldAppInnerApp,3);								
+			checkNumber(termOldAppInnerApp,3);
 			
 			Term termF1 = termOldAppInnerApp.getParameters()[0];
 			Term termF2 = termOldAppInnerApp.getParameters()[1];
@@ -3020,7 +3047,7 @@ public class ProofChecker extends NonRecursive {
 					 + "is unknown: " + splitRule);
 		}
 	}
-			
+	
 	public void stackPush(Term pushTerm, ApplicationTerm keyTerm) {
 		mCacheConv.put(keyTerm, pushTerm);
 		mStackResults.push(pushTerm);
@@ -3073,10 +3100,8 @@ public class ProofChecker extends NonRecursive {
 				}
 			}
 		} .transform(termOrig);
-		
-		
 	}
-		
+	
 	
 	/* Convert a term to an SMTAffineTerm
 	 * @param term The term to convert.
@@ -3455,14 +3480,30 @@ public class ProofChecker extends NonRecursive {
 		return false;
 	}
 	
-	public boolean checkOrMinus(Term orTerm, Term literal) {
-		if (orTerm instanceof ApplicationTerm) {
-			ApplicationTerm theOrTerm = (ApplicationTerm) orTerm;
-			if (theOrTerm.getFunction().getName() == "or"
-					&& Arrays.asList(theOrTerm.getParameters())
-						.contains(negate(literal)))
-				return true;
+	private List<Term> collectArguments(String fun, Term term) {
+		ArrayDeque<Term> todo = new ArrayDeque<Term>();
+		ArrayList<Term> result = new ArrayList<Term>();
+		todo.addLast(term);
+		while (!todo.isEmpty()) {
+			Term t = todo.removeLast();
+			if (t instanceof ApplicationTerm) {
+				ApplicationTerm appTerm = (ApplicationTerm) t;
+				if (appTerm.getFunction().getName() == fun) {
+					Term[] args = appTerm.getParameters();
+					for (int i = args.length - 1; i >= 0; i--)
+						todo.addLast(args[i]);
+					continue;
+				}
+			}
+			result.add(t);
 		}
+		return result;
+	}
+	
+	public boolean checkOrMinus(Term orTerm, Term literal) {
+		List<Term> params = collectArguments("or", orTerm); 
+		if (params.size() > 1 && params.contains(negate(literal)))
+			return true;
 		return false;
 	}
 }
