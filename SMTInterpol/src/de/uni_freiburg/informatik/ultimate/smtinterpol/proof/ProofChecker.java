@@ -2618,9 +2618,6 @@ public class ProofChecker extends NonRecursive {
 					!= termNewApp.getParameters()[0])						
 				throw new AssertionError("Error 3 at " + rewriteRule);
 			
-			/* Not nice: Not checked, if i is an integer, but
-			 * it is still correct.
-			 */
 		} else if (rewriteRule == ":selectOverStore") {
 			System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO					
 			
@@ -2651,10 +2648,10 @@ public class ProofChecker extends NonRecursive {
 				
 				if (c2 != termNewApp.getParameters()[1])
 					throw new AssertionError("Error 4 at " + rewriteRule);
+				/* TODO: Checked, if c1 and c2 are distinct constants.
+				 */
+				throw new AssertionError("selectOverStore with distinct indices");
 			}
-			/* Not nice: Not checked, if i is an integer, but
-			 * it is still correct.
-			 */
 		} else if (rewriteRule == ":storeRewrite") {
 			System.out.println("\n \n \n Now finally tested: " + rewriteRule);	 //TODO					
 			
