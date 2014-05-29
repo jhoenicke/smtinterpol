@@ -37,6 +37,7 @@ import de.uni_freiburg.informatik.ultimate.logic.ConstantTerm;
 import de.uni_freiburg.informatik.ultimate.logic.FormulaUnLet;
 import de.uni_freiburg.informatik.ultimate.logic.FunctionSymbol;
 import de.uni_freiburg.informatik.ultimate.logic.NonRecursive;
+import de.uni_freiburg.informatik.ultimate.logic.PrintTerm;
 import de.uni_freiburg.informatik.ultimate.logic.Rational;
 import de.uni_freiburg.informatik.ultimate.logic.Script;
 import de.uni_freiburg.informatik.ultimate.logic.Term;
@@ -382,19 +383,263 @@ public class ProofChecker extends NonRecursive {
 		
 		if (lemmaType == ":LA") {
 			checkLALemma(termToClause(lemma), (Term[]) lemmaAnnotation);
-		} else if (lemmaType == ":CC") {
-			checkCCLemma(termToClause(lemma), (Object[]) lemmaAnnotation);
+		} else if (lemmaType == ":CC"
+				|| lemmaType == ":read-over-weakeq"
+				|| lemmaType == ":weakeq-ext") {
+			checkArrayLemma(lemmaType, termToClause(lemma), (Object[]) lemmaAnnotation);
 		} else if (lemmaType == ":trichotomy") {
 			checkTrichotomy(termToClause(lemma));
 		} else if (lemmaType == ":store") {
 			checkStore(termToClause(lemma), (ApplicationTerm) lemmaAnnotation);
 		} else {
 			reportError("Cannot deal with lemma " + lemmaType);
+			mLogger.error(lemma.toStringDirect());
+			StringBuilder sb = new StringBuilder();
+			new PrintTerm().append(sb, (Object[])lemmaAnnotation);
+			mLogger.error(sb);
 		}
 		
 		stackPush(lemma, lemmaApp);
 	}
 	
+	/**
+	 * Check an array lemma for correctness.  If a problem is found, an error
+	 * is reported.
+	 * @param type the lemma type
+	 * @param clause  the clause to check
+	 * @param ccAnnotation the argument of the :CC annotation.
+	 */
+	private void checkArrayLemma(String type, Term[] clause, Object[] ccAnnotation) {
+		int startSubpathAnnot = 0;
+		
+		Term goalEquality;
+		if (ccAnnotation[0] instanceof Term) {
+			startSubpathAnnot++;
+			goalEquality = (Term) ccAnnotation[0];
+		} else {
+			goalEquality = mSkript.term("false");
+		}
+		
+		/* 
+		 * weakPaths maps from a symmetric pair to the set of weak
+		 * indices such that a weak path was proven for this pair.
+		 * strongPaths contains the sets of all proven strong paths.
+		 */
+		HashMap<SymmetricPair<Term>, HashSet<Term>> weakPaths =
+				new HashMap<SymmetricPair<Term>, HashSet<Term>>();
+		HashSet<SymmetricPair<Term>> strongPaths =
+				new HashSet<SymmetricPair<Term>>();
+		/* indexDiseqs contains all index equalities in the clause */
+		HashSet<SymmetricPair<Term>> indexDiseqs = 
+				new HashSet<SymmetricPair<Term>>();
+
+		/* collect literals and search for the disequality */
+		boolean foundDiseq = false;
+		for (Term literal : clause) {
+			if (isApplication("not", literal)) {
+				Term atom = ((ApplicationTerm) literal).getParameters()[0];
+				atom = unquote(atom);
+				if (!isApplication("=", atom)) {
+					reportError("Unknown literal in CC lemma.");
+					return;
+				}
+				Term[] sides = ((ApplicationTerm) atom).getParameters();
+				if (sides.length != 2) {
+					reportError("Expected binary equality, found " + atom);
+					return;
+				}
+				strongPaths.add(new SymmetricPair<Term>(sides[0], sides[1]));
+			} else {
+				Term atom = unquote(literal);
+				if (!isApplication("=", atom)) {
+					reportError("Unknown literal in CC lemma.");
+					return;
+				}
+				if (unquote(literal) != goalEquality) {
+					if (type == ":CC")
+						reportError("Unexpected positive literal in CC lemma.");
+					Term[] sides = ((ApplicationTerm) atom).getParameters();
+					indexDiseqs.add(new SymmetricPair<Term>(sides[0], sides[1]));
+				}
+				foundDiseq = true;
+			}
+		}
+
+		SymmetricPair<Term> lastPath = null;
+		/* Check the paths in reverse order. Collect proven paths in 
+		 * a hash set, so that they can be used later.
+		 */
+		for (int i = ccAnnotation.length-2; i >= startSubpathAnnot; i -= 2) {
+			if (!(ccAnnotation[i] instanceof String)
+				|| !(ccAnnotation[i+1] instanceof Object[])) {
+				reportError("Malformed Array subpath");
+				return;
+			}
+			Object[] annot = (Object[]) ccAnnotation[i+1];
+			if (ccAnnotation[i] == ":weakpath") {
+				if (annot.length != 2 || !(annot[0] instanceof Term)
+					|| !(annot[1] instanceof Term[])) {
+					reportError("Malformed Array weakpath");
+					return;
+				}
+				Term idx = (Term) annot[0];
+				Term[] path = (Term[]) annot[1];
+				/* check weak path */
+				checkArrayPath(idx, path, strongPaths, null, indexDiseqs);
+				/* add it to premises */
+				SymmetricPair<Term> endPoints = 
+						new SymmetricPair<Term>(path[0], path[path.length - 1]);
+				HashSet<Term> weakIdxs = weakPaths.get(endPoints);
+				if (weakIdxs == null) {
+					weakIdxs = new HashSet<Term>();
+					weakPaths.put(endPoints, weakIdxs);
+				}
+				weakIdxs.add(idx);
+			} else if (ccAnnotation[i] == ":subpath"
+					&& (annot instanceof Term[])) {
+				Term[] path = (Term[]) annot;
+				SymmetricPair<Term> endPoints = 
+						new SymmetricPair<Term>(path[0], path[path.length - 1]);
+				/* check path */
+				checkArrayPath(null, path, strongPaths, 
+						weakPaths.get(endPoints), indexDiseqs);
+				/* add it to premises */
+				strongPaths.add(endPoints);
+				lastPath = endPoints;
+			} else {
+				reportError("Unknown subpath annotation");
+			}
+		}
+
+		if (startSubpathAnnot == 0) {
+			/* check that the mainPath is really a contradiction */
+			SMTAffineTerm diff = convertAffineTerm(lastPath.getFirst()).add(
+					convertAffineTerm(lastPath.getSecond()).negate());
+			if (!diff.isConstant()
+					|| diff.getConstant().equals(Rational.ZERO)) {
+				reportError("No diseq, but main path is " + lastPath);
+			}
+		} else {
+			if (!foundDiseq)
+				reportError("Did not find goal equality in CC lemma");
+			if (!isApplication("=", goalEquality)) {
+				reportError("Goal equality is not an equality in CC lemma");
+				return;
+			}
+			Term[] sides = ((ApplicationTerm) goalEquality).getParameters();
+			if (sides.length != 2) {
+				reportError("Expected binary equality in CC lemma");
+				return;
+			}
+			SymmetricPair<Term> endPoints = 
+					new SymmetricPair<Term>(sides[0], sides[1]);
+			if (strongPaths.contains(endPoints)) {
+				/* everything fine */
+				return;
+			}
+
+			if (isApplication("select", sides[0])
+				&& isApplication("select", sides[1])) {
+				Term[] p1 = ((ApplicationTerm) sides[0]).getParameters();
+				Term[] p2 = ((ApplicationTerm) sides[1]).getParameters();
+				if (p1[1] == p2[1]
+					|| strongPaths.contains
+						(new SymmetricPair<Term>(p1[1], p2[1]))) {
+					HashSet<Term> weakPs = weakPaths.get
+							(new SymmetricPair<Term>(p1[0], p2[0]));
+					if (weakPs != null
+						&& (weakPs.contains(p1[1]) || weakPs.contains(p2[1])))
+						return;
+				}
+			}
+			reportError("Cannot explain main equality " + goalEquality);
+		}
+	}
+
+	/**
+	 * Check if there is an equality path from termStart to termEnd.
+	 * This reports errors using reportError.
+	 * 
+	 * @param subpaths the subpaths from the CC-lemma annotations.  To ensure
+	 * 	termination, currently investigated subpaths are removed.
+	 * @param premises the already proven equalities.  This is initialized to 
+	 *  the equalities occurring in the conflict. 
+	 * @param termStart one side of the equality.
+	 * @param termEnd the other side of the equality.
+	 */
+	void checkArrayPath(Term weakIdx, Term[] path,
+			HashSet<SymmetricPair<Term>> strongPaths,
+			HashSet<Term> weakPaths,
+			HashSet<SymmetricPair<Term>> indexDiseqs) {
+		if (path.length < 2) {
+			reportError("Short path in ArrayLemma");
+			return;
+		}
+		for (int i = 0; i < path.length - 1; i++) {
+			SymmetricPair<Term> pair = 
+					new SymmetricPair<Term>(path[i], path[i+1]);
+			/* check for strong path first */
+			if (strongPaths.contains(pair))
+				continue;
+			/* check for select path (only for weakeq-ext) */
+			if (weakIdx != null) {
+				Term sel1 = mSkript.term("select", path[i], weakIdx);
+				Term sel2 = mSkript.term("select", path[i + 1], weakIdx);
+				SymmetricPair<Term> selPair = 
+						new SymmetricPair<Term>(sel1, sel2);
+				if (strongPaths.contains(selPair))
+					continue;
+			}
+			/* check for weak store step */
+			Term storeIndex = checkStoreIndex(path[i], path[i+1]);
+			if (storeIndex != null) {
+				if (weakIdx != null 
+					&& indexDiseqs.contains
+						(new SymmetricPair<Term>(weakIdx, storeIndex)))
+					continue;
+
+				if (weakPaths != null
+					&& weakPaths.contains(storeIndex))
+					continue;
+			}
+			/* check for congruence */
+			if (path[i] instanceof ApplicationTerm
+				&& path[i + 1] instanceof ApplicationTerm) {
+				ApplicationTerm app1 = (ApplicationTerm) path[i];
+				ApplicationTerm app2 = (ApplicationTerm) path[i];
+				if (app1.getFunction() == app2.getFunction()) {
+					Term[] p1 = app1.getParameters();
+					Term[] p2 = app2.getParameters();
+					for (int j = 0; j < p1.length; j++) {
+						if (p1[j] == p2[j])
+							continue;
+						if (!strongPaths.contains
+								(new SymmetricPair<Term>(p1[j], p2[j])))
+							reportError("unexplained equality");
+					}
+					continue;
+				}
+			}
+			reportError("unexplained equality "
+					+ path[i] + " == " + path[i + 1]);
+		}
+	}
+
+
+	private Term checkStoreIndex(Term term1, Term term2) {
+		if (isApplication("store", term1)) {
+			Term[] storeArgs = ((ApplicationTerm) term1).getParameters();
+			if (storeArgs[1] == term2)
+				return storeArgs[2];
+		}
+		if (isApplication("store", term2)) {
+			Term[] storeArgs = ((ApplicationTerm) term2).getParameters();
+			if (storeArgs[1] == term1)
+				return storeArgs[2];
+		}
+		return null;
+	}
+
 	/**
 	 * Check a CC lemma for correctness.  If a problem is found, an error
 	 * is reported.
@@ -865,6 +1110,7 @@ public class ProofChecker extends NonRecursive {
 					|| !checkOrMinus(unquote(clause[0]),clause[1]))
 				reportError("Invalid application of rule :or-");
 		} else if (tautType == ":termITE") {
+			try {
 			ApplicationTerm termOr = convertApp(tautology); // The term with or
 			
 			pm_func(termOr, "or");
@@ -921,6 +1167,10 @@ public class ProofChecker extends NonRecursive {
 			} else {
 				if (equalityNotIte != equalityIteApp.getParameters()[1])
 					throw new AssertionError("Error 2 in @taut_termITE");
+			}
+			} catch (RuntimeException ex) {
+				reportError("Invalid application of rule :termIte");
+				return;
 			}
 		} else if (tautType == ":excludedMiddle1") {
 			if (clause.length == 2) {
