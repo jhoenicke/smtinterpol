@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2012 University of Freiburg
+ * Copyright (C) 2014 University of Freiburg
  *
  * This file is part of SMTInterpol.
  *
@@ -20,55 +20,48 @@ package de.uni_freiburg.informatik.ultimate.smtinterpol.model;
 
 import de.uni_freiburg.informatik.ultimate.logic.Sort;
 import de.uni_freiburg.informatik.ultimate.logic.Term;
-import de.uni_freiburg.informatik.ultimate.logic.TermVariable;
 import de.uni_freiburg.informatik.ultimate.logic.Theory;
 
-/**
- * A finite sort interpretation.  This can be used for every uninterpreted sort
- * that does not occur under a quantifier.  Quantified formulas may axiomatize
- * homomorphisms between an uninterpreted sort and an infinite sort:
- * (forall ((i Int)(j Int)) (=> (distinct i j) (distinct (f i) (f j))))
- * @author Juergen Christ
- */
-public class FiniteSortInterpretation implements SortInterpretation {
+public class BoolSortInterpretation implements SortInterpretation {
 	
-	private int mSize = 0;
-	
+	private final static int TRUE_INDEX = 1;
+	private final static int FALSE_INDEX = 0;
+
 	@Override
 	public Term toSMTLIB(Theory t, Sort sort) {
-		TermVariable var = t.createTermVariable("@v", sort);
-		Term[] disj = new Term[mSize];
-		for (int i = 0; i < mSize; ++i)
-			disj[i] = t.equals(var, genModelTerm(i, t, sort));
-		return t.forall(new TermVariable[] {var}, t.or(disj));
+		throw new InternalError("Should never be called");
+	}
+
+	public int getFalseIdx() {
+		return FALSE_INDEX;
 	}
 	
+	public int getTrueIdx() {
+		return TRUE_INDEX;
+	}
+
 	@Override
-	public int ensureCapacity(int numValues) {
-		if (mSize < numValues)
-			mSize = numValues;
-		return mSize;
+	public int ensureCapacity(int maxValue) {
+		if (maxValue > 2)
+			throw new InternalError("Three-valued Bool?");
+		return 2;
 	}
 
 	@Override
 	public int size() {
-		return mSize;
+		return 2;
 	}
 
 	@Override
 	public Term get(int idx, Sort s, Theory t) throws IndexOutOfBoundsException {
-		if (idx < 0 || idx >= mSize)
+		if (idx != TRUE_INDEX && idx != FALSE_INDEX)
 			throw new IndexOutOfBoundsException();
-		return genModelTerm(idx, t, s);
-	}
-
-	private Term genModelTerm(int idx, Theory t, Sort s) {
-		return t.term(t.getFunctionWithResult("@" + idx, null, s));
+		return idx == TRUE_INDEX ? t.mTrue : t.mFalse;
 	}
 
 	@Override
 	public int extendFresh() {
-		return mSize++;
+		throw new InternalError("Three-valued Bool?");
 	}
 
 }

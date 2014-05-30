@@ -74,10 +74,11 @@ public class Minimizer {
 	private static class DeactivateCmds implements BinSearch.Driver<Cmd> {
 
 		@Override
-		public void prepare(List<Cmd> sublist) {
+		public boolean prepare(List<Cmd> sublist) {
 			System.err.println("Trying " + sublist);
 			for (Cmd cmd : sublist)
 				cmd.deactivate();
+			return false;
 		}
 
 		@Override
@@ -99,6 +100,7 @@ public class Minimizer {
 		private final AbstractOneTermCmd mCmd;
 		private final SubstitutionManager mMgr;
 		private final List<Substitution> mSubsts;
+		private final HashSet<Term> mSeen;
 		private List<Cmd> mPres;
 		
 		public SimplifyTerms(AbstractOneTermCmd cmd, SubstitutionManager mgr,
@@ -106,20 +108,24 @@ public class Minimizer {
 			mCmd = cmd;
 			mMgr = mgr;
 			mSubsts = substs;
+			mSeen = new HashSet<Term>();
 		}
 		
 		@Override
-		public void prepare(List<Substitution> sublist) {
+		public boolean prepare(List<Substitution> sublist) {
 			SubstitutionApplier applier = new SubstitutionApplier();
 			for (Substitution subst : sublist)
 				subst.activate();
-			System.err.println("Active substs: " + sublist); 	
+			System.err.println("Active substs: " + sublist);
 			applier.init(mMgr.getDepth(), mSubsts);
 			Term simp = applier.apply(mCmd.getTerm());
 			System.err.println("simp = " + simp);
+			if (!mSeen.add(simp))
+				return true;
 			mCmd.setTerm(simp);
 			mPres = applier.getAdds();
 			mCmd.appendPreCmds(mPres);
+			return false;
 		}
 
 		@Override
@@ -150,7 +156,7 @@ public class Minimizer {
 		}
 
 		@Override
-		public void prepare(List<Scope> sublist) {
+		public boolean prepare(List<Scope> sublist) {
 			for (Scope s : sublist) {
 				for (int i = s.mFirst; i < s.mLast; ++i)
 					mCmds.get(i).deactivate();
@@ -161,6 +167,7 @@ public class Minimizer {
 				else
 					sc.tryNumScopes(remScopes);
 			}
+			return false;
 		}
 
 		@Override
@@ -184,7 +191,36 @@ public class Minimizer {
 		
 	}
 	
-	private final List<Cmd> mCmds;
+	private final static class RemoveNeutrals implements BinSearch.Driver<Neutral> {
+
+		private final AbstractOneTermCmd mCmd;
+		
+		public RemoveNeutrals(AbstractOneTermCmd cmd) {
+			mCmd = cmd;
+		}
+		
+		@Override
+		public boolean prepare(List<Neutral> sublist) {
+			System.err.println("Trying " + sublist);
+			Term rem = new NeutralRemover(sublist).removeNeutrals(mCmd.getTerm());
+			System.err.println("Result: " + rem);
+			mCmd.setTerm(rem);
+			return false;
+		}
+
+		@Override
+		public void failure(List<Neutral> sublist) {
+			mCmd.failure();
+		}
+
+		@Override
+		public void success(List<Neutral> sublist) {
+			mCmd.success();
+		}
+		
+	}
+	
+	private List<Cmd> mCmds;
 	private final int mGoldenExit;
 	private final File mTmpFile, mResultFile;
 	private final String mSolver;
@@ -379,7 +415,7 @@ public class Minimizer {
 				unusedDefs, new BinSearch.Driver<Cmd>() {
 
 			@Override
-			public void prepare(List<Cmd> sublist) {
+			public boolean prepare(List<Cmd> sublist) {
 				for (Cmd cmd : sublist) {
 					OneTermCmd tcmd = (OneTermCmd) cmd;
 					Term stripped = new TermTransformer() {
@@ -401,6 +437,7 @@ public class Minimizer {
 					}.transform(tcmd.getTerm());// NOCHECKSTYLE 
 					tcmd.setTerm(stripped);
 				}
+				return false;
 			}
 
 			@Override
@@ -466,7 +503,20 @@ public class Minimizer {
 	}
 	
 	private boolean removeNeutrals() throws IOException, InterruptedException {
-		return removeUnusedCore(Mode.NEUTRALS);
+//		return removeUnusedCore(Mode.NEUTRALS);
+		boolean result = false;
+		for (Cmd cmd : mCmds) {
+			if (!cmd.isActive() || !(cmd instanceof AbstractOneTermCmd))
+				continue;
+			AbstractOneTermCmd tcmd = (AbstractOneTermCmd) cmd;
+			List<Neutral> neutrals = new NeutralDetector().detect(tcmd.getTerm());
+			if (neutrals.isEmpty())
+				continue;
+			RemoveNeutrals driver = new RemoveNeutrals(tcmd);
+			BinSearch<Neutral> bs = new BinSearch<Neutral>(neutrals, driver);
+			result |= bs.run(this);
+		}
+		return result;
 	}
 	
 	private boolean simplifyTerms() throws IOException, InterruptedException {
@@ -764,10 +814,19 @@ public class Minimizer {
 	
 	private void shrinkCmdList() {
 		System.err.println("Shrinking command list...");
+		int newsize = 0;
 		for (Iterator<Cmd> it = mCmds.iterator(); it.hasNext(); ) {
-			if (!it.next().isActive())
-				it.remove();
+			if (it.next().isActive())
+				++newsize;
 		}
+		System.err.println(mCmds.size() + " -> " + newsize);
+		List<Cmd> tmp = new ArrayList<Cmd>(newsize);
+		for (Iterator<Cmd> it = mCmds.iterator(); it.hasNext(); ) {
+			Cmd cmd = it.next();
+			if (cmd.isActive())
+				tmp.add(cmd);
+		}
+		mCmds = tmp;
 		System.err.println("...done");
 	}
 	
@@ -831,12 +890,13 @@ public class Minimizer {
 	
 	public static void usage() {
 		System.err.println(
-				"Usage: Minimizer <infile> <outfile> <command> <args>");
+				"Usage: Minimizer <infile> <outfile> [-f] <command> <args>");
 		System.err.println("where");
-		System.err.println("\tinfile\tis the original input file");
-		System.err.println("\toutfile\tis the desired output file");
-		System.err.println("\tcommand\tis the command to start the solver");
-		System.err.println("\targs\tare optional arguments to \"command\"");
+		System.err.println("  infile  is the original input file");
+		System.err.println("  outfile is the desired output file");
+		System.err.println("  command is the command to start the solver");
+		System.err.println("  -f      forces \"outfile\" to be overwritten");
+		System.err.println("  args    are optional arguments to \"command\"");
 		System.exit(0);
 	}
 	
@@ -845,15 +905,25 @@ public class Minimizer {
 			usage();
 		String infile = args[0];
 		String outfile = args[1];
+		int cmdstart = 2;
+		boolean force = false;
+		if (args[2].equals("-f")) {
+			force = true;
+			cmdstart = 3;
+		}
 		StringBuilder command = new StringBuilder();
-		for (int i = 2; i < args.length; ++i)
+		for (int i = cmdstart; i < args.length; ++i)
 			command.append(args[i]).append(' ');
 		File resultFile = new File(outfile);
 		try {
 			File tmpFile = File.createTempFile("minimize", ".smt2");
 			tmpFile.deleteOnExit();
 			File input = new File(infile);
-			Files.copy(input.toPath(), resultFile.toPath());
+			if (force)
+				Files.copy(input.toPath(), resultFile.toPath(),
+						StandardCopyOption.REPLACE_EXISTING);
+			else
+				Files.copy(input.toPath(), resultFile.toPath());
 			Files.copy(input.toPath(), tmpFile.toPath(),
 					StandardCopyOption.REPLACE_EXISTING);
 			command.append(tmpFile.getAbsolutePath());

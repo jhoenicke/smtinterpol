@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2012 University of Freiburg
+ * Copyright (C) 2014 University of Freiburg
  *
  * This file is part of SMTInterpol.
  *
@@ -16,37 +16,23 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with SMTInterpol.  If not, see <http://www.gnu.org/licenses/>.
  */
-package de.uni_freiburg.informatik.ultimate.smtinterpol.model;
+package de.uni_freiburg.informatik.ultimate.smtinterpol.delta;
 
-import de.uni_freiburg.informatik.ultimate.logic.FunctionSymbol;
-import de.uni_freiburg.informatik.ultimate.logic.Sort;
 import de.uni_freiburg.informatik.ultimate.logic.Term;
-import de.uni_freiburg.informatik.ultimate.logic.TermVariable;
-import de.uni_freiburg.informatik.ultimate.logic.Theory;
 
-public class Undefined implements ExecTerm {
-
-	private final Sort mSort;
+public class Neutral {
+	private final Term mTerm;
+	private final int mPos;
 	
-	public Undefined(Sort sort) {
-		mSort = sort;
+	public Neutral(Term term, int pos) {
+		mTerm = term;
+		mPos = pos;
 	}
 	
-	@Override
-	public ExecTerm evaluate(ExecTerm... args) {
-		return this;
+	public boolean matches(Term t, int pos) {
+		return mTerm == t && mPos == pos;
 	}
-
-	@Override
-	public Term toSMTLIB(Theory t, TermVariable[] vars) {
-		FunctionSymbol fsym = t.getFunctionWithResult(
-				"@undefined", null, mSort);
-		return t.term(fsym);
+	public String toString() {
+		return mTerm + "@" + mPos;
 	}
-
-	@Override
-	public boolean isUndefined() {
-		return true;
-	}
-
 }
