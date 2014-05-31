@@ -49,16 +49,16 @@ public final class SMTAffineTerm extends Term {
 	private final Rational mConstant;
 
 	private SMTAffineTerm(
-	        Map<Term, Rational> summands, Rational constant, Sort sort) {
+			Map<Term, Rational> summands, Rational constant, Sort sort) {
 		super(constant.hashCode() * 11 + summands.hashCode()
-		        + 1423 * sort.hashCode());
+				+ 1423 * sort.hashCode());
 		mSort = sort;
 		mSummands = summands;
 		mConstant = constant;
 	}
 	
 	public static SMTAffineTerm create(
-	        Map<Term, Rational> summands, Rational constant, Sort sort) {
+			Map<Term, Rational> summands, Rational constant, Sort sort) {
 		return new SMTAffineTerm(summands, constant, sort);
 	}
 
@@ -90,7 +90,7 @@ public final class SMTAffineTerm extends Term {
 			Object value = ((ConstantTerm) subterm).getValue();
 			if (value instanceof BigInteger) {
 				constant = Rational.valueOf(
-				        (BigInteger) value, BigInteger.ONE).mul(factor);
+						(BigInteger) value, BigInteger.ONE).mul(factor);
 				summands = Collections.emptyMap();
 			} else if (value instanceof BigDecimal) {
 				BigDecimal decimal = (BigDecimal) value;
@@ -109,7 +109,7 @@ public final class SMTAffineTerm extends Term {
 			} else {
 				summands = Collections.singletonMap(subterm, factor);
 				constant = Rational.ZERO;
-			}			
+			}
 		} else {
 			summands = Collections.singletonMap(subterm, factor);
 			constant = Rational.ZERO;
@@ -238,7 +238,7 @@ public final class SMTAffineTerm extends Term {
 	 * @see SMTAffineTerm.cleanup
 	 */ 
 	private static Term toPlainTerm(
-	        Map<Term, Rational> summands, Rational constant, Sort sort) {
+			Map<Term, Rational> summands, Rational constant, Sort sort) {
 		assert sort.isNumericSort();
 		Theory t = sort.getTheory();
 		int size = summands.size();
@@ -274,36 +274,54 @@ public final class SMTAffineTerm extends Term {
 		return cleanup(this).toString();
 	}
 	
+	private static SMTAffineCleaner sCleaner = new SMTAffineCleaner();
+	
+	static class SMTAffineCleaner extends TermTransformer {
+		public SMTAffineCleaner() {
+			beginScope();
+		}
+		
+		public void convert(Term term) {
+			if (term instanceof SMTAffineTerm) {
+				final SMTAffineTerm affine = (SMTAffineTerm) term;
+				enqueueWalker(new Walker() {
+					@Override
+					public void walk(NonRecursive engine) {
+						HashMap<Term, Rational> summands =
+								new HashMap<Term, Rational>();
+						for (Rational v: affine.mSummands.values()) {
+							summands.put(getConverted(), v);
+						}
+						Term term = SMTAffineTerm.toPlainTerm(
+								summands, affine.mConstant, affine.mSort);
+						setResult(term);
+					}
+				});
+				for (Term t : affine.mSummands.keySet())
+					pushTerm(t);
+				return;
+			}
+			super.convert(term);
+		}
+		/**
+		 * Transform a term.
+		 * @param term the term to transform.
+		 * @return the resulting transformed term.
+		 */
+		public Term myTransform(Term term) {
+			pushTerm(term);
+			run();
+			return getConverted();
+		}
+	};
+
 	/**
 	 * Remove all occurrences of SMTAffineTerm from the given term.
 	 * @param term the term to clean up.
 	 * @return an equivalent term without SMTAffineTerm classes.
 	 */
 	public static Term cleanup(Term term) {
-		return new TermTransformer() {
-			public void convert(Term term) {
-				if (term instanceof SMTAffineTerm) {
-					final SMTAffineTerm affine = (SMTAffineTerm) term;
-					enqueueWalker(new Walker() {
-						@Override
-						public void walk(NonRecursive engine) {
-							HashMap<Term, Rational> summands =
-							        new HashMap<Term, Rational>();
-							for (Rational v: affine.mSummands.values()) {
-								summands.put(getConverted(), v);
-							}
-							Term term =	SMTAffineTerm.toPlainTerm(
-							        summands, affine.mConstant, affine.mSort);
-							setResult(term);
-						}
-					});
-					for (Term t : affine.mSummands.keySet())
-						pushTerm(t);
-					return;
-				}
-				super.convert(term);
-			}
-		}.transform(term);
+		return sCleaner.myTransform(term);
 	}
 	
 	/**

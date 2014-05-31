@@ -19,10 +19,12 @@
 package de.uni_freiburg.informatik.ultimate.smtinterpol.convert;
 
 import java.util.ArrayDeque;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -2156,9 +2158,9 @@ public class Clausifier {
 		mTracker.reset();
 		
 		mOccCounter.count(tmp2);
-		Map<Term, Set<String>> names = mCompiler.getNames();
+		Map<Term, List<String>> names = mCompiler.getNames();
 		if (names != null) {
-			for (Map.Entry<Term, Set<String>> me : names.entrySet())
+			for (Map.Entry<Term, List<String>> me : names.entrySet())
 				trackAssignment(me.getKey(), me.getValue());
 		}
 //		System.err.println("Started convertion");
@@ -2288,7 +2290,7 @@ public class Clausifier {
 		return mTheory;
 	}
 	
-	private void trackAssignment(Term term, Set<String> names) {
+	private void trackAssignment(Term term, Collection<String> names) {
 		Literal lit;
 		Term idx = toPositive(term);
 		boolean pos = idx == term;

@@ -19,6 +19,7 @@
 \newcommand\seqcomp{\circledwedge}
 \newcommand\choicecomp{\circledvee}
 \newcommand\quoted[1]{\ulcorner #1 \urcorner}
+\newcommand\rulename[1]{\textsc{#1}}
 
 \title{Proposal: Proof System for \siv}
 \author{J{\"u}rgen Christ}
@@ -980,6 +981,66 @@ corresponds to the previous steps.
 For a proof containing the rule \verb:flatten: and the \verb:@clause: function
 simply use the formula $(A\lor(B\lor(C\lor\bot)))\land\lnot A\land\lnot
 B\land\lnot C$.
+
+\section{New Proof System}
+
+The current proof system has problems.  The rewrite proofs are not
+always yielding the right result, if a term is rewritten forward and
+backward (after normalizing).  There may also be problems where
+different internal terms yield to the same term in the proof.
+Therefore, we now plan to add a step-by-step rewrite explanation.
+
+The step-by-step proof system has the following rules:
+\begin{eqnarray*}
+\inferrule*[left={refl $t$}]{~}{(= t\ t)}
+\qquad
+\inferrule*[left=trans]{(= t_1\ t_2) \\ (= t_2\ t_3)}{(= t_1\ t_3)}
+\\
+\inferrule*[left=cong,right={where 
+    $t_i' = \begin{cases} t' & \mbox{if }t_i = t\\
+      t_i& \mbox{otherwise}\end{cases}$}
+   ]{(= s\ (f\ t_1 \dots t_n)) \\ (= t\ t')}{(= s\ (f\ t_1' \dots t_n'))}
+\end{eqnarray*}
+
+The rules \rulename{refl} and \rulename{trans} are the usual rules for
+reflexivity and transitivity.  The rule \rulename{cong} is a
+combination of transitivity and congruence, that applies the equality
+given as second premise to the right hand-side of the first equality
+under exactly one function application.  All arguments that match are
+rewritten.
+
+In the proof tree we use the internal functions:
+\begin{verbatim}
+(par (A) (@refl A Proof))        ; argument is term t
+(@trans Proof Proof Proof :left-assoc) ; arguments are premises
+(@cong Proof Proof Proof :left-assoc)  ; arguments are premises
+\end{verbatim}
+
+A rewrite usually is internally performed by (1) optionally applying
+some rewrite rules, (2) rewrite the arguments recursively, (3)
+optionally rewrite the application to the rewritten arguments.  The
+corresponding proof looks like this $(trans (cong (1) (2)...(2))
+(3))$, where (1) can be refl, if now rewriting occurs beforehand and
+the trans application with (3) can be removed if step (3) is omitted.
+
+The rewrite rules are cleaned up and more difficult rules are rewritten
+in several steps.
+
+\begin{verbatim}
+(@rewrite Bool Proof) ; argument is annotatated rewrite rule
+\end{verbatim}
+
+Only the following arguments to @rewrite are allowed.
+\[\begin{array}{@{(! (=\ }l@{)\ :}l@{)\quad}p{5cm}}
+   (f\ t_1\dots t_n)\ (let\ (x_1\ t_1)\dots(x_n\ t_n)\ d)
+   & \textit{expand-def}
+   & {where $f$ is a defined function, 
+  $x_1\dots x_n$ are its formal parameters and $d$ its definition.}\\
+  (+ t_1\ t_2)\ t & plus & {where $t$ is equal to $t_1+t_2$ using only 
+  associativity, commutativity, distributivity and constants}\\
+\end{array}
+\]
+
 \end{document}
 
 %% Local Variables:

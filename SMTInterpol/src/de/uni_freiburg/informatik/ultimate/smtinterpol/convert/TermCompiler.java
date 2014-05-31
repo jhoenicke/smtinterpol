@@ -19,10 +19,10 @@
 package de.uni_freiburg.informatik.ultimate.smtinterpol.convert;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import de.uni_freiburg.informatik.ultimate.logic.AnnotatedTerm;
 import de.uni_freiburg.informatik.ultimate.logic.Annotation;
@@ -52,7 +52,7 @@ import de.uni_freiburg.informatik.ultimate.util.UnifyHash;
 public class TermCompiler extends TermTransformer {
 	
 	private boolean mBy0Seen = false;
-	private Map<Term, Set<String>> mNames;
+	private Map<Term, List<String>> mNames;
 	
 	private IProofTracker mTracker;
 	private Utils mUtils;
@@ -67,12 +67,12 @@ public class TermCompiler extends TermTransformer {
 	
 	public void setAssignmentProduction(boolean on) {
 		if (on) {
-			mNames = new HashMap<Term, Set<String>>();
+			mNames = new HashMap<Term, List<String>>();
 		} else
 			mNames = null;
 	}
 	
-	public Map<Term, Set<String>> getNames() {
+	public Map<Term, List<String>> getNames() {
 		return mNames;
 	}
 	
@@ -200,7 +200,7 @@ public class TermCompiler extends TermTransformer {
 			&& paramSorts[1] == paramSorts[0]) {
 			// IRA-Hack
 			if (args == appTerm.getParameters())
-				args = args.clone();				
+				args = args.clone();
 			for (int i = 0; i < args.length; i++) {
 				if (args[i].getSort().getName().equals("Int")) {
 					if (origArgs == null)
@@ -562,16 +562,15 @@ public class TermCompiler extends TermTransformer {
 	public void postConvertAnnotation(AnnotatedTerm old,
 			Annotation[] newAnnots, Term newBody) {
 		if (mNames != null
-		        && newBody.getSort() == newBody.getTheory().getBooleanSort()) {
-			Annotation[] oldAnnots = old.getAnnotations();
-			for (Annotation annot : oldAnnots) {
+				&& newBody.getSort() == newBody.getTheory().getBooleanSort()) {
+			for (Annotation annot : old.getAnnotations()) {
 				if (annot.getKey().equals(":named")) {
-					Set<String> oldNames = mNames.get(newBody);
-					if (oldNames == null) {
-						oldNames = new HashSet<String>();
-						mNames.put(newBody, oldNames);
+					List<String> termNames = mNames.get(newBody);
+					if (termNames == null) {
+						termNames = new ArrayList<String>(1);
+						mNames.put(newBody, termNames);
 					}
-					oldNames.add(annot.getValue().toString());
+					termNames.add(annot.getValue().toString());
 				}
 			}
 		}
