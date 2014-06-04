@@ -60,7 +60,7 @@ public class ProvingTermTransformer extends NonRecursive {
 	private final ArrayDeque<HashMap<Term, ProofTerm>> mCache = 
 		new ArrayDeque<HashMap<Term,ProofTerm>>();
 	
-	public class ProofTerm {
+	public static class ProofTerm {
 		/**
 		 * The transformed term.
 		 */
@@ -116,8 +116,130 @@ public class ProvingTermTransformer extends NonRecursive {
 		}
 
 		@Override
-		public void walk(NonRecursive walker) {
-			((ProvingTermTransformer) walker).cacheConvert(mTerm, mProof);
+		public final void walk(NonRecursive walker) {
+			ProvingTermTransformer trafo = (ProvingTermTransformer) walker;
+			cacheConvert(trafo);
+		}
+		
+		private void cacheConvert(ProvingTermTransformer trafo) {
+			if (mProof == null) {
+				/* Do not cache partial proofs.  proof != null means that
+				 * someone transformed the original term to term.  We will
+				 * cache in the end that original term was transformed to
+				 * the final term; the intermediate term is not cached, as
+				 * its proof will still refer to the original term.
+				 */
+				ProofTerm newTerm = trafo.mCache.getLast().get(mTerm);
+				if (newTerm != null) {
+					trafo.setResult(newTerm);
+					return;
+				}
+			}
+			convert(trafo);
+		}
+
+		/**
+		 * The function that does the transformation.   Override this function
+		 * if you build your own term transformer.  It does not return the result
+		 * but instead it puts it on the converted stack using setResult().
+		 * Instead it can also enqueue some Builders that will in the end put the
+		 * result on the converted stack.
+		 * 
+		 * You can always call super.convert() if you do not need to convert
+		 * the term.  It will still convert the sub-terms. If you do not want to
+		 * convert the sub terms, call setResult(term) instead.
+		 */
+		protected void convert(ProvingTermTransformer trafo) {
+			if (mTerm instanceof ConstantTerm
+				|| mTerm instanceof TermVariable) {
+				// no need to cache it
+				trafo.setResult(new ProofTerm(mTerm, mProof));
+			} else if (mTerm instanceof ApplicationTerm) {
+				trafo.enqueueWalker(new BuildApplicationTerm(this));
+				trafo.pushTerms(((ApplicationTerm) mTerm).getParameters());
+			} else if (mTerm instanceof LetTerm) {
+				throw new AssertionError("let in prover");
+			} else if (mTerm instanceof QuantifiedFormula) {
+				trafo.enqueueWalker(new BuildQuantifier(this));
+				trafo.pushTerm(((QuantifiedFormula) mTerm).getSubformula(), null);
+				trafo.beginScope();
+			} else if (mTerm instanceof AnnotatedTerm) {
+				AnnotatedTerm annterm = (AnnotatedTerm) mTerm;
+				trafo.enqueueWalker(new BuildAnnotation(this));
+				trafo.pushTerm(annterm.getSubterm(), null);
+				return;
+			} else
+				throw new AssertionError("Unknown Term: " + mTerm.toStringDirect());
+		}
+
+		public void postConvertApplicationTerm(ProvingTermTransformer trafo, 
+				Term[] newArgs, Term[] subProofs) {
+			ApplicationTerm old = (ApplicationTerm) mTerm;
+			Term proof = mProof;
+			Term newTerm = old;
+			if (newArgs != old.getParameters()) {
+				FunctionSymbol fun = old.getFunction(); 
+				Theory theory = fun.getTheory();
+				newTerm = theory.term(fun, newArgs);
+				proof = createCongruenceProof(old, proof, subProofs);
+			}
+			setResult(trafo, newTerm, proof);
+		}
+		
+		public void postConvertQuantifier(ProvingTermTransformer trafo,
+				Term newBody, Term subProof) {
+			QuantifiedFormula old = (QuantifiedFormula) mTerm;
+			Term proof = mProof;
+			Term newFormula = old;
+			if (newBody != old.getSubformula()) {
+				Theory theory = old.getTheory();
+				TermVariable[] vars = old.getVariables();
+				newFormula = old.getQuantifier() == QuantifiedFormula.EXISTS
+					? theory.exists(vars, newBody) : theory.forall(vars,newBody);
+				proof = createCongruenceProof(old, proof, new Term[] {subProof});
+			}
+			setResult(trafo, newFormula, proof);
+		}
+
+		public void postConvertAnnotation(ProvingTermTransformer trafo,
+				Term newBody, Term subProof) {
+			AnnotatedTerm old = (AnnotatedTerm) mTerm;
+			Term proof = mProof;
+			Term result = old;
+			if (newBody != old.getSubterm()) {
+				Annotation[] annots = old.getAnnotations();
+				result = old.getTheory().annotatedTerm(annots, newBody);
+				proof = createCongruenceProof(old, proof, new Term[] { subProof });
+			}
+			setResult(trafo, result, proof);
+		}
+
+		public Term createCongruenceProof(Term orig, Term proof, Term[] subProofs) {
+			int countSubProofs = 0;
+			for (Term sub : subProofs) {
+				if (sub != null)
+					countSubProofs++;
+			}
+			if (countSubProofs == 0)
+				return proof;
+			Term[] congArgs = new Term[1 + countSubProofs];
+			int offset = 0;
+			congArgs[offset++] = proof != null ? proof 
+					: orig.getTheory().term("@refl", orig);
+			for (Term sub : subProofs) {
+				if (sub != null)
+					congArgs[offset++] = sub;
+			}
+			assert offset == congArgs.length;
+			return orig.getTheory().term("@cong", congArgs);
+		}
+		
+		public void setResult(ProvingTermTransformer trafo, Term result, Term proof) {
+			ProofTerm proofTerm = new ProofTerm(result, proof);
+			if (mProof != null) {
+				trafo.mCache.getLast().put(mTerm, proofTerm);
+			}
+			trafo.setResult(proofTerm);
 		}
 	}
 	
@@ -154,43 +276,8 @@ public class ProvingTermTransformer extends NonRecursive {
 	 * Set the conversion result to term.
 	 * @param term the converted term.
 	 */
-	protected final void setResult(Term term, Term proof) {
-		mConverted.addLast(new ProofTerm(term, proof));
-	}
-	
-	private static class AddCache implements Walker {
-		Term mOldTerm;
-		public AddCache(Term term) {
-			mOldTerm = term;
-		}
-		public void walk(NonRecursive engine) {
-			ProvingTermTransformer transformer = 
-					(ProvingTermTransformer) engine;
-			transformer.mCache.getLast().put(
-					mOldTerm, transformer.mConverted.getLast());
-		}
-		
-		public String toString() {
-			return "AddCache[" + mOldTerm.toStringDirect() + "]";
-		}
-	}
-	
-	private void cacheConvert(Term term, Term proof) {
-		if (proof != null) {
-			/* Do not cache partial proofs.  proof != null means that
-			 * someone transformed the original term to term.  We will
-			 * cache in the end that original term was transformed to
-			 * the final term; the intermediate term is not cached, as
-			 * its proof will still refer to the original term.
-			 */
-			convert(term, proof);
-		}
-		ProofTerm newTerm = mCache.getLast().get(term);
-		if (newTerm == null) {
-			enqueueWalker(new AddCache(term));
-			convert(term, proof);
-		} else
-			setResult(newTerm.mTransformed, newTerm.mEquivalenceProof);
+	protected final void setResult(ProofTerm proofTerm) {
+		mConverted.addLast(proofTerm);
 	}
 	
 	protected void beginScope() {
@@ -201,97 +288,6 @@ public class ProvingTermTransformer extends NonRecursive {
 		mCache.removeLast();
 	}
 	
-	/**
-	 * The function that does the transformation.   Override this function
-	 * if you build your own term transformer.  It does not return the result
-	 * but instead it puts it on the converted stack using setResult().
-	 * Instead it can also enqueue some Builders that will in the end put the
-	 * result on the converted stack.
-	 * 
-	 * You can always call super.convert() if you do not need to convert
-	 * the term.  It will still convert the sub-terms. If you do not want to
-	 * convert the sub terms, call setResult(term) instead.
-	 * @param term  The term to convert.
-	 * @param proof a partial proof, that shows <code>(= original term)</code>.
-	 */
-	protected void convert(Term term, Term proof) {
-		if (term instanceof ConstantTerm
-			|| term instanceof TermVariable) {
-			setResult(term, proof);
-		} else if (term instanceof ApplicationTerm) {
-			enqueueWalker(new BuildApplicationTerm((ApplicationTerm) term, proof));
-			pushTerms(((ApplicationTerm) term).getParameters());
-		} else if (term instanceof LetTerm) {
-			throw new AssertionError("let in prover");
-		} else if (term instanceof QuantifiedFormula) {
-			enqueueWalker(new BuildQuantifier((QuantifiedFormula) term, proof));
-			pushTerm(((QuantifiedFormula) term).getSubformula(), null);
-			beginScope();
-		} else if (term instanceof AnnotatedTerm) {
-			AnnotatedTerm annterm = (AnnotatedTerm) term;
-			enqueueWalker(new BuildAnnotation(annterm, proof));
-			pushTerm(annterm.getSubterm(), null);
-			return;
-		} else
-			throw new AssertionError("Unknown Term: " + term.toStringDirect());
-	}
-	
-	public Term createCongruenceProof(Term orig, Term proof, Term[] subProofs) {
-		int countSubProofs = 0;
-		for (Term sub : subProofs) {
-			if (sub != null)
-				countSubProofs++;
-		}
-		if (countSubProofs == 0)
-			return proof;
-		Term[] congArgs = new Term[1 + countSubProofs];
-		int offset = 0;
-		congArgs[offset++] = proof != null ? proof 
-				: orig.getTheory().term("@refl", orig);
-		for (Term sub : subProofs) {
-			if (sub != null)
-				congArgs[offset++] = sub;
-		}
-		assert offset == congArgs.length;
-		return orig.getTheory().term("@cong", congArgs);
-	}
-	
-	public void postConvertApplicationTerm(ApplicationTerm appTerm, Term proof,
-			Term[] newArgs, Term[] subProofs) {
-		Term newTerm = appTerm;
-		if (newArgs != appTerm.getParameters()) {
-			FunctionSymbol fun = appTerm.getFunction(); 
-			Theory theory = fun.getTheory();
-			newTerm = theory.term(fun, newArgs);
-			proof = createCongruenceProof(appTerm, proof, subProofs);
-		}
-		setResult(newTerm, proof);
-	}
-	
-	public void postConvertQuantifier(QuantifiedFormula old, Term proof, 
-				Term newBody, Term subProof) {
-		Term newFormula = old;
-		if (newBody != old.getSubformula()) {
-			Theory theory = old.getTheory();
-			TermVariable[] vars = old.getVariables();
-			newFormula = old.getQuantifier() == QuantifiedFormula.EXISTS
-				? theory.exists(vars, newBody) : theory.forall(vars,newBody);
-			proof = createCongruenceProof(old, proof, new Term[] {subProof});
-		}
-		setResult(newFormula, proof);
-	}
-
-	public void postConvertAnnotation(AnnotatedTerm old, Term proof,
-			Term newBody, Term subProof) {
-		Term result = old;
-		if (newBody != old.getSubterm()) {
-			Annotation[] annots = old.getAnnotations();
-			result = old.getTheory().annotatedTerm(annots, newBody);
-			proof = createCongruenceProof(old, proof, new Term[] { subProof });
-		}
-		setResult(result, proof);
-	}
-
 	/**
 	 * Transform a term.
 	 * @param term the term to transform.
@@ -346,26 +342,24 @@ public class ProvingTermTransformer extends NonRecursive {
 	 * @param mAppTerm the application term to convert.
 	 */
 	protected static class BuildApplicationTerm implements Walker {
-		private final ApplicationTerm mAppTerm;
-		private final Term mProof;
+		private final Converter mConverter;
 		
-		public BuildApplicationTerm(ApplicationTerm term, Term proof) {
-			mAppTerm = term;
-			mProof = proof;
+		public BuildApplicationTerm(Converter converter) {
+			mConverter = converter;
 		}
 		
 		public void walk(NonRecursive engine) {
 			ProvingTermTransformer transformer = (ProvingTermTransformer) engine;
 			/* collect args and check if they have been changed */
-			Term[] oldArgs = mAppTerm.getParameters();
+			Term[] oldArgs = ((ApplicationTerm) mConverter.mTerm).getParameters();
 			Term[] subProofs = new Term[oldArgs.length];
 			Term[] newArgs = transformer.getConverted(oldArgs, subProofs);
-			transformer.postConvertApplicationTerm(
-					mAppTerm, mProof, newArgs, subProofs);
+			mConverter.postConvertApplicationTerm(transformer,
+					newArgs, subProofs);
 		}
 
 		public String toString() {
-			return mAppTerm.getFunction().getApplicationString();
+			return ((ApplicationTerm) mConverter.mTerm).getFunction().getApplicationString();
 		}
 	}
 
@@ -378,25 +372,24 @@ public class ProvingTermTransformer extends NonRecursive {
 	 * @param mAnnotatedTerm the quantifier to convert.
 	 */
 	protected static class BuildQuantifier implements Walker {
-		private final QuantifiedFormula mQuant;
-		private final Term mProof;
+		private final Converter mConverter;
 		
-		public BuildQuantifier(QuantifiedFormula term, Term proof) {
-			mQuant = term;
-			mProof = proof;
+		public BuildQuantifier(Converter converter) {
+			mConverter = converter;
 		}
 		
 		public void walk(NonRecursive engine) {
 			ProvingTermTransformer transformer = 
 					(ProvingTermTransformer) engine;
 			ProofTerm sub = transformer.getConverted();
-			transformer.postConvertQuantifier(mQuant, mProof, 
+			mConverter.postConvertQuantifier(transformer, 
 					sub.mTransformed, sub.mEquivalenceProof);
 			transformer.endScope();
 		}
 
 		public String toString() {
-			return mQuant.getQuantifier() == QuantifiedFormula.EXISTS
+			return ((QuantifiedFormula) mConverter.mTerm).getQuantifier() 
+						== QuantifiedFormula.EXISTS
 					? "exists" : "forall";
 		}
 	}
@@ -410,19 +403,17 @@ public class ProvingTermTransformer extends NonRecursive {
 	 * @param mAnnotatedTerm the annotated term.
 	 */
 	protected static class BuildAnnotation implements Walker {
-		private final AnnotatedTerm mAnnotatedTerm;
-		private final Term mProof;
+		private final Converter mConverter;
 		
-		public BuildAnnotation(AnnotatedTerm term, Term proof) {
-			mAnnotatedTerm = term;
-			mProof = proof;
+		public BuildAnnotation(Converter converter) {
+			mConverter = converter;
 		}
 		
 		public void walk(NonRecursive engine) {
 			ProvingTermTransformer transformer = 
 					(ProvingTermTransformer) engine;
 			ProofTerm sub = transformer.getConverted();
-			transformer.postConvertAnnotation(mAnnotatedTerm, mProof, 
+			mConverter.postConvertAnnotation(transformer,
 					sub.mTransformed, sub.mEquivalenceProof);
 		}
 		
