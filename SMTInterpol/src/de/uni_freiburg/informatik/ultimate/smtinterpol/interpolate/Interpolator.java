@@ -56,6 +56,7 @@ import de.uni_freiburg.informatik.ultimate.smtinterpol.proof.ResolutionNode;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.proof.ResolutionNode.Antecedent;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.proof.SourceAnnotation;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.smtlib2.SMTInterpol;
+import de.uni_freiburg.informatik.ultimate.smtinterpol.theory.cclosure.ArrayAnnotation;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.theory.cclosure.CCAnnotation;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.theory.cclosure.CCEquality;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.theory.linar.BoundConstraint;
@@ -555,17 +556,18 @@ public class Interpolator {
 				}
 			} else if  (leaf.getLeafKind() == LeafNode.THEORY_CC) {
 				CCInterpolator ipolator = new CCInterpolator(this);
-				Term[] interpolantTerms = ipolator.computeInterpolants(
+				interpolants = ipolator.computeInterpolants(
 						cl, (CCAnnotation) leaf.getTheoryAnnotation());
-				interpolants = new Interpolant[mNumInterpolants];
-				for (int j = 0; j < mNumInterpolants; j++) { 
-					interpolants[j] = new Interpolant(interpolantTerms[j]);
-				}
 			} else if  (leaf.getLeafKind() == LeafNode.THEORY_LA) {
 				LAInterpolator ipolator =
 						new LAInterpolator(this,
 								(LAAnnotation) leaf.getTheoryAnnotation());
 				interpolants = ipolator.computeInterpolants();
+			} else if  (leaf.getLeafKind() == LeafNode.THEORY_ARRAY) {
+				ArrayInterpolator ipolator =
+						new ArrayInterpolator(this);
+				interpolants = ipolator.computeInterpolants(
+						cl, (ArrayAnnotation) leaf.getTheoryAnnotation());
 			} else {
 				throw new UnsupportedOperationException("Cannot interpolate " + proof);
 			}

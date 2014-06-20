@@ -218,7 +218,7 @@ public class CCInterpolator {
 				mPre[color].addAll(pre);
 			}
 			
-			private void mergeCongPath(
+			void mergeCongPath(
 			        PathEnd other, CCAppTerm start, CCAppTerm end) {
 				CCTerm term = start.getFunc();
 				while (term instanceof CCAppTerm) {
@@ -320,7 +320,7 @@ public class CCInterpolator {
 				sb.append(']');
 				return sb.toString();
 			}
-		}		
+		}
 		
 		/* invariants:
 		 *  HeadTerm[p] != null exactly for p in [m_HeadColor, m_MaxColor-1]
@@ -477,30 +477,28 @@ public class CCInterpolator {
 		}
 	}
 	
-	@SuppressWarnings("unchecked")
 	public CCInterpolator(Interpolator ipolator) {
 		mInterpolator = ipolator;
 		mNumInterpolants = ipolator.mNumInterpolants;
 		mTheory = ipolator.mTheory;
-		mPaths = new HashMap<SymmetricPair<CCTerm>, PathInfo>();
-		mInterpolants = new Set[mNumInterpolants];
-		for (int i = 0; i < mNumInterpolants; i++)
-			mInterpolants[i] = new HashSet<Term>();
 	}
 	
-	public Term[] computeInterpolants(Clause cl, CCAnnotation annot) {
+	public void collectLiterals(Clause cl) {
 		mEqualities = new HashMap<SymmetricPair<CCTerm>,  CCEquality>();
 		for (int i = 0; i < cl.getSize(); i++) {
 			Literal lit = cl.getLiteral(i);
 			if (lit.negate() instanceof CCEquality) {
 				CCEquality eq = (CCEquality) lit.negate();
-				mEqualities.put(
-					new SymmetricPair<CCTerm>(eq.getLhs(), eq.getRhs()), eq);
+				SymmetricPair<CCTerm> pair = 
+						new SymmetricPair<CCTerm>(eq.getLhs(), eq.getRhs());
+				mEqualities.put(pair, eq);
 			}
 		}
-
+	}
+	
+	public PathInfo collectPaths(CCTerm[][] paths) {
 		PathInfo mainPath = null;
-		CCTerm[][] paths = annot.getPaths();
+		mPaths = new HashMap<SymmetricPair<CCTerm>, PathInfo>();
 		for (int i = 0; i < paths.length; i++) {
 			CCTerm first = paths[i][0];
 			CCTerm last = paths[i][paths[i].length - 1];
@@ -510,16 +508,31 @@ public class CCInterpolator {
 			if (i == 0)
 				mainPath = pathInfo;
 		}
+		return mainPath;
+	}
+	
+	@SuppressWarnings("unchecked")
+	public Interpolant[] computeInterpolants(Clause cl, CCAnnotation annot) {
+		mInterpolants = new Set[mNumInterpolants];
+		for (int i = 0; i < mNumInterpolants; i++)
+			mInterpolants[i] = new HashSet<Term>();
+		collectLiterals(cl);
+		PathInfo mainPath = collectPaths(annot.getPaths());
+
 		mainPath.interpolatePathInfo();
 		CCEquality diseq = annot.getDiseq();
 		if (diseq != null)
 			mainPath.addDiseq(diseq);
 		mainPath.close();
-		Term[] interpolants = new Term[mNumInterpolants];
+		mEqualities = null;
+		mPaths = null;
+		Interpolant[] interpolants = new Interpolant[mNumInterpolants];
 		for (int i = 0; i < mNumInterpolants; i++) {
-			interpolants[i] = mTheory.and(mInterpolants[i].toArray(
-					new Term[mInterpolants[i].size()]));
+			interpolants[i] = new Interpolant(
+					mTheory.and(mInterpolants[i].toArray(
+							new Term[mInterpolants[i].size()])));
 		}
+		mInterpolants = null;
 		return interpolants;
 	}
 	
