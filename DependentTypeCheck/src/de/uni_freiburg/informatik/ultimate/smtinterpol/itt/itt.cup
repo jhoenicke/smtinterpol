@@ -1,0 +1,204 @@
+/*
+ * Copyright (C) 2009-2012 University of Freiburg
+ *
+ * This file is part of SMTInterpol.
+ *
+ * SMTInterpol is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * SMTInterpol is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SMTInterpol.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* CUP specification for ITT */
+
+package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java_cup.runtime.Symbol;
+
+parser Parser;
+option symbols = LexerSymbols;
+option java15, compact_red, newpositions;
+
+parser code {:
+	String filename;
+
+	public void report_error(String s, Object sym) {
+		String location;
+		if (sym instanceof MySymbolFactory.LineColumnSymbol) {
+			MySymbolFactory.LineColumnSymbol bsym = (MySymbolFactory.LineColumnSymbol) sym;
+			location = bsym.getLocation();
+		} else if ((sym instanceof Symbol) 
+				&& ((Symbol)sym).sym == LexerSymbols.EOF) {
+			location = "EOF";
+		} else {
+			location = "UNKNOWN";
+		}
+		System.err.println(filename+":"+location+": "+s);
+	}
+
+	public void report_error(String s) {	
+		report_error(s, cur_token);
+	}
+
+	public void syntax_error(Symbol sym) {
+		report_error("Syntax Error", sym);
+	}
+
+	public void setFileName(String filename) {
+		this.filename = filename;
+	}
+:}
+
+action code {:
+	InductiveType inductiveType;
+	int inductiveIndex;
+	
+	ArrayList<String> varNames;
+	ArrayList<Term> varTypes;
+	ArrayList<Integer> lastEntry;
+	HashMap<String, Term> globals;
+	HashMap<String, Integer> locals;
+	
+	{
+		globals = new HashMap<String,Term>();
+		globals.put("U", Term.U);
+		locals = new HashMap<String, Integer>();
+		varNames = new ArrayList<String>();
+		varTypes = new ArrayList<Term>();
+		lastEntry = new ArrayList<Integer>();
+	}
+	
+	public Term lookupName(String id) {
+		if (locals.containsKey(id)) {
+			int index = locals.get(id);
+			int debruijn = varTypes.size() - 1 - index;
+			return new DeBruijnVariable(debruijn, varTypes.get(index));
+		}
+		return globals.get(id);
+	}
+	
+	public void pushBruijnVariable(String name, Term type) {
+		varNames.add(name);
+		varTypes.add(type);
+		lastEntry.add(locals.get(name));
+		locals.put(name, varNames.size()-1);
+	}
+
+	public void popBruijnVariable() {
+		int index = varNames.size()-1;
+		String name = varNames.remove(index);
+		varTypes.remove(index);
+		Integer last = lastEntry.remove(index);
+		if (last == null)
+			locals.remove(name);
+		else
+			locals.put(name, last);
+	}
+
+	public void registerType(InductiveType type) {
+		for (int i = 0; i < type.mConstrs.length; i++) {
+			globals.put(type.mName + "." + type.mConstrs[i].mName, type.mConstrs[i]);
+		}
+		globals.put(type.mName + ".J", new JOperator(type));
+	}
+:}
+
+/*init with {: getScanner().init(); :} */
+scan with {: return getScanner().next_token(); :}
+
+
+/* Keywords */
+terminal INDUCTIVE, DEFINITION, CHECK, EVAL;
+/* Symbols */
+terminal ARROW, COLON, LPAR, RPAR, LAMBDA, COMMA, EQUALS;
+terminal String ID;
+
+non terminal goal, declaration, inductivedecl;
+non terminal Term inductivetype;
+non terminal Term expr, expr1, expr2;
+non terminal Constructor constrdecl;
+non terminal ArrayList<Constructor> constrdecls;
+
+
+goal ::= declaration*;
+
+declaration ::= inductivedecl
+	| DEFINITION ID EQUALS expr
+	| CHECK expr:e
+	  {: System.out.println(e.getType().evaluate()); :}
+	| EVAL expr:e
+	  {: System.out.println(e.evaluate()); :}
+	;
+
+inductivedecl ::= INDUCTIVE ID:i COLON inductivetype:type
+	  {:
+		inductiveType = new InductiveType(i, type);
+		inductiveIndex = 0;
+		globals.put(i, inductiveType);
+	  :}
+	  EQUALS constrdecls?:constrs
+	  {:
+		for (int j = 0; j < inductiveType.mParams.length; j++)
+			popBruijnVariable();
+		inductiveType.setConstructors(constrs);
+		registerType(inductiveType);
+		inductiveType = null;
+	  :};
+
+inductivetype ::= ID:i COLON expr1:exprDom ARROW 
+	  {: pushBruijnVariable(i, exprDom.evaluate()); :}
+	  inductivetype:exprRng
+	  {: RESULT = new PiTerm(exprDom.evaluate(), exprRng.evaluate()); :}
+	| expr1:exprDom ARROW 
+	  {: pushBruijnVariable("", exprDom.evaluate()); :}
+	  inductivetype:exprRng
+	  {: RESULT = new PiTerm(exprDom.evaluate(), exprRng.evaluate()); :}
+	| ID:u
+	  {: RESULT = lookupName(u); :}
+	;
+
+constrdecls ::=
+	constrdecl:d {: RESULT = new ArrayList<Constructor>(); RESULT.add(d); :}
+	| constrdecls:l COMMA constrdecl:d {: l.add(d); RESULT = l; :};
+
+constrdecl ::=
+	ID:i COLON expr:e
+	{: RESULT = new Constructor(i, inductiveIndex++, inductiveType, e); :} 
+	;
+
+expr ::=
+	  ID:i COLON expr1:exprDom ARROW 
+	  {: pushBruijnVariable(i, exprDom.evaluate()); :}
+	  expr:exprRng
+	  {: popBruijnVariable();
+	     RESULT = new PiTerm(exprDom.evaluate(), exprRng.evaluate()); :}
+	| expr1:exprDom ARROW 
+	  {: pushBruijnVariable("", exprDom.evaluate()); :}
+	  expr:exprRng
+	  {: popBruijnVariable();
+	     RESULT = new PiTerm(exprDom.evaluate(), exprRng.evaluate()); :}
+	| LAMBDA ID:i COLON expr2:exprArg
+	  {: pushBruijnVariable(i, exprArg.evaluate()); :}
+	  expr:exprSub
+	  {: popBruijnVariable();
+	     RESULT = new LambdaTerm(exprArg.evaluate(), exprSub); :}
+	| expr1
+	;
+expr1 ::=
+	  expr1:exprFunc expr2:exprArg
+	  {: RESULT = new AppTerm(exprFunc, exprArg); :}
+	| expr2
+	;
+
+expr2 ::=
+	  ID:i {: RESULT = lookupName(i); :}
+	| LPAR expr:e {: RESULT = e; :} RPAR
+	;
