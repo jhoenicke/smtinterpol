@@ -31,14 +31,18 @@ public class DeBruijnVariable extends Term {
 	 */
 	@Override
 	public Term shiftBruijn(int start, int offset) {
-		if (mIndex < start)
-			return this;
+		if (mIndex < start) {
+			Term type = getType().shiftBruijn(start, offset);
+			if (type == getType())
+				return this;
+			return new DeBruijnVariable(mIndex, type.shiftBruijn(mIndex, - mIndex-1));
+		}
 		return new DeBruijnVariable(mIndex + offset, 
 				getType().shiftBruijn(mIndex, -mIndex-1));
 	}
 
 	public String toString(int offset, int prec) {
-		return "@" + (offset - mIndex - 1);
+		return "@" + (offset - mIndex - 1) + "[: " + getType().toString(offset, prec) + "]";
 	}
 
 	public boolean equals(Object o) {

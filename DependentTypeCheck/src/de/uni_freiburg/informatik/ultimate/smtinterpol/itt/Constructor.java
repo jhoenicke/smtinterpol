@@ -49,7 +49,7 @@ public class Constructor extends Term {
 		int numPrivate = indType.mParams.length - indType.mNumShared;
 		// TODO check that indType only occurs where it may occur, with correct
 		// shared params as args and that no private params occurs.
-		declType = declType.shiftBruijn(params.size(), -numPrivate);
+		declType = declType.shiftBruijn(0, -numPrivate);
 		for (int i = indType.mNumShared - 1; i >= 0; i--) {
 			declType = new PiTerm(indType.mParams[i], declType);
 		}
@@ -66,5 +66,66 @@ public class Constructor extends Term {
 
 	public boolean equals(Object o) {
 		return (this == o);
+	}
+
+	public Term computeJType(Term cType) {
+		ArrayDeque<Term> constrParams = new ArrayDeque<Term>();
+		Term t = getType();
+		Term me = this;
+		for (int j = 0; j < mInductiveType.mNumShared; j++) {
+			Term param = ((PiTerm) t).mDomain;
+			me = new AppTerm(me.shiftBruijn(0, 1), 
+					new DeBruijnVariable(1 + mIndex, param));
+			t = ((PiTerm) t).mRange;
+		}
+		int offset = 0;
+		int numArg = 0;
+		while (t instanceof PiTerm) {
+			PiTerm pi = (PiTerm) t;
+			Term param = pi.mDomain.shiftBruijn(numArg, 1 + mIndex);
+			constrParams.add(param);
+			t = pi.mRange;
+			me = new AppTerm(me.shiftBruijn(0, 1), new DeBruijnVariable(0, param));
+			numArg++;
+			offset++;
+			if (isTC(param)) {
+				Term c = buildCTerm(param.shiftBruijn(0, 1), offset, cType);
+				c = new AppTerm(c, new DeBruijnVariable(0, param));
+				constrParams.add(c);
+				offset++;
+				me = me.shiftBruijn(0, 1);
+				t = t.shiftBruijn(0, 1);
+			}
+		}
+		t = t.shiftBruijn(constrParams.size(), 1 + mIndex);
+		Term result = buildCTerm(t, offset, cType);
+		result = new AppTerm(result, me);
+		while (!constrParams.isEmpty()) {
+			result = new PiTerm(constrParams.removeLast(), result);
+		}
+		return result;
+	}
+
+	private Term buildCTerm(Term q, int offset, Term cType) {
+		Term[] localArgs = new Term[mInductiveType.mParams.length 
+		                            - mInductiveType.mNumShared];
+		for (int i = localArgs.length-1; i >= 0; i--) {
+			localArgs[i] = ((AppTerm) q).mArg;
+			q = ((AppTerm) q).mFunc;
+		}
+		Term c = new DeBruijnVariable(offset + mIndex, cType);
+		for (int i = 0; i < localArgs.length; i++) {
+			c = new AppTerm(c, localArgs[i]);
+		}
+		return c;
+	}
+
+	private boolean isTC(Term param) {
+		for (int i = 0; i < mInductiveType.mParams.length; i++) {
+			if (!(param instanceof AppTerm))
+				return false;
+			param = ((AppTerm) param).mFunc;
+		}
+		return param.equals(mInductiveType);
 	}
 }

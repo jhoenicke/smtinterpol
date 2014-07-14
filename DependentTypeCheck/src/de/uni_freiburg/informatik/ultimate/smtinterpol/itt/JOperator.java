@@ -12,10 +12,11 @@ public class JOperator extends Term {
 	
 	private static Term computeType(InductiveType type) {
 		// J : publicArgs -> C -> constructors -> privateArgs -> t -> C(t)
-		// we start with C t.
 		int numShared = type.mNumShared;
 		int numPriv = type.mParams.length - numShared;
 		int numConstrs = type.mConstrs.length;
+
+		// The type "TypeCons shared priv"
 		Term tcType = type;
 		for (int i = 0; i < type.mParams.length; i++) {
 			tcType = new AppTerm(tcType, 
@@ -27,23 +28,27 @@ public class JOperator extends Term {
 			cType = new PiTerm(type.mParams[numShared + i], cType);
 		}
 
-		// now adjust for the gap containing C and constructors to get
-		// type of t.
-		Term tType = tcType.shiftBruijn(numPriv, 1 + numConstrs);
-		Term result = new AppTerm(
-				new DeBruijnVariable(1 + numPriv + numConstrs, cType),//C
-				new DeBruijnVariable(0, tType)); // t
-		// now comes the TC publicArgs, privateArgs
-		result = new PiTerm(tType, result);
-		// now come the private args
-		for (int i = numPriv - 1; i >= 0; i--) {
-			result = new PiTerm(
-					type.mParams[numShared + i].shiftBruijn(i, 1 + numConstrs),
-					result);
+		// Build C locals t
+		Term result = new DeBruijnVariable(1 + numPriv + numConstrs, cType);
+		for (int i = 0; i < numPriv; i++) {
+			Term locali = new DeBruijnVariable(numPriv - i,
+					type.mParams[numShared + i].shiftBruijn(i, 1 + numConstrs));
+			result = new AppTerm(result, locali);
 		}
+		Term tType = tcType.shiftBruijn(numPriv, 1 + numConstrs);
+		result = new AppTerm(result, new DeBruijnVariable(0, tType));
+		// Build t -> clt
+		result = new PiTerm(tType, result);
+		// locals -> t -> clt
+		for (int i = numPriv - 1; i >= 0; i--) {
+			Term locali = type.mParams[numShared + i]
+					.shiftBruijn(i, 1 + numConstrs);
+			result = new PiTerm(locali, result);
+		}
+		
 		// now come the constructors
 		for (int i = numConstrs - 1; i >= 0; i--) {
-			Term constrType = null;
+			Term constrType = type.mConstrs[i].computeJType(cType);
 			result = new PiTerm(constrType, result);
 		}
 		// now comes C
