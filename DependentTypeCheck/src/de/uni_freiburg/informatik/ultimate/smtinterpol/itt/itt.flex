@@ -79,6 +79,7 @@ Binary = "#b" [01]+
   ":"                    { return symbol(LexerSymbols.COLON); }
   ","                    { return symbol(LexerSymbols.COMMA); }
   "->"                   { return symbol(LexerSymbols.ARROW); }
+  "\\"                    { return symbol(LexerSymbols.LAMBDA); }
 
   /* Predefined Symbols */
   "Inductive"            { return symbol(LexerSymbols.INDUCTIVE, yytext()); }

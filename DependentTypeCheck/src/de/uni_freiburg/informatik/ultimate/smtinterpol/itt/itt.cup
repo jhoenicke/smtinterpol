@@ -107,7 +107,7 @@ action code {:
 		for (int i = 0; i < type.mConstrs.length; i++) {
 			globals.put(type.mName + "." + type.mConstrs[i].mName, type.mConstrs[i]);
 		}
-		globals.put(type.mName + ".J", new JOperator(type));
+		globals.put(type.mName + ".J", type.mJOperator);
 	}
 :}
 
@@ -131,7 +131,8 @@ non terminal ArrayList<Constructor> constrdecls;
 goal ::= declaration*;
 
 declaration ::= inductivedecl
-	| DEFINITION ID EQUALS expr
+	| DEFINITION ID:i EQUALS expr:e
+	  {: globals.put(i, e); :}
 	| CHECK expr:e
 	  {: System.out.println(e.getType().evaluate()); :}
 	| EVAL expr:e

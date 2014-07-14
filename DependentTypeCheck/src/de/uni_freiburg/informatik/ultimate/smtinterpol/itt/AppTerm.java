@@ -49,7 +49,7 @@ public class AppTerm extends Term {
 		if (f instanceof JOperator) {
 			JOperator j = (JOperator) f;
 			if (args.size() == j.getNumArgs()) {
-				return j.applyArgs(args);
+				return j.applyArgs(result, args);
 			}
 		}
 		return result;

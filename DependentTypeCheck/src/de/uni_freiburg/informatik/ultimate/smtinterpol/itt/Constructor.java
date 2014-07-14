@@ -128,4 +128,30 @@ public class Constructor extends Term {
 		}
 		return param.equals(mInductiveType);
 	}
+
+	public Term applyJArgs(Term term, Term[] allArgs,
+			ArrayDeque<Term> constrArgs) {
+		for (int i = 0; i < mInductiveType.mNumShared; i++) {
+			term = new AppTerm(term, allArgs[i]);
+		}
+		while (!constrArgs.isEmpty()) {
+			Term arg = constrArgs.removeFirst();
+			term = new AppTerm(term, arg);
+			if (isTC(arg.getType())) {
+				Term rec = mInductiveType.mJOperator;
+				int commonArgs = mInductiveType.mNumShared + 1
+						+ mInductiveType.mConstrs.length;
+				for (int i = 0; i < commonArgs; i++)
+					rec = new AppTerm(rec, allArgs[i]);
+				int numLocals = mInductiveType.mParams.length
+							- mInductiveType.mNumShared;
+				for (int i = 0; i < numLocals; i++)
+					rec = new AppTerm(rec, null); //FIXME
+				rec = new AppTerm(rec, arg);
+				term = new AppTerm(term, rec);
+			}
+		}
+		return term;
+	}
 }
+

@@ -14,6 +14,13 @@ public class PiTerm extends Term {
 	}
 	
 	private static Term typecheck(Term domain, Term range) {
+		if (domain.getType() == Term.U
+			&& range.getType() == Term.U)
+			return Term.U;
+		if (domain.getType() != Term.U && domain.getType() != null)
+			throw new IllegalArgumentException("Typecheck: PI");
+		if (range.getType() != Term.U && range.getType() != null)
+			throw new IllegalArgumentException("Typecheck: PI");
 		return null;
 	}
 

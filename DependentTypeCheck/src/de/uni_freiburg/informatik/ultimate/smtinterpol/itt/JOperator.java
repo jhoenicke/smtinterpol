@@ -74,9 +74,23 @@ public class JOperator extends Term {
 		return mInductiveType.mName + ".J";
 	}
 
-	public Term applyArgs(ArrayDeque<Term> args) {
-		// TODO Auto-generated method stub
-		return null;
+	public Term applyArgs(Term orig, ArrayDeque<Term> args) {
+		Term lastArg = args.removeLast();
+		ArrayDeque<Term> constrArgs = new ArrayDeque<Term>();
+		while (lastArg instanceof AppTerm) {
+			AppTerm app = (AppTerm) lastArg;
+			constrArgs.addFirst(app.mArg);
+			lastArg = app.mFunc;
+		}
+		if (!(lastArg instanceof Constructor))
+			return orig;
+		Constructor cons = (Constructor) lastArg;
+		if (cons.mInductiveType != mInductiveType)
+			return orig;
+		Term[] allArgs = args.toArray(new Term[args.size()]);
+		Term result = allArgs[mInductiveType.mNumShared + 1 + cons.mIndex];
+		result = cons.applyJArgs(result, allArgs, constrArgs);
+		return result.evaluate();
 	}
 
 	public boolean equals(Object o) {
