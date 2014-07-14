@@ -84,8 +84,9 @@ Binary = "#b" [01]+
   /* Predefined Symbols */
   "Inductive"            { return symbol(LexerSymbols.INDUCTIVE, yytext()); }
   "Definition"           { return symbol(LexerSymbols.DEFINITION, yytext()); }
-  "Check"                { return symbol(LexerSymbols.CHECK, yytext()); }
-  "Eval"                 { return symbol(LexerSymbols.EVAL, yytext()); }
+  "TypeCheck"            { return symbol(LexerSymbols.TYPECHECK, yytext()); }
+  "EvaluateType"         { return symbol(LexerSymbols.EVALUATETYPE, yytext()); }
+  "Evaluate"             { return symbol(LexerSymbols.EVALUATE, yytext()); }
 
   /* Other Symbols and Keywords */
   {QuotedSymbol}         { return symbol(LexerSymbols.ID, yytext().substring(1, yylength()-1)); }

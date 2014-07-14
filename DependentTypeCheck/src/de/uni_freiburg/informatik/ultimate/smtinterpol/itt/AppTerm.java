@@ -10,6 +10,7 @@ public class AppTerm extends Term {
 	
 	public AppTerm(Term func, Term arg, Term type) {
 		super(type);
+		assert type.equals(typecheck(func, arg));
 		mFunc = func;
 		mArg = arg;
 	}

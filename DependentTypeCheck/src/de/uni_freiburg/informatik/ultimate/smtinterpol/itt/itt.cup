@@ -116,7 +116,7 @@ scan with {: return getScanner().next_token(); :}
 
 
 /* Keywords */
-terminal INDUCTIVE, DEFINITION, CHECK, EVAL;
+terminal INDUCTIVE, DEFINITION, TYPECHECK, EVALUATETYPE, EVALUATE;
 /* Symbols */
 terminal ARROW, COLON, LPAR, RPAR, LAMBDA, COMMA, EQUALS;
 terminal String ID;
@@ -133,9 +133,15 @@ goal ::= declaration*;
 declaration ::= inductivedecl
 	| DEFINITION ID:i EQUALS expr:e
 	  {: globals.put(i, e); :}
-	| CHECK expr:e
-	  {: System.out.println(e.getType().evaluate()); :}
-	| EVAL expr:e
+	| TYPECHECK expr1:e COLON expr:t
+	  {:
+		if (!e.getType().equals(t.evaluate()))
+			throw new IllegalArgumentException("Typecheck Failed!");
+		System.out.println("checked");
+	  :}
+	| EVALUATETYPE expr:e
+	  {: System.out.println(e.getType()); :}
+	| EVALUATE expr:e
 	  {: System.out.println(e.evaluate()); :}
 	;
 

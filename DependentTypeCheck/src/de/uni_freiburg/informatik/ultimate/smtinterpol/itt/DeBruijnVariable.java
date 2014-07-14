@@ -14,12 +14,18 @@ public class DeBruijnVariable extends Term {
 	}
 
 	public Term substituteAndEval(Term t, int offset) {
+		if (mIndex < offset) {
+			Term type = getType().substituteAndEval(t, offset);
+			if (type == getType())
+				return this;
+			return new DeBruijnVariable(mIndex, type.shiftBruijn(mIndex, - mIndex-1));
+		}
 		if (mIndex < offset)
 			return this;
 		if (mIndex > offset)
 			return shiftBruijn(offset, -1);
-		t = t.shiftBruijn(0, offset);
-		assert getType().equals(t.getType());
+		t = t.shiftBruijn(0, offset).evaluate();
+		assert getType().substituteAndEval(t, offset).equals(t.getType());
 		return t;
 	}
 
