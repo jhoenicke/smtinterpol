@@ -8,25 +8,20 @@ public class DeBruijnVariable extends Term {
 		mIndex = index;
 	}
 	
-	@Override
-	protected Term internalEval() {
-		return this;
-	}
-
-	public Term substituteAndEval(Term t, int offset) {
+	public Term substitute(Term[] t, int offset) {
 		if (mIndex < offset) {
-			Term type = getType().substituteAndEval(t, offset);
+			Term type = getType().substitute(t, offset);
 			if (type == getType())
 				return this;
 			return new DeBruijnVariable(mIndex, type.shiftBruijn(mIndex, - mIndex-1));
 		}
-		if (mIndex < offset)
-			return this;
-		if (mIndex > offset)
-			return shiftBruijn(offset, -1);
-		t = t.shiftBruijn(0, offset).evaluate();
-		assert getType().substituteAndEval(t, offset).equals(t.getType());
-		return t;
+		if (mIndex - offset >= t.length) {
+			return shiftBruijn(offset, -t.length);
+		}
+		assert (mIndex - offset < t.length);
+		Term result = t[mIndex - offset].shiftBruijn(0, offset);
+		assert getType().substitute(t, offset).equals(result.getType());
+		return result;
 	}
 
 	/**
@@ -48,7 +43,7 @@ public class DeBruijnVariable extends Term {
 	}
 
 	public String toString(int offset, int prec) {
-		return "@" + (offset - mIndex - 1) + "[: " + getType().toString(offset, prec) + "]";
+		return "@" + (offset - mIndex - 1);
 	}
 
 	public boolean equals(Object o) {

@@ -16,8 +16,6 @@ public class InductiveType extends Term {
 		mParams = splitParams(type);
 		mNumShared = -1;
 		mConstrs = null;
-		
-		System.err.println("New Type "+name+" : "+getType());
 	}
 	
 	public void setConstructors(ArrayList<Constructor> constrs) {
@@ -41,10 +39,6 @@ public class InductiveType extends Term {
 		if (type != Term.U)
 			throw new IllegalArgumentException("Typecheck: Illegal Inductive Type");
 		return params.toArray(new Term[params.size()]);
-	}
-	
-	protected Term internalEval() {
-		return this;
 	}
 	
 	protected String toString(int offset, int prec) {

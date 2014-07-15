@@ -13,8 +13,6 @@ public class Constructor extends Term {
 		mInductiveType = type;
 		mName = name;
 		mIndex = index;
-
-		System.err.println("New Constructor "+this+" : "+getType());
 	}
 	
 	private static Term computeType(InductiveType indType, Term declType) {
@@ -54,10 +52,6 @@ public class Constructor extends Term {
 			declType = new PiTerm(indType.mParams[i], declType);
 		}
 		return declType;
-	}
-
-	public Term internalEval() {
-		return this;
 	}
 
 	protected String toString(int offset, int prec) {
@@ -129,29 +123,41 @@ public class Constructor extends Term {
 		return param.equals(mInductiveType);
 	}
 
-	public Term applyJArgs(Term term, Term[] allArgs,
+	public Term applyJ(Term constrCase, Term partialJTerm,
 			ArrayDeque<Term> constrArgs) {
+		// remove shared arguments (which reappear in constrArgs but are
+		// not used)
 		for (int i = 0; i < mInductiveType.mNumShared; i++) {
-			term = new AppTerm(term, allArgs[i]);
+			constrArgs.removeFirst();
 		}
+		// for each remaining argument add it to constrCase
 		while (!constrArgs.isEmpty()) {
 			Term arg = constrArgs.removeFirst();
-			term = new AppTerm(term, arg);
-			if (isTC(arg.getType())) {
-				Term rec = mInductiveType.mJOperator;
-				int commonArgs = mInductiveType.mNumShared + 1
-						+ mInductiveType.mConstrs.length;
-				for (int i = 0; i < commonArgs; i++)
-					rec = new AppTerm(rec, allArgs[i]);
+			constrCase = new AppTerm(constrCase, arg);
+			Term argType = arg.getType();
+			// if it is a recursive argument also add the recursive application
+			if (isTC(argType)) {
+				// partialJTerm contains everything except the priv arguments
+				// and arg.
+				Term rec = partialJTerm;
+
+				// Extract local parameters from arg type.
 				int numLocals = mInductiveType.mParams.length
 							- mInductiveType.mNumShared;
-				for (int i = 0; i < numLocals; i++)
-					rec = new AppTerm(rec, null); //FIXME
+				if (numLocals > 0) {
+					ArrayDeque<Term> localTerms = new ArrayDeque<Term>();
+					for (int i = 0; i < numLocals; i++) {
+						localTerms.addFirst(((AppTerm)argType).mArg);
+						argType = ((AppTerm) argType).mFunc;
+					}
+					for (Term local: localTerms) {
+						rec = new AppTerm(rec, local);
+					}
+				}
 				rec = new AppTerm(rec, arg);
-				term = new AppTerm(term, rec);
+				constrCase = new AppTerm(constrCase, rec);
 			}
 		}
-		return term;
+		return constrCase;
 	}
 }
-

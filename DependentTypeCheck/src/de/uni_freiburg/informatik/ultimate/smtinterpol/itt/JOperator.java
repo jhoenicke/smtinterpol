@@ -12,15 +12,18 @@ public class JOperator extends Term {
 	
 	private static Term computeType(InductiveType type) {
 		// J : publicArgs -> C -> constructors -> privateArgs -> t -> C(t)
+		int numTCArgs = type.mParams.length;
 		int numShared = type.mNumShared;
-		int numPriv = type.mParams.length - numShared;
+		int numPriv = numTCArgs - numShared;
 		int numConstrs = type.mConstrs.length;
 
 		// The type "TypeCons shared priv"
+		// assumes order globals locals <- (we are here).
 		Term tcType = type;
-		for (int i = 0; i < type.mParams.length; i++) {
+		for (int i = 0; i < numTCArgs; i++) {
 			tcType = new AppTerm(tcType, 
-					new DeBruijnVariable(type.mParams.length - i - 1, type.mParams[i]));
+					new DeBruijnVariable(type.mParams.length - i - 1, 
+							type.mParams[i]));
 		}
 		// The type of C: (privateArgs -> TC -> U)
 		Term cType = new PiTerm(tcType, Term.U);
@@ -65,17 +68,15 @@ public class JOperator extends Term {
 				mInductiveType.mConstrs.length + 2;
 	}
 	
-	@Override
-	protected Term internalEval() {
-		return this;
-	}
-	
 	protected String toString(int offset, int prec) {
 		return mInductiveType.mName + ".J";
 	}
 
-	public Term applyArgs(Term orig, ArrayDeque<Term> args) {
-		Term lastArg = args.removeLast();
+	public Term applyJ(AppTerm fullJApp) {
+		AppTerm jApp = fullJApp;
+		// The last parameter of J should be a constructor call.
+		Term lastArg = jApp.mArg;
+		jApp = (AppTerm) jApp.mFunc;
 		ArrayDeque<Term> constrArgs = new ArrayDeque<Term>();
 		while (lastArg instanceof AppTerm) {
 			AppTerm app = (AppTerm) lastArg;
@@ -83,13 +84,23 @@ public class JOperator extends Term {
 			lastArg = app.mFunc;
 		}
 		if (!(lastArg instanceof Constructor))
-			return orig;
+			return fullJApp;
 		Constructor cons = (Constructor) lastArg;
-		if (cons.mInductiveType != mInductiveType)
-			return orig;
-		Term[] allArgs = args.toArray(new Term[args.size()]);
-		Term result = allArgs[mInductiveType.mNumShared + 1 + cons.mIndex];
-		result = cons.applyJArgs(result, allArgs, constrArgs);
+		assert cons.mInductiveType == mInductiveType;
+		// Now remove the local parameters from J; we already type checked
+		// that they are as expected.
+		int numLocals = mInductiveType.mParams.length - 
+				mInductiveType.mNumShared;
+		for (int i = 0; i < numLocals; i++)
+			jApp = (AppTerm) jApp.mFunc;
+
+		// Now find the right constructor
+		AppTerm t = jApp;
+		int numConsToSkip = mInductiveType.mConstrs.length - cons.mIndex - 1;
+		for (int i = 0; i < numConsToSkip; i++)
+			t = (AppTerm) t.mFunc;
+		Term constrCase = t.mArg;
+		Term result = cons.applyJ(constrCase, jApp, constrArgs);
 		return result.evaluate();
 	}
 

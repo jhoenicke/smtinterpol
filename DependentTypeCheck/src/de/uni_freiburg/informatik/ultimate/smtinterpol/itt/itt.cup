@@ -201,11 +201,23 @@ expr ::=
 	;
 expr1 ::=
 	  expr1:exprFunc expr2:exprArg
-	  {: RESULT = new AppTerm(exprFunc, exprArg); :}
+	{:
+		if (!(exprFunc.getType() instanceof PiTerm))
+			parser.report_error("Applying to a non-function", exprFunc$);
+		else if (!exprArg.getType().equals(((PiTerm)exprFunc.getType()).mDomain))
+			parser.report_error("Argument has wrong type "+exprArg.getType() +
+				" expected: " + ((PiTerm)exprFunc.getType()).mDomain, exprArg$);
+		RESULT = new AppTerm(exprFunc, exprArg);
+	:}
 	| expr2
 	;
 
 expr2 ::=
-	  ID:i {: RESULT = lookupName(i); :}
+	  ID:i
+	{:
+		RESULT = lookupName(i);
+		if (RESULT == null)
+			parser.report_error("Undefined Symbol " + i, i$);
+	:}
 	| LPAR expr:e {: RESULT = e; :} RPAR
 	;

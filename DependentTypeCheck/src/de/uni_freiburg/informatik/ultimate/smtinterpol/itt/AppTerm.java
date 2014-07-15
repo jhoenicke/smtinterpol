@@ -1,13 +1,20 @@
 package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
-import java.util.ArrayDeque;
 
+/**
+ * This class represents a function application.  It has two sub terms
+ * func and arg.  The first parameter func must be a function (i.e. its type
+ * is a PiTerm).  The type of the second parameter arg must be equal to
+ * the domain of the function type.  The type of the app term is now the
+ * range of the function type, where the variable bound by the PiTerm is
+ * replaced by arg.
+ * @author hoenicke
+ *
+ */
 public class AppTerm extends Term {
 	Term mFunc, mArg;
-
-	public AppTerm(Term func, Term arg) {
-		this(func, arg, typecheck(func, arg));
-	}
 	
+	Term mEvaluated;
+
 	public AppTerm(Term func, Term arg, Term type) {
 		super(type);
 		assert type.equals(typecheck(func, arg));
@@ -15,7 +22,13 @@ public class AppTerm extends Term {
 		mArg = arg;
 	}
 	
-	private static Term typecheck(Term func, Term arg) {
+	public AppTerm(Term func, Term arg) {
+		super(typecheck(func, arg));
+		mFunc = func;
+		mArg = arg;
+	}
+	
+	public static Term typecheck(Term func, Term arg) {
 		Term funcType = func.getType();
 		if (!(funcType instanceof PiTerm)) {
 			throw new IllegalArgumentException("Typecheck: applying a non-function");
@@ -23,44 +36,50 @@ public class AppTerm extends Term {
 		PiTerm pi = (PiTerm) funcType;
 		if (!pi.mDomain.equals(arg.getType()))
 			throw new IllegalArgumentException("Typecheck: function parameter has wrong type");
-		return pi.mRange.substituteAndEval(arg, 0);
+		// note that type != null
+		return pi.mRange.substitute(new Term[] {arg}, 0).evaluate();
 	}
 
 	@Override
-	public Term internalEval() {
-		return myEvaluate(mFunc.evaluate(), mArg.evaluate(), getType());
+	public Term evaluate() {
+		if (mEvaluated == null) {
+			mEvaluated = myEvaluate(mFunc.evaluate(), mArg.evaluate(), getType());
+		}
+		return mEvaluated;
 	}
 	
 	public Term myEvaluate(Term f, Term a, Term type) {
 		if (f instanceof LambdaTerm) {
 			// beta-reduction
-			return ((LambdaTerm) f).mSubTerm.substituteAndEval(a, 0);
+			return ((LambdaTerm) f).mSubTerm.substitute(new Term[] { a }, 0)
+					.evaluate();
 		}
-		Term result = f == mFunc && a == mArg ? this 
-					: new AppTerm(f, a, type);
-
 		/* check for J operator */
-		ArrayDeque<Term> args = new ArrayDeque<Term>();
-		args.addFirst(a);
+		AppTerm result = f == mFunc && a == mArg ? this 
+				: new AppTerm(f, a, type);
+		int numArgs = 1;
 		while (f instanceof AppTerm) {
-			AppTerm app = (AppTerm) f;
-			args.addFirst(app.mArg);
-			f = app.mFunc;
+			f = ((AppTerm) f).mFunc;
+			numArgs++;
 		}
 		if (f instanceof JOperator) {
 			JOperator j = (JOperator) f;
-			if (args.size() == j.getNumArgs()) {
-				return j.applyArgs(result, args);
+			assert numArgs <= j.getNumArgs();
+			if (numArgs == j.getNumArgs()) {
+				return j.applyJ(result);
 			}
 		}
+		/* evaluation fix point reached */
+		result.mEvaluated = result;
 		return result;
 	}
 
 	@Override
-	public Term substituteAndEval(Term t, int offset) {
-		Term f = mFunc.substituteAndEval(t, offset);
-		Term a = mArg.substituteAndEval(t, offset);
-		return myEvaluate(f, a, getType().substituteAndEval(t, offset));
+	public Term substitute(Term[] t, int offset) {
+		Term func = mFunc.substitute(t, offset);
+		Term arg  = mArg.substitute(t, offset);
+		Term type = getType().substitute(t, offset);
+		return new AppTerm(func, arg, type);
 	}
 
 	/**

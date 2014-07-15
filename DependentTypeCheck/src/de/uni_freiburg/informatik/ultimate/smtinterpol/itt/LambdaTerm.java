@@ -1,34 +1,62 @@
 package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
 
+/**
+ * This class represents lambda terms.  The type of a lambda term is
+ * always a function type, i.e., getType() is an instance of {@link PiTerm}.
+ * A lambda term has an argument type and a sub term (the parameter is
+ * implemented by a de Bruijn indexed variable and has no representation).
+ * The argument type must be a set or a class and is also the domain of the
+ * function type.  The sub term has a new de Bruijn accessible variable
+ * whose type is the argument type.  The sub term must not be a class.  Its
+ * type is equal to the range type of the function and it can reference the
+ * parameter (dependent type).
+ * 
+ * @author hoenicke
+ *
+ */
 public class LambdaTerm extends Term {
 	Term mArgType;
 	Term mSubTerm;
+	
+	LambdaTerm mEvaluated;
 
 	public LambdaTerm(Term argType, Term subTerm) {
-		super(computeType(argType, subTerm));
+		super(typecheck(argType, subTerm));
 		mArgType = argType;
 		mSubTerm = subTerm;
 	}
 
 	public LambdaTerm(Term argType, Term subTerm, Term type) {
 		super(type);
+		assert type.equals(typecheck(argType, subTerm));
 		mArgType = argType;
 		mSubTerm = subTerm;
 	}
 	
-	private static Term computeType(Term argType, Term subTerm) {
+	private static Term typecheck(Term argType, Term subTerm) {
+		assert argType == argType.evaluate();
 		return new PiTerm(argType, subTerm.getType());
 	}
 
 	@Override
-	protected Term internalEval() {
-		return new LambdaTerm(mArgType, mSubTerm.evaluate(), getType());
+	public Term evaluate() {
+		if (mEvaluated == null) {
+			Term sub = mSubTerm.evaluate();
+			if (sub == mSubTerm)
+				mEvaluated = this;
+			else {
+				mEvaluated = new LambdaTerm(mArgType, sub, getType());
+				mEvaluated.mEvaluated = mEvaluated;
+			}
+		}
+		return mEvaluated;
 	}
 
 	@Override
-	public Term substituteAndEval(Term t, int offset) {
-		return new LambdaTerm(mArgType.substituteAndEval(t, offset),
-					mSubTerm.substituteAndEval(t, offset + 1));
+	public Term substitute(Term[] t, int offset) {
+		return new LambdaTerm(mArgType.substitute(t, offset),
+					mSubTerm.substitute(t, offset + 1),
+					getType().substitute(t, offset));
 	}
 
 	/**
