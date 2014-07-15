@@ -219,7 +219,11 @@
         <attribute name="Main-Class" value="de.uni_freiburg.informatik.ultimate.smtinterpol.itt.Main"/>
       </manifest>
       <fileset dir="${dir.workspace}/DependentTypeCheck/release" />
-      <zipfileset excludes="META-INF/**" src="${dir.workspace}/SMTInterpol/lib/java-cup-12joho.jar"/>
+      <zipfileset src="${dir.workspace}/SMTInterpol/lib/java-cup-12joho.jar">
+	<include name="java_cup/runtime/**"/>
+	<exclude name="java_cup/runtime/DefaultSymbolFactory*"/>
+	<exclude name="java_cup/runtime/ComplexSymbolFactory*"/>
+      </zipfileset>
       <zipfileset file="${dir.workspace}/LICENSE" prefix="" />
       <zipfileset file="${dir.workspace}/COPYING" prefix="" />
       <zipfileset file="${dir.workspace}/COPYING.LESSER" prefix="" />
