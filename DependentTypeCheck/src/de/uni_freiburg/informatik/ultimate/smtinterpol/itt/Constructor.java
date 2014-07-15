@@ -16,42 +16,95 @@ public class Constructor extends Term {
 	}
 	
 	private static Term computeType(InductiveType indType, Term declType) {
+		if (indType.mNumShared == -1) {
+			/* compute the number of shared arguments by looking at return type */
+			Term type = declType;
+			// get return type and update offset to expected inherited parameter
+			int offset = 0;
+			while (type instanceof PiTerm) {
+				type = ((PiTerm) type).mRange;
+				offset++;
+			}
+			// count private arguments
+			int numPrivs = 0;
+			while (type instanceof AppTerm) {
+				AppTerm app = (AppTerm) type;
+				Term arg = app.mArg;
+				if (arg instanceof DeBruijnVariable
+					&& ((DeBruijnVariable) arg).mIndex == offset)
+					break;
+				offset++;
+				numPrivs++;
+			}
+			indType.mNumShared = indType.mParams.length - numPrivs;
+		}
 		Term type = declType;
-		ArrayDeque<Term> params = new ArrayDeque<Term>();
+		int offset = 0;
 		while (type instanceof PiTerm) {
 			PiTerm pi = (PiTerm) type;
-			params.addLast(pi.mDomain);
+			if (!checkTCApplication(indType, pi.mDomain, offset)
+				&& !checkClean(indType, pi.mDomain, offset))
+				throw new IllegalArgumentException("Constructor malformed");
 			type = pi.mRange;
+			offset++;
 		}
-
-		ArrayDeque<Term> args = new ArrayDeque<Term>();
-		while (type instanceof AppTerm) {
-			AppTerm app = (AppTerm) type;
-			args.addFirst(app.mArg);
-			type = app.mFunc;
-		}
-		if (type != indType)
-			throw new IllegalArgumentException("Typecheck: Constructor must return Inductive Type");
-		if (indType.mNumShared == -1) {
-			indType.mNumShared = 0;
-			for (Term arg : args) {
-				if (!(arg instanceof DeBruijnVariable))
-					break;
-				int index = ((DeBruijnVariable) arg).mIndex;
-				if (index != params.size() + indType.mParams.length - 1
-						- indType.mNumShared)
-					break;
-				indType.mNumShared++;
-			}
-		}
-		int numPrivate = indType.mParams.length - indType.mNumShared;
-		// TODO check that indType only occurs where it may occur, with correct
-		// shared params as args and that no private params occurs.
-		declType = declType.shiftBruijn(0, -numPrivate);
+		if (!checkTCApplication(indType, type, offset))
+			throw new IllegalArgumentException("Constructor malformed");
+		declType = declType.shiftBruijn(0, 
+				indType.mNumShared - indType.mParams.length);
 		for (int i = indType.mNumShared - 1; i >= 0; i--) {
 			declType = new PiTerm(indType.mParams[i], declType);
 		}
 		return declType;
+	}
+
+	private static boolean checkTCApplication(InductiveType indType, Term paramType, int offset) {
+		int numPriv = indType.mParams.length - indType.mNumShared;
+		Term type = paramType;
+		int argNum = 0;
+		while (type instanceof AppTerm) {
+			AppTerm app = (AppTerm) type;
+			if (argNum < numPriv) {
+				/* just check that private parameters are okay */
+				if (!checkClean(indType, app.mArg, offset))
+					return false;
+			} else {
+				/* check that shared arg is correctly referenced */
+				if (! (app.mArg instanceof DeBruijnVariable)
+					|| ((DeBruijnVariable) app.mArg).mIndex != offset + argNum)
+					return false;
+			}
+			type = app.mFunc;
+			argNum++;
+		}
+		return type == indType && argNum == indType.mParams.length;
+	}
+
+	private static boolean checkClean(InductiveType indType, Term type, int offset) {
+		if (type == indType)
+			return false;
+		if (type instanceof AppTerm) {
+			AppTerm app = (AppTerm) type;
+			return checkClean(indType, app.mFunc, offset)
+				&& checkClean(indType, app.mArg, offset + 1);
+		}
+		if (type instanceof DeBruijnVariable) {
+			int index = ((DeBruijnVariable) type).mIndex;
+			assert index < offset + indType.mParams.length;
+			return index < offset
+				|| index >= offset + indType.mParams.length - indType.mNumShared;
+		}
+		if (type instanceof PiTerm) {
+			PiTerm pi = (PiTerm) type;
+			return checkClean(indType, pi.mDomain, offset)
+				&& checkClean(indType, pi.mRange, offset + 1);
+		}
+		if (type instanceof LambdaTerm) {
+			LambdaTerm lam = (LambdaTerm) type;
+			return checkClean(indType, lam.mType, offset)
+				&& checkClean(indType, lam.mSubTerm, offset + 1);
+		}
+		return true;
 	}
 
 	protected String toString(int offset, int prec) {

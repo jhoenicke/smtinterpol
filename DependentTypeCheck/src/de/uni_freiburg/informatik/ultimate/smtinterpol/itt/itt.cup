@@ -136,8 +136,8 @@ declaration ::= inductivedecl
 	| TYPECHECK expr1:e COLON expr:t
 	  {:
 		if (!e.getType().equals(t.evaluate()))
-			throw new IllegalArgumentException("Typecheck Failed!");
-		System.out.println("checked");
+			parser.report_error("TypeCheck failed: " + e.getType()
+					+ " is not " + t.evaluate(), e$);
 	  :}
 	| EVALUATETYPE expr:e
 	  {: System.out.println(e.getType()); :}
@@ -169,7 +169,11 @@ inductivetype ::= ID:i COLON expr1:exprDom ARROW
 	  inductivetype:exprRng
 	  {: RESULT = new PiTerm(exprDom.evaluate(), exprRng.evaluate()); :}
 	| ID:u
-	  {: RESULT = lookupName(u); :}
+	  {:
+	  	if (!u.equals("U"))
+			parser.report_error("expected type U", u$);
+		RESULT = lookupName(u);
+	  :}
 	;
 
 constrdecls ::=
@@ -178,7 +182,11 @@ constrdecls ::=
 
 constrdecl ::=
 	ID:i COLON expr:e
-	{: RESULT = new Constructor(i, inductiveIndex++, inductiveType, e); :} 
+	{: 
+	  	if (e.getType() != Term.U)
+			parser.report_error("Type of constructor malformed", e$);
+		RESULT = new Constructor(i, inductiveIndex++, inductiveType, e);
+	:} 
 	;
 
 expr ::=
