@@ -5,6 +5,7 @@
   <target name="all">
     <antcall target="create_run_jar" />
     <antcall target="create_deltadebugger_jar" />
+    <antcall target="create_itt_jar" />
   </target>
 
   <property file="buildjar.properties"/>
@@ -97,6 +98,27 @@
     <ant antfile="build-parser.xml" dir="${dir.workspace}/SMTInterpol/src/de/uni_freiburg/informatik/ultimate/smtinterpol/dimacs" />
   </target>
 
+  <!-- Build itt parser and lexer -->
+  <target name="check_itt.cup_current">
+    <uptodate property="itt.cup.current">
+      <srcfiles dir="${dir.workspace}/DependentTypeCheck/src/de/uni_freiburg/informatik/ultimate/smtinterpol/itt" includes="*.cup,*.flex" />
+      <srcfiles file="${dir.workspace}/SMTInterpol/lib/java-cup-12joho.jar"/>
+      <mapper>
+	<globmapper from="itt.cup" to="Parser.java"/>
+	<globmapper from="itt.cup" to="LexerSymbols.java"/>
+	<globmapper from="itt.flex" to="Lexer.java"/>
+	<globmapper from="java-cup-12joho.jar" to="${dir.workspace}${file.separator}SMTInterpol${file.separator}src${file.separator}de${file.separator}uni_freiburg${file.separator}informatik${file.separator}ultimate${file.separator}smtinterpol${file.separator}itt${file.separator}Parser.java"/>
+	<globmapper from="java-cup-12joho.jar" to="${dir.workspace}${file.separator}SMTInterpol${file.separator}src${file.separator}de${file.separator}uni_freiburg${file.separator}informatik${file.separator}ultimate${file.separator}smtinterpol${file.separator}itt${file.separator}LexerSymbols.java"/>
+	<globmapper from="java-cup-12joho.jar" to="${dir.workspace}${file.separator}SMTInterpol${file.separator}src${file.separator}de${file.separator}uni_freiburg${file.separator}informatik${file.separator}ultimate${file.separator}smtinterpol${file.separator}itt${file.separator}Lexer.java"/>
+      </mapper>
+    </uptodate>
+  </target>
+  <target name="itt.cup" depends="check_itt.cup_current" 
+                             unless="itt.cup.current">
+    <property name="workspacedir" value="${dir.workspace}"/>
+    <ant antfile="build-parser.xml" dir="${dir.workspace}/DependentTypeCheck/src/de/uni_freiburg/informatik/ultimate/smtinterpol/itt" />
+  </target>
+
   <!-- Compile SMTInterpol -->
   <target name="compile" depends="get-version,smtlib1.cup,smtlib2.cup,dimacs.cup">
     <mkdir dir="${dir.workspace}/Library-SMTLIB/release"/>
@@ -137,6 +159,16 @@
     </javac>
   </target>
 
+  <!-- Compile ITT checker -->
+  <target name="compileitt" depends="itt.cup">
+    <mkdir dir="${dir.workspace}/DependentTypeCheck/release"/>
+    <javac srcdir="${dir.workspace}/DependentTypeCheck/src" destdir="${dir.workspace}/DependentTypeCheck/release" optimize="${optimize}" includeAntRuntime="false" debug="${debug}">
+      <classpath>
+        <pathelement location="${dir.workspace}/SMTInterpol/lib/java-cup-12joho.jar"/>
+      </classpath>
+    </javac>
+  </target>
+
   <!-- Create an executable jar -->
   <target name="create_run_jar" depends="clean,compile">
     <jar destfile="${jar.outdir}/${jar.basename}.jar" filesetmanifest="mergewithoutmain">
@@ -172,6 +204,22 @@
       <zipfileset excludes="META-INF/**" src="${dir.workspace}/SMTInterpol/lib/log4j-1.2.15.jar"/>
       <zipfileset excludes="META-INF/**" src="${dir.workspace}/SMTInterpol/lib/java-cup-12joho.jar"/>
       <fileset dir="${dir.workspace}/Library-SMTLIB/release" />
+      <zipfileset file="${dir.workspace}/LICENSE" prefix="" />
+      <zipfileset file="${dir.workspace}/COPYING" prefix="" />
+      <zipfileset file="${dir.workspace}/COPYING.LESSER" prefix="" />
+      <zipfileset file="${dir.workspace}/AUTHORS" prefix="" />
+      <zipfileset file="${dir.workspace}/README" prefix="" />
+    </jar>
+  </target>
+
+  <!-- Create ITT type-checker jar -->
+  <target name="create_itt_jar" depends="clean,compileitt">
+    <jar destfile="${jar.outdir}/itt.jar" filesetmanifest="mergewithoutmain">
+      <manifest>
+        <attribute name="Main-Class" value="de.uni_freiburg.informatik.ultimate.smtinterpol.itt.Main"/>
+      </manifest>
+      <fileset dir="${dir.workspace}/DependentTypeCheck/release" />
+      <zipfileset excludes="META-INF/**" src="${dir.workspace}/SMTInterpol/lib/java-cup-12joho.jar"/>
       <zipfileset file="${dir.workspace}/LICENSE" prefix="" />
       <zipfileset file="${dir.workspace}/COPYING" prefix="" />
       <zipfileset file="${dir.workspace}/COPYING.LESSER" prefix="" />
