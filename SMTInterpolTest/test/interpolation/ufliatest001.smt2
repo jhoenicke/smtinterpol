@@ -3,6 +3,7 @@
 (set-option :interpolant-check-mode true)
 (set-option :verbosity 3)
 (set-option :produce-proofs true)
+(set-option :print-terms-cse false)
 (set-info :source "{
 Test formula which needs AB-mixed interpolators
 Desired Interpolant: (and (<= y x1) (implies (>= y x1) (< (f x1) x2)))
@@ -21,5 +22,5 @@ Desired Interpolant: (and (<= y x1) (implies (>= y x1) (< (f x1) x2)))
 (assert (! (and (<= a1 x1) (and (= (f a1) a2) (and (<= y a1) (< a2 x2)))) :named IP_0))
 (assert (! (and (<= x1 b1) (and (= (f b1) b2) (and (<= b1 y) (< x2 b2)))) :named IP_1))
 (check-sat)
-(get-interpolants IP_0 IP_1)
+(get-proof)
 (exit)

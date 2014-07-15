@@ -20,9 +20,11 @@ package de.uni_freiburg.informatik.ultimate.smtinterpol.interpolate;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import de.uni_freiburg.informatik.ultimate.logic.Term;
+import de.uni_freiburg.informatik.ultimate.logic.TermVariable;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.dpll.Clause;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.dpll.Literal;
 import de.uni_freiburg.informatik.ultimate.smtinterpol.interpolate.CCInterpolator.PathInfo.PathEnd;
@@ -39,17 +41,37 @@ public class ArrayInterpolator extends CCInterpolator {
 	HashMap<SymmetricPair<CCTerm>, CCEquality> mDisequalities;
 	HashMap<SymmetricPair<CCTerm>, HashMap<CCTerm, WeakPathInfo>> mWeakPaths;
 	
-	class WeakPathInfo extends PathInfo {
+	class StrongEquality {
+		Term mStart;
+		Term mEnd;
+		Term mPrecondition;
+	}
+	
+	class WeakEquality {
+		Term mStartArray;
+		Term mEndArray;
+		Term mPrecondition;
+		Term mIndexConstraint;
+		int  mNumDiffs;
+	}
+	
+	class WeakPathInfo {
+		CCTerm[] mPath;
 		CCTerm mIndex;
+		/**
+		 * A term variable used for the index in 
+		 * index constraints.
+		 */
+		TermVariable mIndexVar;
 		
-		class WeakPathEnd extends PathEnd {
-			int[]    mNumDiffs;
-			CCTerm[] mIndexConstraints;
-			CCTerm[] mSharedIndex;
-		}
+		/**
+		 * For each partition, this contains the list of the completed
+		 * weak equalities.
+		 */
+		List<WeakEquality>[] mSummaries;
 		
 		public WeakPathInfo(CCTerm[] path, CCTerm index) {
-			super(path);
+			mPath = path;
 			mIndex = index;
 		}
 		
@@ -92,6 +114,27 @@ public class ArrayInterpolator extends CCInterpolator {
 				return false;
 			return weakPaths.containsKey(app1.getArg())
 				|| weakPaths.containsKey(app2.getArg());
+		}
+		
+		private boolean isStoreStep(CCTerm array, CCTerm store) {
+			if (!(store instanceof CCAppTerm))
+				return false;
+			CCTerm storeArrayIndex = ((CCAppTerm) store).getFunc();
+			if (!(storeArrayIndex instanceof CCAppTerm))
+				return false;
+			CCTerm storeArray = ((CCAppTerm) storeArrayIndex).getFunc();
+			if (!(storeArray instanceof CCAppTerm))
+				return false;
+			CCAppTerm storeArrayApp = (CCAppTerm) storeArray;
+			if (storeArrayApp.getArg() != array)
+				return false;
+			if (!(storeArrayApp.getFunc() instanceof CCBaseTerm))
+				return false;
+			CCBaseTerm storeFunc = (CCBaseTerm) storeArrayApp.getFunc();
+			if (!storeFunc.isFunctionSymbol()
+				|| storeFunc.getFunctionSymbol().getName() != "store")
+				return false;
+			return true;
 		}
 		
 		public void interpolatePathInfo() {
@@ -138,6 +181,18 @@ public class ArrayInterpolator extends CCInterpolator {
 						mTail.mergeSelect(mHead, leftApp, rightApp);
 						continue;
 					}
+				}
+				if (isStoreStep(left, right)) {
+					CCAppTerm store = (CCAppTerm) right;
+					CCTerm index = ((CCAppTerm) store.getFunc()).getArg();
+					mTail.mergeStore(mHead, left, right, left, index);
+					continue;
+				}
+				if (isStoreStep(right, left)) {
+					CCAppTerm store = (CCAppTerm) left;
+					CCTerm index = ((CCAppTerm) store.getFunc()).getArg();
+					mTail.mergeStore(mHead, left, right, right, index);
+					continue;
 				}
 				// TODO Handle select in weak path.
 				throw new UnsupportedOperationException(
