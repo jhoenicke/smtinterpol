@@ -43,13 +43,14 @@ public class JOperator extends Term {
 		for (int i = 0; i < numPriv; i++) {
 			constrArgTypes[i] = Term.substitute(type.mParams[numShared + i], 
 					constrShift, null);
-			Term var = Term.variable(numPriv - i, 
-					constrArgTypes[i]);
-			constrShift = Substitution.cons(var, constrShift);
+			Term var = Term.variable(numPriv - i, constrArgTypes[i]);
+			constrShift = Substitution.cons(Term.variable(0, constrArgTypes[i]), Substitution.compose(constrShift, Substitution.shift(1)));
 			result = new AppTerm(result, var);
 			System.err.println("result: "+result +" of type "+result.getType().evaluate());
 		}
 		constrArgTypes[numPriv] = Term.substitute(tcType, constrShift, null);
+		System.err.println("c1: "+constrArgTypes[numPriv] +" of type "+constrArgTypes[numPriv].getType());
+		System.err.println("c2: "+constrArgTypes[numPriv].evaluate() +" of type "+constrArgTypes[numPriv].getType().evaluate());
 		result = new AppTerm(result, Term.variable(0, 
 				constrArgTypes[numPriv]));
 		System.err.println("result: "+result +" of type "+result.getType().evaluate());
@@ -84,13 +85,13 @@ public class JOperator extends Term {
 	public Term applyJ(AppTerm fullJApp) {
 		AppTerm jApp = fullJApp;
 		// The last parameter of J should be a constructor call.
-		Term lastArg = jApp.mArg;
+		Term lastArg = jApp.mArg.evaluateHead();
 		jApp = (AppTerm) jApp.mFunc;
 		ArrayDeque<Term> constrArgs = new ArrayDeque<Term>();
 		while (lastArg instanceof AppTerm) {
 			AppTerm app = (AppTerm) lastArg;
 			constrArgs.addFirst(app.mArg);
-			lastArg = app.mFunc;
+			lastArg = app.mFunc.evaluateHead();
 		}
 		if (!(lastArg instanceof Constructor))
 			return fullJApp;

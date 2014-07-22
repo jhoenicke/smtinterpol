@@ -67,7 +67,6 @@ public class AppTerm extends Term {
 		if (f instanceof JOperator) {
 			JOperator j = (JOperator) f;
 			if (numArgs == j.getNumArgs()) {
-				a = a.evaluateHead();
 				return j.applyJ(result);
 			}
 		}

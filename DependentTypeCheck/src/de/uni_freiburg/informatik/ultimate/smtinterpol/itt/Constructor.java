@@ -175,8 +175,9 @@ public class Constructor extends Term {
 		Term[] localArgs = new Term[mInductiveType.mParams.length 
 		                            - mInductiveType.mNumShared];
 		for (int i = localArgs.length-1; i >= 0; i--) {
-			localArgs[i] = ((AppTerm) q).mArg;
-			q = ((AppTerm) q).mFunc;
+			AppTerm app = (AppTerm) q.evaluateHead();
+			localArgs[i] = app.mArg;
+			q = app.mFunc;
 		}
 		Term c = Term.variable(offset + mIndex, cType);
 		for (int i = 0; i < localArgs.length; i++) {
@@ -186,10 +187,11 @@ public class Constructor extends Term {
 	}
 
 	private boolean isTC(Term param) {
+		param = param.evaluateHead();
 		for (int i = 0; i < mInductiveType.mParams.length; i++) {
 			if (!(param instanceof AppTerm))
 				return false;
-			param = ((AppTerm) param).mFunc;
+			param = ((AppTerm) param).mFunc.evaluateHead();
 		}
 		return param.equals(mInductiveType);
 	}

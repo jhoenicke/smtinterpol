@@ -80,7 +80,7 @@ public class SubstTerm extends Term {
 		}
 		assert !(mEvaluated instanceof SubstTerm) ||
 			(((SubstTerm) mEvaluated).mSubTerm instanceof Variable);
-		System.err.println("EvaluateHead: "+this + " gives "+mEvaluated);
+		//System.err.println("EvaluateHead: "+this + " gives "+mEvaluated);
 		return mEvaluated;
 	}
 
