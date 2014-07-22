@@ -44,8 +44,4 @@ public class InductiveType extends Term {
 	protected String toString(int offset, int prec) {
 		return mName;
 	}
-
-	public boolean equals(Object o) {
-		return (this == o);
-	}
 }

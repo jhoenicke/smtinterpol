@@ -33,43 +33,13 @@ public class LambdaTerm extends Term {
 		mSubTerm = subTerm;
 	}
 	
-	private static Term typecheck(Term argType, Term subTerm) {
-		assert argType == argType.evaluate();
+	public static Term typecheck(Term argType, Term subTerm) {
 		return new PiTerm(argType, subTerm.getType());
 	}
 
 	@Override
-	public Term evaluate() {
-		if (mEvaluated == null) {
-			Term sub = mSubTerm.evaluate();
-			if (sub == mSubTerm)
-				mEvaluated = this;
-			else {
-				mEvaluated = new LambdaTerm(mArgType, sub, getType());
-				mEvaluated.mEvaluated = mEvaluated;
-			}
-		}
-		return mEvaluated;
-	}
-
-	@Override
-	public Term substitute(Term[] t, int offset) {
-		return new LambdaTerm(mArgType.substitute(t, offset),
-					mSubTerm.substitute(t, offset + 1),
-					getType().substitute(t, offset));
-	}
-
-	/**
-	 * Shift de Bruijn indices >= start by offset.
-	 * @param start  The first index to modify.
-	 * @param offset The offset added to the index.
-	 * @return the substituted term.
-	 */
-	@Override
-	public Term shiftBruijn(int start, int offset) {
-		return new LambdaTerm(mArgType.shiftBruijn(start, offset),
-				mSubTerm.shiftBruijn(start + 1, offset),
-				getType().shiftBruijn(start, offset));
+	public Term evaluateHead() {
+		return this;
 	}
 
 	public String toString(int offset, int prec) {
@@ -78,9 +48,7 @@ public class LambdaTerm extends Term {
 		return prec >= 1 ? "(" + str + ")" : str;
 	}
 
-	public boolean equals(Object o) {
-		if (this == o)
-			return true;
+	public boolean equalsHead(Term o) {
 		if (!(o instanceof LambdaTerm))
 			return false;
 		LambdaTerm other = (LambdaTerm) o;

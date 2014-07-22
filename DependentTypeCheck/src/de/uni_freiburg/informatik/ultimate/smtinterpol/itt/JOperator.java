@@ -20,35 +20,44 @@ public class JOperator extends Term {
 		// The type "TypeCons shared priv"
 		// assumes order globals locals <- (we are here).
 		Term tcType = type;
+		Term[] tcVars = new Term[numTCArgs];
 		for (int i = 0; i < numTCArgs; i++) {
-			tcType = new AppTerm(tcType, 
-					new DeBruijnVariable(type.mParams.length - i - 1, 
-							type.mParams[i]));
+			tcVars[i] = Term.variable(numTCArgs - i - 1, type.mParams[i]);
+			tcType = new AppTerm(tcType, tcVars[i]);
 		}
 		// The type of C: (privateArgs -> TC -> U)
 		Term cType = new PiTerm(tcType, Term.U);
 		for (int i = numPriv - 1; i >= 0; i--) {
 			cType = new PiTerm(type.mParams[numShared + i], cType);
 		}
+		System.err.println("tcType: "+tcType);
+		System.err.println("cType: "+cType);
 
 		// Build C locals t
-		Term result = new DeBruijnVariable(1 + numPriv + numConstrs, cType);
+		Term result = Term.variable(numConstrs + numPriv + 1, cType);
+		System.err.println("result: "+result +" of type "+result.getType());
+		System.err.println("result: "+result +" of type "+result.getType().evaluate());
+		// shift the global variables over the constructor
+		Term[] constrArgTypes = new Term[numPriv+1];
+		Substitution constrShift = Substitution.shift(1 + numConstrs);
 		for (int i = 0; i < numPriv; i++) {
-			Term locali = new DeBruijnVariable(numPriv - i,
-					type.mParams[numShared + i].shiftBruijn(i, 1 + numConstrs));
-			result = new AppTerm(result, locali);
+			constrArgTypes[i] = Term.substitute(type.mParams[numShared + i], 
+					constrShift, null);
+			Term var = Term.variable(numPriv - i, 
+					constrArgTypes[i]);
+			constrShift = Substitution.cons(var, constrShift);
+			result = new AppTerm(result, var);
+			System.err.println("result: "+result +" of type "+result.getType().evaluate());
 		}
-		Term tType = tcType.shiftBruijn(numPriv, 1 + numConstrs);
-		result = new AppTerm(result, new DeBruijnVariable(0, tType));
-		// Build t -> clt
-		result = new PiTerm(tType, result);
+		constrArgTypes[numPriv] = Term.substitute(tcType, constrShift, null);
+		result = new AppTerm(result, Term.variable(0, 
+				constrArgTypes[numPriv]));
+		System.err.println("result: "+result +" of type "+result.getType().evaluate());
 		// locals -> t -> clt
-		for (int i = numPriv - 1; i >= 0; i--) {
-			Term locali = type.mParams[numShared + i]
-					.shiftBruijn(i, 1 + numConstrs);
-			result = new PiTerm(locali, result);
+		for (int i = numPriv; i >= 0; i--) {
+			result = new PiTerm(constrArgTypes[i], result);
 		}
-		
+
 		// now come the constructors
 		for (int i = numConstrs - 1; i >= 0; i--) {
 			Term constrType = type.mConstrs[i].computeJType(cType);
@@ -60,7 +69,7 @@ public class JOperator extends Term {
 		for (int i = numShared - 1; i >= 0; i--) {
 			result = new PiTerm(type.mParams[i], result);
 		}
-		return result;
+		return result.evaluate();
 	}
 	
 	public int getNumArgs() {
@@ -101,10 +110,6 @@ public class JOperator extends Term {
 			t = (AppTerm) t.mFunc;
 		Term constrCase = t.mArg;
 		Term result = cons.applyJ(constrCase, jApp, constrArgs);
-		return result.evaluate();
-	}
-
-	public boolean equals(Object o) {
-		return (this == o);
+		return result.evaluateHead();
 	}
 }

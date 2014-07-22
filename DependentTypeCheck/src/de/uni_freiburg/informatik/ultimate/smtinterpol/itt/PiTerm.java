@@ -14,14 +14,13 @@ public class PiTerm extends Term {
 	Term mDomain;
 	Term mRange;
 	
-	PiTerm mEvaluated;
-	
 	public PiTerm(Term domain, Term range) {
 		this(domain, range, typecheck(domain, range));
 	}
 	public PiTerm(Term domain, Term range, Term type) {
 		super(type);
-		assert type == typecheck(domain, range);
+		assert type == null ? typecheck(domain,range) == null
+				: type.equals(typecheck(domain, range));
 		this.mDomain = domain;
 		this.mRange = range;
 	}
@@ -35,9 +34,13 @@ public class PiTerm extends Term {
 	 * @param range the range type, its type must be U or null.
 	 * @return the type of the pi term.
 	 */
-	private static Term typecheck(Term domain, Term range) {
+	public static Term typecheck(Term domain, Term range) {
 		Term domType = domain.getType();
 		Term rngType = range.getType();
+		if (domType != null)
+			domType = domType.evaluateHead();
+		if (rngType != null)
+			rngType = rngType.evaluateHead();
 		if (domType == Term.U && rngType == Term.U)
 			return Term.U;
 		if ((domType != Term.U && domType != null)
@@ -47,49 +50,17 @@ public class PiTerm extends Term {
 	}
 
 	@Override
-	public Term evaluate() {
-		if (mEvaluated == null) {
-			Term dom = mDomain.evaluate();
-			Term rng = mRange.evaluate();
-			if (dom == mDomain && rng == mRange)
-				mEvaluated = this;
-			else {
-				mEvaluated = new PiTerm(mDomain.evaluate(), mRange.evaluate(), 
-						getType());
-				mEvaluated.mEvaluated = mEvaluated;
-			}
-		}
-		return mEvaluated;
+	public Term evaluateHead() {
+		return this;
 	}
 
-	@Override
-	public Term substitute(Term[] t, int offset) {
-		return new PiTerm(mDomain.substitute(t, offset),
-					mRange.substitute(t, offset + 1),
-					getType()); // getType() is null or U.
-	}
-
-	/**
-	 * Shift de Bruijn indices >= start by offset.
-	 * @param start  The first index to modify.
-	 * @param offset The offset added to the index.
-	 * @return the substituted term.
-	 */
-	@Override
-	public Term shiftBruijn(int start, int offset) {
-		return new PiTerm(mDomain.shiftBruijn(start, offset),
-				mRange.shiftBruijn(start + 1, offset));
-	}
-	
 	public String toString(int offset, int prec) {
 		String str = "@" + offset + " : " + mDomain.toString(offset,1)
 				+ " -> " + mRange.toString(offset + 1, 0);
 		return prec >= 1 ? "(" + str + ")" : str;
 	}
 
-	public boolean equals(Object o) {
-		if (this == o)
-			return true;
+	public boolean equalsHead(Term o) {
 		if (!(o instanceof PiTerm))
 			return false;
 		PiTerm other = (PiTerm) o;

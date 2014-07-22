@@ -80,7 +80,7 @@ action code {:
 		if (locals.containsKey(id)) {
 			int index = locals.get(id);
 			int debruijn = varTypes.size() - 1 - index;
-			return new DeBruijnVariable(debruijn, varTypes.get(index));
+			return Term.variable(debruijn, varTypes.get(index));
 		}
 		return globals.get(id);
 	}
@@ -135,12 +135,12 @@ declaration ::= inductivedecl
 	  {: globals.put(i, e); :}
 	| TYPECHECK expr1:e COLON expr:t
 	  {:
-		if (!e.getType().equals(t.evaluate()))
-			parser.report_error("TypeCheck failed: " + e.getType()
+		if (!e.getType().equals(t))
+			parser.report_error("TypeCheck failed: " + e.getType().evaluate()
 					+ " is not " + t.evaluate(), e$);
 	  :}
 	| EVALUATETYPE expr:e
-	  {: System.out.println(e.getType()); :}
+	  {: System.out.println(e.getType().evaluate()); :}
 	| EVALUATE expr:e
 	  {: System.out.println(e.evaluate()); :}
 	;
@@ -161,13 +161,13 @@ inductivedecl ::= INDUCTIVE ID:i COLON inductivetype:type
 	  :};
 
 inductivetype ::= ID:i COLON expr1:exprDom ARROW 
-	  {: pushBruijnVariable(i, exprDom.evaluate()); :}
+	  {: pushBruijnVariable(i, exprDom); :}
 	  inductivetype:exprRng
-	  {: RESULT = new PiTerm(exprDom.evaluate(), exprRng.evaluate()); :}
+	  {: RESULT = new PiTerm(exprDom, exprRng); :}
 	| expr1:exprDom ARROW 
-	  {: pushBruijnVariable("", exprDom.evaluate()); :}
+	  {: pushBruijnVariable("", exprDom); :}
 	  inductivetype:exprRng
-	  {: RESULT = new PiTerm(exprDom.evaluate(), exprRng.evaluate()); :}
+	  {: RESULT = new PiTerm(exprDom, exprRng); :}
 	| ID:u
 	  {:
 	  	if (!u.equals("U"))
@@ -183,7 +183,7 @@ constrdecls ::=
 constrdecl ::=
 	ID:i COLON expr:e
 	{: 
-	  	if (e.getType() != Term.U)
+	  	if (!e.getType().equals(Term.U))
 			parser.report_error("Type of constructor malformed", e$);
 		RESULT = new Constructor(i, inductiveIndex++, inductiveType, e);
 	:} 
@@ -191,30 +191,34 @@ constrdecl ::=
 
 expr ::=
 	  ID:i COLON expr1:exprDom ARROW 
-	  {: pushBruijnVariable(i, exprDom.evaluate()); :}
+	  {: pushBruijnVariable(i, exprDom); :}
 	  expr:exprRng
 	  {: popBruijnVariable();
-	     RESULT = new PiTerm(exprDom.evaluate(), exprRng.evaluate()); :}
+	     RESULT = new PiTerm(exprDom, exprRng); :}
 	| expr1:exprDom ARROW 
-	  {: pushBruijnVariable("", exprDom.evaluate()); :}
+	  {: pushBruijnVariable("", exprDom); :}
 	  expr:exprRng
 	  {: popBruijnVariable();
-	     RESULT = new PiTerm(exprDom.evaluate(), exprRng.evaluate()); :}
+	     RESULT = new PiTerm(exprDom, exprRng); :}
 	| LAMBDA ID:i COLON expr2:exprArg
-	  {: pushBruijnVariable(i, exprArg.evaluate()); :}
+	  {: pushBruijnVariable(i, exprArg); :}
 	  expr:exprSub
 	  {: popBruijnVariable();
-	     RESULT = new LambdaTerm(exprArg.evaluate(), exprSub); :}
+	     RESULT = new LambdaTerm(exprArg, exprSub); :}
 	| expr1
 	;
 expr1 ::=
 	  expr1:exprFunc expr2:exprArg
 	{:
-		if (!(exprFunc.getType() instanceof PiTerm))
+		Term exprFuncType = exprFunc.getType();
+		if (exprFuncType == null)
+			parser.report_error("Applying to a class", exprFunc$);
+		exprFuncType = exprFuncType.evaluateHead();
+		if (!(exprFuncType instanceof PiTerm))
 			parser.report_error("Applying to a non-function", exprFunc$);
-		else if (!exprArg.getType().equals(((PiTerm)exprFunc.getType()).mDomain))
-			parser.report_error("Argument has wrong type "+exprArg.getType() +
-				" expected: " + ((PiTerm)exprFunc.getType()).mDomain, exprArg$);
+		else if (!exprArg.getType().equals(((PiTerm)exprFuncType).mDomain))
+			parser.report_error("Argument has wrong type "+exprArg.getType().evaluate() +
+				" expected: " + ((PiTerm)exprFuncType).mDomain.evaluate(), exprArg$);
 		RESULT = new AppTerm(exprFunc, exprArg);
 	:}
 	| expr2

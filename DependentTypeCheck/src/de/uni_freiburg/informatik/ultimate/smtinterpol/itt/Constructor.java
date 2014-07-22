@@ -30,9 +30,14 @@ public class Constructor extends Term {
 			while (type instanceof AppTerm) {
 				AppTerm app = (AppTerm) type;
 				Term arg = app.mArg;
-				if (arg instanceof DeBruijnVariable
-					&& ((DeBruijnVariable) arg).mIndex == offset)
-					break;
+				if (arg instanceof SubstTerm) {
+					SubstTerm subst = (SubstTerm) arg;
+					if (subst.mSubTerm instanceof Variable
+						&& subst.mSubstitution instanceof Substitution.Shift
+						&& ((Substitution.Shift) 
+								subst.mSubstitution).mOffset == offset)
+						break;
+				}
 				offset++;
 				numPrivs++;
 			}
@@ -50,12 +55,14 @@ public class Constructor extends Term {
 		}
 		if (!checkTCApplication(indType, type, offset))
 			throw new IllegalArgumentException("Constructor malformed");
-		declType = declType.shiftBruijn(0, 
-				indType.mNumShared - indType.mParams.length);
+		Substitution backShift = Substitution.shift(0);
+		for (int i = 0; i < indType.mParams.length - indType.mNumShared; i++)
+			backShift = Substitution.cons(Term.variable(0, Term.U), backShift);
+		declType = Term.substitute(declType, backShift, null);
 		for (int i = indType.mNumShared - 1; i >= 0; i--) {
 			declType = new PiTerm(indType.mParams[i], declType);
 		}
-		return declType;
+		return declType.evaluate();
 	}
 
 	private static boolean checkTCApplication(InductiveType indType, Term paramType, int offset) {
@@ -70,8 +77,14 @@ public class Constructor extends Term {
 					return false;
 			} else {
 				/* check that shared arg is correctly referenced */
-				if (! (app.mArg instanceof DeBruijnVariable)
-					|| ((DeBruijnVariable) app.mArg).mIndex != offset + argNum)
+				if (! (app.mArg instanceof SubstTerm))
+					return false;
+				SubstTerm subst = (SubstTerm) app.mArg;
+				if (! (subst.mSubTerm instanceof Variable)
+					|| !(subst.mSubstitution instanceof Substitution.Shift))
+					return false;
+				int index = ((Substitution.Shift) subst.mSubstitution).mOffset;
+				if (index != offset + argNum)
 					return false;
 			}
 			type = app.mFunc;
@@ -88,8 +101,13 @@ public class Constructor extends Term {
 			return checkClean(indType, app.mFunc, offset)
 				&& checkClean(indType, app.mArg, offset + 1);
 		}
-		if (type instanceof DeBruijnVariable) {
-			int index = ((DeBruijnVariable) type).mIndex;
+		if (type instanceof SubstTerm) {
+			SubstTerm subst = (SubstTerm) type;
+			if (!(subst.mSubTerm instanceof Variable))
+				return false;
+			if (!(subst.mSubstitution instanceof Substitution.Shift))
+				return false;
+			int index = ((Substitution.Shift) subst.mSubstitution).mOffset;
 			assert index < offset + indType.mParams.length;
 			return index < offset
 				|| index >= offset + indType.mParams.length - indType.mNumShared;
@@ -111,40 +129,40 @@ public class Constructor extends Term {
 		return mInductiveType.mName + "." + mName;
 	}
 
-	public boolean equals(Object o) {
-		return (this == o);
-	}
-
 	public Term computeJType(Term cType) {
 		ArrayDeque<Term> constrParams = new ArrayDeque<Term>();
-		Term t = getType();
+		Term t = getType().evaluateHead();
+		Substitution shiftOne = Substitution.shift(1);
 		Term me = this;
 		for (int j = 0; j < mInductiveType.mNumShared; j++) {
 			Term param = ((PiTerm) t).mDomain;
-			me = new AppTerm(me.shiftBruijn(0, 1), 
-					new DeBruijnVariable(1 + mIndex, param));
+			me = new AppTerm(Term.substitute(me, shiftOne, null), 
+					Term.variable(1 + mIndex, param));
 			t = ((PiTerm) t).mRange;
 		}
 		int offset = 0;
-		int numArg = 0;
+		Substitution reorderVars = Substitution.shift(1 + mIndex);
 		while (t instanceof PiTerm) {
 			PiTerm pi = (PiTerm) t;
-			Term param = pi.mDomain.shiftBruijn(numArg, 1 + mIndex);
+			Term param = Term.substitute(pi.mDomain, reorderVars, null);
 			constrParams.add(param);
-			t = pi.mRange;
-			me = new AppTerm(me.shiftBruijn(0, 1), new DeBruijnVariable(0, param));
-			numArg++;
+			t = pi.mRange.evaluateHead();
+			me = new AppTerm(Term.substitute(me, shiftOne, null), 
+					Term.variable(0, param));
+			reorderVars = Substitution.cons(Term.variable(0, param),
+					Substitution.compose(reorderVars, shiftOne));
 			offset++;
 			if (isTC(param)) {
-				Term c = buildCTerm(param.shiftBruijn(0, 1), offset, cType);
-				c = new AppTerm(c, new DeBruijnVariable(0, param));
+				Term c = buildCTerm(Term.substitute(param, shiftOne, null), 
+						offset, cType);
+				c = new AppTerm(c, Term.variable(0, param));
 				constrParams.add(c);
 				offset++;
-				me = me.shiftBruijn(0, 1);
-				t = t.shiftBruijn(0, 1);
+				me = Term.substitute(me, shiftOne, null);
+				reorderVars = Substitution.compose(reorderVars, shiftOne);
 			}
 		}
-		t = t.shiftBruijn(constrParams.size(), 1 + mIndex);
+		t = Term.substitute(t, reorderVars, null);
 		Term result = buildCTerm(t, offset, cType);
 		result = new AppTerm(result, me);
 		while (!constrParams.isEmpty()) {
@@ -160,7 +178,7 @@ public class Constructor extends Term {
 			localArgs[i] = ((AppTerm) q).mArg;
 			q = ((AppTerm) q).mFunc;
 		}
-		Term c = new DeBruijnVariable(offset + mIndex, cType);
+		Term c = Term.variable(offset + mIndex, cType);
 		for (int i = 0; i < localArgs.length; i++) {
 			c = new AppTerm(c, localArgs[i]);
 		}

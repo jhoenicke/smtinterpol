@@ -29,7 +29,7 @@ public class AppTerm extends Term {
 	}
 	
 	public static Term typecheck(Term func, Term arg) {
-		Term funcType = func.getType();
+		Term funcType = func.getType().evaluateHead();
 		if (!(funcType instanceof PiTerm)) {
 			throw new IllegalArgumentException("Typecheck: applying a non-function");
 		}
@@ -37,26 +37,28 @@ public class AppTerm extends Term {
 		if (!pi.mDomain.equals(arg.getType()))
 			throw new IllegalArgumentException("Typecheck: function parameter has wrong type");
 		// note that type != null
-		return pi.mRange.substitute(new Term[] {arg}, 0).evaluate();
+		return Term.substitute(
+				pi.mRange, Substitution.cons(arg, Substitution.shift(0)), 
+				pi.mRange.getType());
 	}
 
 	@Override
-	public Term evaluate() {
+	public Term evaluateHead() {
 		if (mEvaluated == null) {
-			mEvaluated = myEvaluate(mFunc.evaluate(), mArg.evaluate(), getType());
+			mEvaluated = myEvaluate(mFunc.evaluateHead(), mArg, getType());
 		}
 		return mEvaluated;
 	}
 	
 	public Term myEvaluate(Term f, Term a, Term type) {
 		if (f instanceof LambdaTerm) {
-			// beta-reduction
-			return ((LambdaTerm) f).mSubTerm.substitute(new Term[] { a }, 0)
-					.evaluate();
+			return Term.substitute(((LambdaTerm) f).mSubTerm, 
+					Substitution.cons(a, Substitution.shift(0)),
+					getType()).evaluateHead();
 		}
-		/* check for J operator */
 		AppTerm result = f == mFunc && a == mArg ? this 
 				: new AppTerm(f, a, type);
+		/* check for J operator */
 		int numArgs = 1;
 		while (f instanceof AppTerm) {
 			f = ((AppTerm) f).mFunc;
@@ -64,8 +66,8 @@ public class AppTerm extends Term {
 		}
 		if (f instanceof JOperator) {
 			JOperator j = (JOperator) f;
-			assert numArgs <= j.getNumArgs();
 			if (numArgs == j.getNumArgs()) {
+				a = a.evaluateHead();
 				return j.applyJ(result);
 			}
 		}
@@ -74,36 +76,13 @@ public class AppTerm extends Term {
 		return result;
 	}
 
-	@Override
-	public Term substitute(Term[] t, int offset) {
-		Term func = mFunc.substitute(t, offset);
-		Term arg  = mArg.substitute(t, offset);
-		Term type = getType().substitute(t, offset);
-		return new AppTerm(func, arg, type);
-	}
-
-	/**
-	 * Shift de Bruijn indices >= start by offset.
-	 * @param start  The first index to modify.
-	 * @param offset The offset added to the index.
-	 * @return the substituted term.
-	 */
-	@Override
-	public Term shiftBruijn(int start, int offset) {
-		return new AppTerm(mFunc.shiftBruijn(start, offset),
-				mArg.shiftBruijn(start, offset),
-				getType().shiftBruijn(start, offset));
-	}
-	
 	public String toString(int offset, int prec) {
 		String str = mFunc.toString(offset, 1) + " " 
 				+ mArg.toString(offset, 2);
 		return prec >= 2 ? "(" + str + ")" : str;
 	}
 	
-	public boolean equals(Object o) {
-		if (this == o)
-			return true;
+	public boolean equalsHead(Term o) {
 		if (!(o instanceof AppTerm))
 			return false;
 		AppTerm other = (AppTerm) o;
