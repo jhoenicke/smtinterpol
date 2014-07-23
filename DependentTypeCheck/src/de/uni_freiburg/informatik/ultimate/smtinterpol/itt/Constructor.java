@@ -95,6 +95,7 @@ public class Constructor extends Term {
 	}
 
 	private static boolean checkClean(InductiveType indType, Term type, int offset) {
+		type = type.evaluateHead();
 		if (type == indType)
 			return false;
 		if (type instanceof AppTerm) {
@@ -194,7 +195,7 @@ public class Constructor extends Term {
 				return false;
 			param = ((AppTerm) param).mFunc.evaluateHead();
 		}
-		return param.equals(mInductiveType);
+		return param == mInductiveType;
 	}
 
 	public Term applyJ(Term constrCase, Term partialJTerm,
