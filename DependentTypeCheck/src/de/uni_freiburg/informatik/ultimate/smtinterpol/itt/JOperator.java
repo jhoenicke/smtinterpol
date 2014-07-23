@@ -30,13 +30,9 @@ public class JOperator extends Term {
 		for (int i = numPriv - 1; i >= 0; i--) {
 			cType = new PiTerm(type.mParams[numShared + i], cType);
 		}
-		System.err.println("tcType: "+tcType);
-		System.err.println("cType: "+cType);
 
 		// Build C locals t
 		Term result = Term.variable(numConstrs + numPriv + 1, cType);
-		System.err.println("result: "+result +" of type "+result.getType());
-		System.err.println("result: "+result +" of type "+result.getType().evaluate());
 		// shift the global variables over the constructor
 		Term[] constrArgTypes = new Term[numPriv+1];
 		Substitution constrShift = Substitution.shift(1 + numConstrs);
@@ -46,14 +42,10 @@ public class JOperator extends Term {
 			Term var = Term.variable(numPriv - i, constrArgTypes[i]);
 			constrShift = Substitution.cons(Term.variable(0, constrArgTypes[i]), Substitution.compose(constrShift, Substitution.shift(1)));
 			result = new AppTerm(result, var);
-			System.err.println("result: "+result +" of type "+result.getType().evaluate());
 		}
 		constrArgTypes[numPriv] = Term.substitute(tcType, constrShift, null);
-		System.err.println("c1: "+constrArgTypes[numPriv] +" of type "+constrArgTypes[numPriv].getType());
-		System.err.println("c2: "+constrArgTypes[numPriv].evaluate() +" of type "+constrArgTypes[numPriv].getType().evaluate());
 		result = new AppTerm(result, Term.variable(0, 
 				constrArgTypes[numPriv]));
-		System.err.println("result: "+result +" of type "+result.getType().evaluate());
 		// locals -> t -> clt
 		for (int i = numPriv; i >= 0; i--) {
 			result = new PiTerm(constrArgTypes[i], result);

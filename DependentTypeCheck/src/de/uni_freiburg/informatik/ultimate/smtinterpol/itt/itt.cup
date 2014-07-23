@@ -85,7 +85,9 @@ action code {:
 		return globals.get(id);
 	}
 	
-	public void pushBruijnVariable(String name, Term type) {
+	public void pushBruijnVariable(String name, Term type, Symbol type$) {
+		if (type.getType() != null && !type.getType().equals(Term.U))
+			parser.report_error("expected set type", type$);
 		varNames.add(name);
 		varTypes.add(type);
 		lastEntry.add(locals.get(name));
@@ -161,13 +163,16 @@ inductivedecl ::= INDUCTIVE ID:i COLON inductivetype:type
 	  :};
 
 inductivetype ::= ID:i COLON expr1:exprDom ARROW 
-	  {: pushBruijnVariable(i, exprDom); :}
+	  {: pushBruijnVariable(i, exprDom, exprDom$); :}
 	  inductivetype:exprRng
 	  {: RESULT = new PiTerm(exprDom, exprRng); :}
 	| expr1:exprDom ARROW 
-	  {: pushBruijnVariable("", exprDom); :}
+	  {: pushBruijnVariable("", exprDom, exprDom$); :}
 	  inductivetype:exprRng
-	  {: RESULT = new PiTerm(exprDom, exprRng); :}
+	  {: 
+		if (exprRng.getType() != null && !exprRng.getType().equals(Term.U))
+			parser.report_error("expected set type", exprRng$);
+		RESULT = new PiTerm(exprDom, exprRng); :}
 	| ID:u
 	  {:
 	  	if (!u.equals("U"))
@@ -183,7 +188,7 @@ constrdecls ::=
 constrdecl ::=
 	ID:i COLON expr:e
 	{: 
-	  	if (!e.getType().equals(Term.U))
+		if (!e.getType().equals(Term.U))
 			parser.report_error("Type of constructor malformed", e$);
 		RESULT = new Constructor(i, inductiveIndex++, inductiveType, e);
 	:} 
@@ -191,17 +196,21 @@ constrdecl ::=
 
 expr ::=
 	  ID:i COLON expr1:exprDom ARROW 
-	  {: pushBruijnVariable(i, exprDom); :}
+	  {: pushBruijnVariable(i, exprDom, exprDom$); :}
 	  expr:exprRng
 	  {: popBruijnVariable();
 	     RESULT = new PiTerm(exprDom, exprRng); :}
 	| expr1:exprDom ARROW 
-	  {: pushBruijnVariable("", exprDom); :}
+	  {: pushBruijnVariable("", exprDom, exprDom$); :}
 	  expr:exprRng
-	  {: popBruijnVariable();
-	     RESULT = new PiTerm(exprDom, exprRng); :}
+	  {:
+		popBruijnVariable();
+		if (exprRng.getType() != null && !exprRng.getType().equals(Term.U))
+			parser.report_error("expected set type", exprRng$);
+		RESULT = new PiTerm(exprDom, exprRng);
+	  :}
 	| LAMBDA ID:i COLON expr2:exprArg
-	  {: pushBruijnVariable(i, exprArg); :}
+	  {: pushBruijnVariable(i, exprArg, exprArg$); :}
 	  expr:exprSub
 	  {: popBruijnVariable();
 	     RESULT = new LambdaTerm(exprArg, exprSub); :}

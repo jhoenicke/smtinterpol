@@ -40,6 +40,7 @@ public class Constructor extends Term {
 				}
 				offset++;
 				numPrivs++;
+				type = app.mFunc;
 			}
 			indType.mNumShared = indType.mParams.length - numPrivs;
 		}
