@@ -48,17 +48,17 @@ Definition Nat.mul2 =
   \a:Nat Nat.J (\n:Nat Nat) Nat.0 (\n:Nat \r:Nat Nat.succ (Nat.succ r)) a
 
 ; prove n = 0 + n
-Definition symm0 =
+Definition Nat.plus.symm0 =
   Nat.J (\n:Nat Id Nat n (Nat.plus Nat.0 n))
          (Id.refl Nat Nat.0)
          (\n:Nat \r:(Id Nat n (Nat.plus Nat.0 n))
             subst Nat n (Nat.plus Nat.0 n) r
                   (\x:Nat Id Nat (Nat.succ n) (Nat.succ x))
                   (Id.refl Nat (Nat.succ n)))
-TypeCheck symm0 : n:Nat -> Id Nat n (Nat.plus Nat.0 n)
+TypeCheck Nat.plus.symm0 : n:Nat -> Id Nat n (Nat.plus Nat.0 n)
 
 ; prove succ(m + n) = (succ m) + n
-Definition symmstep =
+Definition Nat.plus.symmstep =
   \m:Nat Nat.J (\n:Nat Id Nat (Nat.succ (Nat.plus m n)) (Nat.plus (Nat.succ m) n))
          (Id.refl Nat (Nat.succ m))
          (\n:Nat \r:(Id Nat (Nat.succ (Nat.plus m n)) (Nat.plus (Nat.succ m) n))
@@ -66,21 +66,21 @@ Definition symmstep =
                   (\x:Nat Id Nat (Nat.succ (Nat.succ (Nat.plus m n))) (Nat.succ x))
                   (Id.refl Nat (Nat.succ (Nat.succ (Nat.plus m n)))))
 
-TypeCheck symmstep : m:Nat -> n:Nat ->
+TypeCheck Nat.plus.symmstep : m:Nat -> n:Nat ->
                      Id Nat (Nat.succ (Nat.plus m n)) (Nat.plus (Nat.succ m) n)
 
 ; Now prove m + n = n + m
-Definition Nat.plussymm =
+Definition Nat.plus.symm =
   Nat.J (\m:Nat n:Nat -> Id Nat (Nat.plus n m) (Nat.plus m n))
-        symm0
+        Nat.plus.symm0
         (\m:Nat \r:(n:Nat -> Id Nat (Nat.plus n m) (Nat.plus m n))
           \n:Nat rsubst Nat (Nat.plus m n) (Nat.plus n m) (r n)
                (\x:Nat Id Nat (Nat.succ x) (Nat.plus (Nat.succ m) n))
-               (symmstep m n))
+               (Nat.plus.symmstep m n))
 
-TypeCheck Nat.plussymm : m:Nat -> n:Nat -> Id Nat (Nat.plus n m) (Nat.plus m n)
+TypeCheck Nat.plus.symm : m:Nat -> n:Nat -> Id Nat (Nat.plus n m) (Nat.plus m n)
 
-Definition plusassoc = \a:Nat \b:Nat
+Definition Nat.plus.assoc = \a:Nat \b:Nat
   Nat.J (\c:Nat Id Nat (Nat.plus (Nat.plus a b) c) (Nat.plus a (Nat.plus b c)))
      (Id.refl Nat (Nat.plus a b))
      (\c:Nat
@@ -90,38 +90,38 @@ Definition plusassoc = \a:Nat \b:Nat
 	    (\x:Nat Id Nat (Nat.succ (Nat.plus (Nat.plus a b) c)) (Nat.succ x))
             (Id.refl Nat (Nat.succ (Nat.plus (Nat.plus a b) c))))
 
-TypeCheck plusassoc : a:Nat -> b:Nat -> c:Nat ->
+TypeCheck Nat.plus.assoc : a:Nat -> b:Nat -> c:Nat ->
                       Id Nat (Nat.plus (Nat.plus a b) c)
                              (Nat.plus a (Nat.plus b c))
-Definition plusaux = \a:Nat \b:Nat \c:Nat \d:Nat
+Definition Nat.plus.assoc4 = \a:Nat \b:Nat \c:Nat \d:Nat
   trans Nat (Nat.plus (Nat.plus a b) (Nat.plus c d))
                 (Nat.plus a (Nat.plus b (Nat.plus c d)))
                 (Nat.plus a (Nat.plus (Nat.plus b c) d))
-            (plusassoc a b (Nat.plus c d))
+            (Nat.plus.assoc a b (Nat.plus c d))
 	    (rsubst Nat (Nat.plus b (Nat.plus c d))
                         (Nat.plus (Nat.plus b c) d)
-	                (plusassoc b c d)
+	                (Nat.plus.assoc b c d)
                    (\x:Nat Id Nat (Nat.plus a (Nat.plus b (Nat.plus c d)))
                               (Nat.plus a x))
                    (Id.refl Nat (Nat.plus a (Nat.plus b (Nat.plus c d)))))
 
-Definition plusreorder = \a:Nat \b:Nat \c:Nat \d:Nat
+Definition Nat.plus.symmassoc = \a:Nat \b:Nat \c:Nat \d:Nat
   trans Nat (Nat.plus (Nat.plus a b) (Nat.plus c d))
             (Nat.plus a (Nat.plus (Nat.plus b c) d))
             (Nat.plus (Nat.plus a c) (Nat.plus b d))
-    (plusaux a b c d)
-    (subst Nat (Nat.plus c b) (Nat.plus b c) (Nat.plussymm b c)
+    (Nat.plus.assoc4 a b c d)
+    (subst Nat (Nat.plus c b) (Nat.plus b c) (Nat.plus.symm b c)
           (\x:Nat Id Nat (Nat.plus a (Nat.plus x d))
                       (Nat.plus (Nat.plus a c) (Nat.plus b d)))
       (symm Nat (Nat.plus (Nat.plus a c) (Nat.plus b d))
                 (Nat.plus a (Nat.plus (Nat.plus c b) d))
-          (plusaux a c b d)))
+          (Nat.plus.assoc4 a c b d)))
 
-TypeCheck plusreorder : a:Nat -> b:Nat -> c:Nat -> d:Nat ->
+TypeCheck Nat.plus.symmassoc : a:Nat -> b:Nat -> c:Nat -> d:Nat ->
   Id Nat (Nat.plus (Nat.plus a b) (Nat.plus c d))
            (Nat.plus (Nat.plus a c) (Nat.plus b d))
 
-Definition mul2distr = \a:Nat
+Definition Nat.mul2.distr = \a:Nat
   Nat.J
     (\b:Nat Id Nat (Nat.plus (Nat.mul2 a) (Nat.mul2 b))
                    (Nat.mul2 (Nat.plus a b)))
@@ -136,8 +136,92 @@ Definition mul2distr = \a:Nat
                       (Nat.succ (Nat.succ (Nat.mul2 (Nat.plus a b)))))
              (Id.refl Nat (Nat.succ (Nat.succ (Nat.mul2 (Nat.plus a b)))))))
 
-TypeCheck mul2distr : a:Nat -> b:Nat ->
+TypeCheck Nat.mul2.distr : a:Nat -> b:Nat ->
   Id Nat (Nat.plus (Nat.mul2 a) (Nat.mul2 b)) (Nat.mul2 (Nat.plus a b))
+
+Definition Nat.plus.assocsymm2 = \a:Nat \b:Nat \c:Nat
+  rsubst Nat (Nat.plus a (Nat.plus c b)) (Nat.plus (Nat.plus a c) b)
+     (Nat.plus.assoc a c b)
+     (\x:Nat Id Nat (Nat.plus (Nat.plus a b) c) x)
+     (subst Nat (Nat.plus b c) (Nat.plus c b) (Nat.plus.symm c b)
+        (\x:Nat Id Nat (Nat.plus (Nat.plus a b) c)
+                       (Nat.plus a x))
+        (Nat.plus.assoc a b c))
+
+Definition Nat.mul.symm0 =
+  Nat.J (\a:Nat Id Nat (Nat.mul Nat.0 a) Nat.0)
+    (Id.refl Nat Nat.0) 
+    (\a:Nat \Hyp:(Id Nat (Nat.mul Nat.0 a) Nat.0) Hyp)
+
+Definition Nat.mul.symmstep = \b:Nat
+  Nat.J (\a:Nat Id Nat (Nat.mul (Nat.succ b) a) (Nat.plus (Nat.mul b a) a))
+    (Id.refl Nat Nat.0) 
+    (\a:Nat \Hyp:(Id Nat (Nat.mul (Nat.succ b) a) (Nat.plus (Nat.mul b a) a))
+     subst Nat
+       (Nat.plus (Nat.plus (Nat.mul b a) a) b)
+       (Nat.plus (Nat.plus (Nat.mul b a) b) a)
+       (Nat.plus.assocsymm2 (Nat.mul b a) a b)
+       (\x:Nat 
+         Id Nat (Nat.succ (Nat.plus (Nat.mul (Nat.succ b) a) b))
+                (Nat.succ x))
+       (subst Nat (Nat.mul (Nat.succ b) a) (Nat.plus (Nat.mul b a) a) Hyp
+         (\x:Nat 
+           Id Nat (Nat.succ (Nat.plus (Nat.mul (Nat.succ b) a) b))
+                  (Nat.succ (Nat.plus x b)))
+         (Id.refl Nat (Nat.succ (Nat.plus (Nat.mul (Nat.succ b) a) b)))))
+
+Definition Nat.mul.symm = \a:Nat
+  Nat.J (\b:Nat Id Nat (Nat.mul b a) (Nat.mul a b))
+    (Nat.mul.symm0 a)
+    (\b:Nat \Hyp:(Id Nat (Nat.mul b a) (Nat.mul a b))
+     subst Nat (Nat.mul b a) (Nat.mul a b) Hyp
+       (\x:Nat Id Nat (Nat.mul (Nat.succ b) a) (Nat.plus x a))
+       (Nat.mul.symmstep b a)) 
+
+Definition Nat.mul.distrib = \a:Nat \b:Nat
+  Nat.J (\c:Nat Id Nat (Nat.mul (Nat.plus a b) c) 
+                       (Nat.plus (Nat.mul a c) (Nat.mul b c)))
+    (Id.refl Nat Nat.0)
+    (\c:Nat \Hyp:(Id Nat (Nat.mul (Nat.plus a b) c) 
+                         (Nat.plus (Nat.mul a c) (Nat.mul b c)))
+     rsubst Nat 
+       (Nat.plus (Nat.mul a c) (Nat.mul b c))
+       (Nat.mul (Nat.plus a b) c) 
+       Hyp
+       (\x:Nat Id Nat (Nat.plus x (Nat.plus a b))
+            (Nat.plus (Nat.plus (Nat.mul a c) a) (Nat.plus (Nat.mul b c) b)))
+       (Nat.plus.symmassoc (Nat.mul a c) (Nat.mul b c) a b))
+
+Definition Nat.mul.distrib2 = \a:Nat \b:Nat \c:Nat
+  subst Nat
+    (Nat.mul (Nat.plus b c) a)
+    (Nat.mul a (Nat.plus b c))
+    (Nat.mul.symm a (Nat.plus b c))
+    (\x:Nat Id Nat x (Nat.plus (Nat.mul a b) (Nat.mul a c)))
+    (subst Nat (Nat.mul b a) (Nat.mul a b) (Nat.mul.symm a b)
+        (\x:Nat Id Nat (Nat.mul (Nat.plus b c) a)
+	               (Nat.plus x (Nat.mul a c)))
+        (subst Nat (Nat.mul c a) (Nat.mul a c) (Nat.mul.symm a c)
+	   (\x:Nat Id Nat (Nat.mul (Nat.plus b c) a)
+	               (Nat.plus (Nat.mul b a) x))
+           (Nat.mul.distrib b c a)))
+	   
+Definition Nat.mul.assoc = \a:Nat \b:Nat
+  Nat.J (\c:Nat Id Nat (Nat.mul (Nat.mul a b) c) (Nat.mul a (Nat.mul b c)))
+    (Id.refl Nat Nat.0)
+    (\c:Nat \Hyp:(Id Nat (Nat.mul (Nat.mul a b) c) (Nat.mul a (Nat.mul b c)))
+     ;; Id (Nat.plus (Nat.mul a (....) (Nat.mul a b)))
+     ;;    (Nat.mul a (Nat.plus (....) b))
+     rsubst Nat 
+       (Nat.mul a (Nat.mul b c))
+       (Nat.mul (Nat.mul a b) c)
+       Hyp
+       (\x:Nat Id Nat (Nat.plus x (Nat.mul a b))
+                      (Nat.mul a (Nat.plus (Nat.mul b c) b)))
+       (symm Nat
+          (Nat.mul a (Nat.plus (Nat.mul b c) b))
+	  (Nat.plus (Nat.mul a (Nat.mul b c)) (Nat.mul a b))
+          (Nat.mul.distrib2 a (Nat.mul b c) b)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Binary Numbers
@@ -327,7 +411,7 @@ Definition Bin.pluscarrycase0.correct =
 	                           (bin2nat b)) c))
 	 (rsubst Nat (Nat.mul2 (Nat.plus (bin2nat a) (bin2nat b)))
                     (Nat.plus (Nat.mul2 (bin2nat a)) (bin2nat (Bin.0 b))))
-           (mul2distr (bin2nat a) (bin2nat b))
+           (Nat.mul2.distr (bin2nat a) (bin2nat b))
 	   (\x:Nat Id Nat (bin2nat ((Bin.carry2bin c) (add b Carry.0)))
                        (Nat.addcarry x c))
 	     (subst Nat (bin2nat (add b Carry.0))
@@ -351,7 +435,7 @@ Definition Bin.pluscarrycase0.correct =
 			                      (Nat.mul2 (bin2nat b)))))
                   (rsubst Nat (Nat.mul2 (Nat.plus (bin2nat a) (bin2nat b)))
                              (Nat.plus (Nat.mul2 (bin2nat a)) (Nat.mul2 (bin2nat b)))
-                  (mul2distr (bin2nat a) (bin2nat b))
+                  (Nat.mul2.distr (bin2nat a) (bin2nat b))
                   (\x:Nat Id Nat (Nat.succ (Nat.mul2 (Nat.plus (bin2nat a) (bin2nat b)))) (Nat.succ x))
 		  (Id.refl Nat (Nat.succ (Nat.mul2 (Nat.plus (bin2nat a) (bin2nat b)))))
                   ))
@@ -364,7 +448,7 @@ Definition Bin.pluscarrycase0.correct =
 		                (Nat.mul2 (bin2nat b))))))
                   (rsubst Nat (Nat.mul2 (Nat.plus (bin2nat a) (bin2nat b)))
                      (Nat.plus (Nat.mul2 (bin2nat a)) (Nat.mul2 (bin2nat b)))
-                     (mul2distr (bin2nat a) (bin2nat b))
+                     (Nat.mul2.distr (bin2nat a) (bin2nat b))
                   (\x:Nat Id Nat (Nat.mul2 (Nat.succ (Nat.plus (bin2nat a) (bin2nat b)))) (Nat.succ (Nat.succ x)))
 		  (Id.refl Nat (Nat.succ (Nat.succ (Nat.mul2 (Nat.plus (bin2nat a) (bin2nat b))))))))
               c) b
@@ -408,13 +492,13 @@ Definition Bin.pluscarrycase1.correct =
 			                      (Nat.mul2 (bin2nat b))))
                           (Nat.plus (Nat.succ (Nat.mul2 (bin2nat a)))
 			                      (Nat.mul2 (bin2nat b)))
-			  (symmstep (Nat.mul2 (bin2nat a))
+			  (Nat.plus.symmstep (Nat.mul2 (bin2nat a))
 			            (Nat.mul2 (bin2nat b)))
                   (\x:Nat Id Nat (Nat.succ (Nat.mul2 (Nat.plus (bin2nat a) (bin2nat b))))
                           x)
                   (rsubst Nat (Nat.mul2 (Nat.plus (bin2nat a) (bin2nat b)))
                              (Nat.plus (Nat.mul2 (bin2nat a)) (Nat.mul2 (bin2nat b)))
-			     (mul2distr (bin2nat a) (bin2nat b))
+			     (Nat.mul2.distr (bin2nat a) (bin2nat b))
                   (\x:Nat Id Nat (Nat.succ (Nat.mul2 (Nat.plus (bin2nat a) (bin2nat b)))) (Nat.succ x))
 		  (Id.refl Nat (Nat.succ (Nat.mul2 (Nat.plus (bin2nat a) (bin2nat b)))))
                   )))
@@ -432,7 +516,7 @@ Definition Bin.pluscarrycase1.correct =
 					(Nat.mul2 (bin2nat b))))
 		    (Nat.plus (Nat.succ (Nat.mul2 (bin2nat a)))
 			      (Nat.mul2 (bin2nat b)))
-		    (symmstep (Nat.mul2 (bin2nat a))
+		    (Nat.plus.symmstep (Nat.mul2 (bin2nat a))
 			      (Nat.mul2 (bin2nat b)))
 		    (\x:Nat (Id Nat
 				(Nat.mul2 (Nat.succ (Nat.plus (bin2nat a)
@@ -442,7 +526,7 @@ Definition Bin.pluscarrycase1.correct =
 		       (Nat.mul2 (Nat.plus (bin2nat a) (bin2nat b)))
 		       (Nat.plus (Nat.mul2 (bin2nat a))
 				 (Nat.mul2 (bin2nat b)))
-		       (mul2distr (bin2nat a) (bin2nat b))
+		       (Nat.mul2.distr (bin2nat a) (bin2nat b))
 		       (\x:Nat (Id Nat (Nat.mul2 (Nat.succ (Nat.plus (bin2nat a) (bin2nat b)))) (Nat.succ (Nat.succ x))))
 		       (Id.refl Nat (Nat.mul2 (Nat.succ (Nat.plus (bin2nat a) (bin2nat b))))))))
 	     c)
@@ -452,13 +536,13 @@ Definition Bin.pluscarrycase1.correct =
 	 (subst Nat
 	   (Nat.succ (Nat.plus (Nat.mul2 (bin2nat a)) (bin2nat (Bin.1 b))))
 	   (Nat.plus (Nat.succ (Nat.mul2 (bin2nat a))) (bin2nat (Bin.1 b)))
-	   (symmstep (Nat.mul2 (bin2nat a)) (bin2nat (Bin.1 b)))
+	   (Nat.plus.symmstep (Nat.mul2 (bin2nat a)) (bin2nat (Bin.1 b)))
 	   (\x:Nat Id Nat (bin2nat ((Bin.carry2bin c) (add b Carry.1)))
                        (Nat.addcarry x c))
 	   (rsubst Nat
 	     (Nat.mul2 (Nat.plus (bin2nat a) (bin2nat b)))
 	     (Nat.plus (Nat.mul2 (bin2nat a)) (Nat.mul2 (bin2nat b)))
-	     (mul2distr (bin2nat a) (bin2nat b))
+	     (Nat.mul2.distr (bin2nat a) (bin2nat b))
 	     (\x:Nat Id Nat (bin2nat ((Bin.carry2bin c) (add b Carry.1)))
                        (Nat.addcarry (Nat.succ (Nat.succ x)) c))
 	     (subst Nat (bin2nat (add b Carry.1))
@@ -485,7 +569,7 @@ Definition Bin.pluscarry.correct =
                  (Nat.addcarry (Nat.plus (bin2nat x) (bin2nat y)) c))
 	 (\y:Bin \c:Carry
             subst Nat (bin2nat y) (Nat.plus Nat.0 (bin2nat y))
-               (symm0 (bin2nat y))
+               (Nat.plus.symm0 (bin2nat y))
                (\subst:Nat Id Nat (bin2nat (Bin.addcarry y c))
 	                     (Nat.addcarry subst c))
 	       (Bin.addcarry.correct y c))
@@ -519,7 +603,7 @@ Definition Bin.mul.correct.aux0 = \a:Nat
       (subst Nat
 	 (Nat.succ (Nat.plus (Nat.plus (Nat.mul2 a) b) b))
          (Nat.plus (Nat.succ (Nat.plus (Nat.mul2 a) b)) b)
-	 (symmstep (Nat.plus (Nat.mul2 a) b) b)
+	 (Nat.plus.symmstep (Nat.plus (Nat.mul2 a) b) b)
 	 (\x:Nat Id Nat (Nat.succ x)
                         (Nat.mul2 (Nat.plus a (Nat.succ b))))
       	 (rsubst Nat 
