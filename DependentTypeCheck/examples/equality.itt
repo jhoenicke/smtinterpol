@@ -1,0 +1,30 @@
+; Now we create the Identity type to express equalities.
+Inductive Id : A:U -> a:A -> b:A -> U =
+  refl : Id A a a
+
+; The standard rules for substitution, symmetry and reverse substitution
+Definition subst =
+  \A:U \r:A \s:A \eq: (Id A r s)
+  \C : (A -> U)
+  Id.J A r (\x:A \eq: (Id A r x) C r -> C x) (\x:(C r) x) s eq
+
+TypeCheck subst : A:U -> r:A -> s:A -> Id A r s -> C:(A -> U) -> C r -> C s
+
+Definition symm =
+  \A:U \r:A \s:A \eq: (Id A r s)
+  subst A r s eq (\x:A Id A x r) (Id.refl A r)
+
+TypeCheck symm : A:U -> r:A -> s:A -> Id A r s -> Id A s r
+
+Definition rsubst =
+  \A:U \r:A \s:A \eq: (Id A s r)
+  subst A r s (symm A s r eq)
+
+TypeCheck rsubst : A:U -> r:A -> s:A -> Id A s r -> C:(A -> U) -> C r -> C s
+
+Definition trans =
+  \A:U \r:A \s:A \t:A \eq1: (Id A r s) \eq2: (Id A s t)
+  subst A s t eq2 (\x:A Id A r x) eq1
+
+TypeCheck trans : A:U -> r:A -> s:A -> t:A -> Id A r s -> Id A s t -> Id A r t
+

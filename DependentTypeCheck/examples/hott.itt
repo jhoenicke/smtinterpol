@@ -1,0 +1,95 @@
+; Now we create the Identity type to express equalities.
+Inductive Id : A:U -> a:A -> b:A -> U =
+  refl : Id A a a
+
+; The standard rules for substitution, symmetry and reverse substitution
+Definition subst =
+  \A:U \r:A \s:A \eq: (Id A r s)
+  \C : (A -> U)
+  Id.J A r (\x:A \eq: (Id A r x) C r -> C x) (\x:(C r) x) s eq
+
+TypeCheck subst : A:U -> r:A -> s:A -> Id A r s -> C:(A -> U) -> C r -> C s
+
+Definition symm =
+  \A:U \r:A \s:A \eq: (Id A r s)
+  subst A r s eq (\x:A Id A x r) (Id.refl A r)
+
+TypeCheck symm : A:U -> r:A -> s:A -> Id A r s -> Id A s r
+
+Definition rsubst =
+  \A:U \r:A \s:A \eq: (Id A s r)
+  subst A r s (symm A s r eq)
+
+TypeCheck rsubst : A:U -> r:A -> s:A -> Id A s r -> C:(A -> U) -> C r -> C s
+
+Definition trans =
+  \A:U \r:A \s:A \t:A \eq1: (Id A r s) \eq2: (Id A s t)
+  subst A s t eq2 (\x:A Id A r x) eq1
+
+TypeCheck trans : A:U -> r:A -> s:A -> t:A -> Id A r s -> Id A s t -> Id A r t
+
+
+Definition reflr = 
+  \A:U \x:A 
+  Id.J A x (\y:A \p:(Id A x y) Id (Id A x y) p (trans A x y y p (Id.refl A y)))
+     (Id.refl (Id A x x) (Id.refl A x))
+
+TypeCheck reflr : A:U -> x:A -> y:A -> p:Id A x y ->
+  Id (Id A x y) p (trans A x y y p (Id.refl A y))
+
+Definition refll = 
+  \A:U \x:A 
+  Id.J A x (\y:A \p:(Id A x y) Id (Id A x y) p (trans A x x y (Id.refl A x) p))
+     (Id.refl (Id A x x) (Id.refl A x))
+
+Definition symmrefl1 = 
+  \A:U \x:A 
+  Id.J A x (\y:A \p:(Id A x y) Id (Id A y y) (trans A y x y (symm A x y p) p)
+                                             (Id.refl A y))
+     (Id.refl (Id A x x) (Id.refl A x))
+
+Definition symmrefl2 = 
+  \A:U \x:A 
+  Id.J A x (\y:A \p:(Id A x y) Id (Id A x x) (trans A x y x p (symm A x y p))
+                                             (Id.refl A x))
+     (Id.refl (Id A x x) (Id.refl A x))
+
+Definition symmsymm = 
+  \A:U \x:A 
+  Id.J A x (\y:A \p:(Id A x y) Id (Id A x y) (symm A y x (symm A x y p)) p)
+     (Id.refl (Id A x x) (Id.refl A x))
+
+Definition transassoc = 
+  \A:U \x:A \y:A \p:(Id A x y) \z:A \q:(Id A y z)
+  Id.J A z (\w:A \r:(Id A z w) 
+             Id (Id A x w) (trans A x y w p (trans A y z w q r))
+	                   (trans A x z w (trans A x y z p q) r))
+     (subst (Id A y z) q (trans A y z z q (Id.refl A z)) 
+        (reflr A y z q)
+	(\E:(Id A y z) Id (Id A x z) (trans A x y z p E)
+                       (trans A x z z (trans A x y z p q) (Id.refl A z)))
+        (subst (Id A x z) (trans A x y z p q)
+	       (trans A x z z (trans A x y z p q) (Id.refl A z))
+               (reflr A x z (trans A x y z p q))
+	       (\E:(Id A x z) Id (Id A x z) (trans A x y z p q) E)
+	       (Id.refl (Id A x z) (trans A x y z p q))))
+
+
+Definition comp2 = 
+  \A:U \a:A \b:A \c:A \p:(Id A a b) \q:(Id A a b) \r: (Id A b c)
+  \alpha: (Id (Id A a b) p q)
+  Id.J (Id A b c) r
+       (\s: (Id A b c) \beta: (Id (Id A b c) r s)  
+            Id (Id A a c) (trans A a b c p r) (trans A a b c q s))
+       (Id.J A b
+             (\c:A \r:(Id A b c) 
+	       Id (Id A a c) (trans A a b c p r) (trans A a b c q r))
+       ((\qrefl:(Id A a b) \qreflproof:(Id (Id A a b) q qrefl)
+         \prefl:(Id A a b) \preflproof:(Id (Id A a b) p prefl)
+         trans (Id A a b) prefl p qrefl 
+	   (symm (Id A a b) p prefl preflproof)
+	   (trans (Id A a b) p q qrefl alpha qreflproof))
+       (trans A a b b q (Id.refl A b)) (reflr A a b q)
+       (trans A a b b p (Id.refl A b)) (reflr A a b p))
+             c r)
+
