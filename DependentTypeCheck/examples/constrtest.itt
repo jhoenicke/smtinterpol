@@ -1,14 +1,14 @@
 Inductive F:U =
-TypeCheck F.J : C:(F -> U) -> t:F -> C t 
+TypeCheck F.rec : C:(F -> U) -> t:F -> C t 
 
 Inductive T:U = tt:T
-TypeCheck T.J : C:(T -> U) -> (C T.tt) -> t:T -> C t
+TypeCheck T.rec : C:(T -> U) -> (C T.tt) -> t:T -> C t
 
 Inductive P1:A:U -> U = 
   c1 : A -> P1 A, 
   c2 : P1 A -> P1 A, 
   c3 : P1 A -> A -> P1 A
-TypeCheck P1.J : A:U -> C:(P1 A -> U) -> 
+TypeCheck P1.rec : A:U -> C:(P1 A -> U) -> 
   (a:A -> C (P1.c1 A a)) -> 
   (p:P1 A -> r:C p -> C (P1.c2 A p)) ->
   (p:P1 A -> r:C p -> a:A -> C (P1.c3 A p a)) ->
@@ -18,7 +18,7 @@ Inductive P2:A:U -> a:A -> U =
   c1 : A -> P2 A a, 
   c2 : P2 A a -> P2 A a, 
   c3 : P2 A a -> A -> P2 A a
-TypeCheck P2.J : A:U -> a:A -> C:(P2 A a -> U) -> 
+TypeCheck P2.rec : A:U -> a:A -> C:(P2 A a -> U) -> 
   (b:A -> C (P2.c1 A a b)) -> 
   (p:P2 A a -> r:C p -> C (P2.c2 A a p)) ->
   (p:P2 A a -> r:C p -> b:A -> C (P2.c3 A a p b)) ->
@@ -28,7 +28,7 @@ Inductive P3:A:U -> A -> U =
   c1 : a:A -> P3 A a, 
   c2 : a:A -> P3 A a -> P3 A a, 
   c3 : b:A -> P3 A b -> a:A -> P3 A a
-TypeCheck P3.J : A:U -> C:(a: A -> P3 A a -> U) -> 
+TypeCheck P3.rec : A:U -> C:(a: A -> P3 A a -> U) -> 
   (b:A -> C b (P3.c1 A b)) -> 
   (a:A -> p:P3 A a -> r:C a p -> C a (P3.c2 A a p)) ->
   (b:A -> p:P3 A b -> r:C b p -> a:A -> C a (P3.c3 A b p a)) ->

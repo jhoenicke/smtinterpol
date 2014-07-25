@@ -10,7 +10,7 @@ Evaluate Id
 Definition subst =
   \A:U \r:A \s:A \eq: (Id A r s)
   \C : (A -> U)
-  Id.J A r (\x:A \eq: (Id A r x) C r -> C x) (\x:(C r) x) s eq
+  Id.rec A r (\x:A \eq: (Id A r x) C r -> C x) (\x:(C r) x) s eq
 
 TypeCheck subst : A:U -> r:A -> s:A -> Id A r s -> C:(A -> U) -> C r -> C s
 
@@ -41,15 +41,15 @@ Inductive Nat : U =
 Evaluate Nat
 
 Definition Nat.plus =
-  \a:Nat \b:Nat Nat.J (\n:Nat Nat) a (\n:Nat \r:Nat Nat.succ r) b
+  \a:Nat \b:Nat Nat.rec (\n:Nat Nat) a (\n:Nat \r:Nat Nat.succ r) b
 Definition Nat.mul =
-  \a:Nat \b:Nat Nat.J (\n:Nat Nat) Nat.0 (\n:Nat \r:Nat (Nat.plus r a)) b
+  \a:Nat \b:Nat Nat.rec (\n:Nat Nat) Nat.0 (\n:Nat \r:Nat (Nat.plus r a)) b
 Definition Nat.mul2 =
-  \a:Nat Nat.J (\n:Nat Nat) Nat.0 (\n:Nat \r:Nat Nat.succ (Nat.succ r)) a
+  \a:Nat Nat.rec (\n:Nat Nat) Nat.0 (\n:Nat \r:Nat Nat.succ (Nat.succ r)) a
 
 ; prove n = 0 + n
 Definition Nat.plus.symm0 =
-  Nat.J (\n:Nat Id Nat n (Nat.plus Nat.0 n))
+  Nat.rec (\n:Nat Id Nat n (Nat.plus Nat.0 n))
          (Id.refl Nat Nat.0)
          (\n:Nat \r:(Id Nat n (Nat.plus Nat.0 n))
             subst Nat n (Nat.plus Nat.0 n) r
@@ -59,7 +59,7 @@ TypeCheck Nat.plus.symm0 : n:Nat -> Id Nat n (Nat.plus Nat.0 n)
 
 ; prove succ(m + n) = (succ m) + n
 Definition Nat.plus.symmstep =
-  \m:Nat Nat.J (\n:Nat Id Nat (Nat.succ (Nat.plus m n)) (Nat.plus (Nat.succ m) n))
+  \m:Nat Nat.rec (\n:Nat Id Nat (Nat.succ (Nat.plus m n)) (Nat.plus (Nat.succ m) n))
          (Id.refl Nat (Nat.succ m))
          (\n:Nat \r:(Id Nat (Nat.succ (Nat.plus m n)) (Nat.plus (Nat.succ m) n))
             subst Nat (Nat.succ (Nat.plus m n)) (Nat.plus (Nat.succ m) n) r
@@ -71,7 +71,7 @@ TypeCheck Nat.plus.symmstep : m:Nat -> n:Nat ->
 
 ; Now prove m + n = n + m
 Definition Nat.plus.symm =
-  Nat.J (\m:Nat n:Nat -> Id Nat (Nat.plus n m) (Nat.plus m n))
+  Nat.rec (\m:Nat n:Nat -> Id Nat (Nat.plus n m) (Nat.plus m n))
         Nat.plus.symm0
         (\m:Nat \r:(n:Nat -> Id Nat (Nat.plus n m) (Nat.plus m n))
           \n:Nat rsubst Nat (Nat.plus m n) (Nat.plus n m) (r n)
@@ -81,7 +81,7 @@ Definition Nat.plus.symm =
 TypeCheck Nat.plus.symm : m:Nat -> n:Nat -> Id Nat (Nat.plus n m) (Nat.plus m n)
 
 Definition Nat.plus.assoc = \a:Nat \b:Nat
-  Nat.J (\c:Nat Id Nat (Nat.plus (Nat.plus a b) c) (Nat.plus a (Nat.plus b c)))
+  Nat.rec (\c:Nat Id Nat (Nat.plus (Nat.plus a b) c) (Nat.plus a (Nat.plus b c)))
      (Id.refl Nat (Nat.plus a b))
      (\c:Nat
       \hyp:(Id Nat (Nat.plus (Nat.plus a b) c) (Nat.plus a (Nat.plus b c)))
@@ -122,7 +122,7 @@ TypeCheck Nat.plus.symmassoc : a:Nat -> b:Nat -> c:Nat -> d:Nat ->
            (Nat.plus (Nat.plus a c) (Nat.plus b d))
 
 Definition Nat.mul2.distr = \a:Nat
-  Nat.J
+  Nat.rec
     (\b:Nat Id Nat (Nat.plus (Nat.mul2 a) (Nat.mul2 b))
                    (Nat.mul2 (Nat.plus a b)))
     (Id.refl Nat (Nat.mul2 a))
@@ -149,12 +149,12 @@ Definition Nat.plus.assocsymm2 = \a:Nat \b:Nat \c:Nat
         (Nat.plus.assoc a b c))
 
 Definition Nat.mul.symm0 =
-  Nat.J (\a:Nat Id Nat (Nat.mul Nat.0 a) Nat.0)
+  Nat.rec (\a:Nat Id Nat (Nat.mul Nat.0 a) Nat.0)
     (Id.refl Nat Nat.0) 
     (\a:Nat \Hyp:(Id Nat (Nat.mul Nat.0 a) Nat.0) Hyp)
 
 Definition Nat.mul.symmstep = \b:Nat
-  Nat.J (\a:Nat Id Nat (Nat.mul (Nat.succ b) a) (Nat.plus (Nat.mul b a) a))
+  Nat.rec (\a:Nat Id Nat (Nat.mul (Nat.succ b) a) (Nat.plus (Nat.mul b a) a))
     (Id.refl Nat Nat.0) 
     (\a:Nat \Hyp:(Id Nat (Nat.mul (Nat.succ b) a) (Nat.plus (Nat.mul b a) a))
      subst Nat
@@ -171,7 +171,7 @@ Definition Nat.mul.symmstep = \b:Nat
          (Id.refl Nat (Nat.succ (Nat.plus (Nat.mul (Nat.succ b) a) b)))))
 
 Definition Nat.mul.symm = \a:Nat
-  Nat.J (\b:Nat Id Nat (Nat.mul b a) (Nat.mul a b))
+  Nat.rec (\b:Nat Id Nat (Nat.mul b a) (Nat.mul a b))
     (Nat.mul.symm0 a)
     (\b:Nat \Hyp:(Id Nat (Nat.mul b a) (Nat.mul a b))
      subst Nat (Nat.mul b a) (Nat.mul a b) Hyp
@@ -179,7 +179,7 @@ Definition Nat.mul.symm = \a:Nat
        (Nat.mul.symmstep b a)) 
 
 Definition Nat.mul.distrib = \a:Nat \b:Nat
-  Nat.J (\c:Nat Id Nat (Nat.mul (Nat.plus a b) c) 
+  Nat.rec (\c:Nat Id Nat (Nat.mul (Nat.plus a b) c) 
                        (Nat.plus (Nat.mul a c) (Nat.mul b c)))
     (Id.refl Nat Nat.0)
     (\c:Nat \Hyp:(Id Nat (Nat.mul (Nat.plus a b) c) 
@@ -207,7 +207,7 @@ Definition Nat.mul.distrib2 = \a:Nat \b:Nat \c:Nat
            (Nat.mul.distrib b c a)))
 	   
 Definition Nat.mul.assoc = \a:Nat \b:Nat
-  Nat.J (\c:Nat Id Nat (Nat.mul (Nat.mul a b) c) (Nat.mul a (Nat.mul b c)))
+  Nat.rec (\c:Nat Id Nat (Nat.mul (Nat.mul a b) c) (Nat.mul a (Nat.mul b c)))
     (Id.refl Nat Nat.0)
     (\c:Nat \Hyp:(Id Nat (Nat.mul (Nat.mul a b) c) (Nat.mul a (Nat.mul b c)))
      ;; Id (Nat.plus (Nat.mul a (....) (Nat.mul a b)))
@@ -237,26 +237,26 @@ Inductive Carry: U =
    1 : Carry
 
 Definition Bin.addcarry =
-   Bin.J (\x:Bin Carry -> Bin)
-         (Carry.J (\x:Carry Bin) Bin.nil (Bin.1 Bin.nil))
+   Bin.rec (\x:Bin Carry -> Bin)
+         (Carry.rec (\x:Carry Bin) Bin.nil (Bin.1 Bin.nil))
          (\a:Bin \r:(Carry -> Bin)
-	   (Carry.J (\x:Carry Bin) (Bin.0 a) (Bin.1 a)))
+	   (Carry.rec (\x:Carry Bin) (Bin.0 a) (Bin.1 a)))
          (\a:Bin \r:(Carry -> Bin)
-	   (Carry.J (\x:Carry Bin) (Bin.1 a) (Bin.0 (r Carry.1))))
+	   (Carry.rec (\x:Carry Bin) (Bin.1 a) (Bin.0 (r Carry.1))))
 TypeCheck Bin.addcarry : Bin -> Carry -> Bin
 
 Definition Bin.strip0.aux = \b:Bin
-   Bin.J (\x:Bin Bin) Bin.nil
+   Bin.rec (\x:Bin Bin) Bin.nil
       (\x:Bin \r:Bin Bin.0 b)
       (\x:Bin \r:Bin Bin.0 b)
       b
 Definition Bin.strip0 =
-   Bin.J (\x:Bin Bin) Bin.nil
+   Bin.rec (\x:Bin Bin) Bin.nil
       (\x:Bin \r:Bin (Bin.strip0.aux r))
       (\x:Bin \r:Bin Bin.1 r)
 
 Definition bin2nat =
-   Bin.J (\x:Bin Nat) Nat.0 (\b:Bin \r:Nat Nat.mul2 r)
+   Bin.rec (\x:Bin Nat) Nat.0 (\b:Bin \r:Nat Nat.mul2 r)
                             (\b:Bin \r:Nat Nat.succ (Nat.mul2 r))
 
 Inductive BinId : a:Bin -> b:Bin -> U =
@@ -264,7 +264,7 @@ Inductive BinId : a:Bin -> b:Bin -> U =
 
 Definition BinId.refl = \a:Bin BinId.embed a a (Id.refl Nat (bin2nat a))
 Definition BinId.id   = \a:Bin \b:Bin
-   BinId.J a b (\id:(BinId a b) Id Nat (bin2nat a) (bin2nat b))
+   BinId.rec a b (\id:(BinId a b) Id Nat (bin2nat a) (bin2nat b))
       (\id: (Id Nat (bin2nat a) (bin2nat b)) id)
 Definition BinId.trans = \a:Bin \b:Bin \c:Bin
    \eq1:(BinId a b) \eq2:(BinId b c)
@@ -284,7 +284,7 @@ Definition BinId.ext1 = \a:Bin \b:Bin \eq:(BinId a b)
        (Id.refl Nat (Nat.succ (Nat.mul2 (bin2nat a)))))
  
 Definition Bin.strip0.aux.eq =
-   Bin.J (\a:Bin BinId (Bin.strip0.aux a) (Bin.0 a))
+   Bin.rec (\a:Bin BinId (Bin.strip0.aux a) (Bin.0 a))
      (BinId.embed Bin.nil (Bin.0 Bin.nil) (Id.refl Nat Nat.0))
      (\a:Bin \r:(BinId (Bin.strip0.aux a) (Bin.0 a))
       BinId.refl (Bin.0 (Bin.0 a)))
@@ -292,7 +292,7 @@ Definition Bin.strip0.aux.eq =
       BinId.refl (Bin.0 (Bin.1 a)))
 
 Definition Bin.strip0.eq =
-   Bin.J (\a:Bin BinId (Bin.strip0 a) a)
+   Bin.rec (\a:Bin BinId (Bin.strip0 a) a)
      (BinId.embed Bin.nil Bin.nil (Id.refl Nat Nat.0))
      (\a:Bin \Hyp:(BinId (Bin.strip0 a) a)
        BinId.trans (Bin.strip0.aux (Bin.strip0 a)) 
@@ -306,23 +306,23 @@ Definition Bin.strip0.eq =
 TypeCheck Bin.strip0.eq : a:Bin -> BinId (Bin.strip0 a) a
 
 Definition Nat.addcarry = \n:Nat
-   Carry.J (\x:Carry Nat) n (Nat.succ n)
+   Carry.rec (\x:Carry Nat) n (Nat.succ n)
 
 Definition Bin.addcarry.correct =
-   Bin.J (\x:Bin c:Carry -> Id Nat (bin2nat (Bin.addcarry x c))
+   Bin.rec (\x:Bin c:Carry -> Id Nat (bin2nat (Bin.addcarry x c))
                                  (Nat.addcarry (bin2nat x) c))
-         (Carry.J (\c:Carry Id Nat (bin2nat (Bin.addcarry Bin.nil c))
+         (Carry.rec (\c:Carry Id Nat (bin2nat (Bin.addcarry Bin.nil c))
                                  (Nat.addcarry (bin2nat Bin.nil) c))
                   (Id.refl Nat Nat.0) (Id.refl Nat (Nat.succ Nat.0)))
          (\a:Bin \r:(c:Carry -> Id Nat (bin2nat (Bin.addcarry a c))
                                  (Nat.addcarry (bin2nat a) c))
-          (Carry.J (\c:Carry Id Nat (bin2nat (Bin.addcarry (Bin.0 a) c))
+          (Carry.rec (\c:Carry Id Nat (bin2nat (Bin.addcarry (Bin.0 a) c))
                                  (Nat.addcarry (bin2nat (Bin.0 a)) c))
 	     (Id.refl Nat (Nat.mul2 (bin2nat a)))
 	     (Id.refl Nat (Nat.succ (Nat.mul2 (bin2nat a))))))
          (\a:Bin \r:(c:Carry -> Id Nat (bin2nat (Bin.addcarry a c))
                                  (Nat.addcarry (bin2nat a) c))
-          (Carry.J (\c:Carry Id Nat (bin2nat (Bin.addcarry (Bin.1 a) c))
+          (Carry.rec (\c:Carry Id Nat (bin2nat (Bin.addcarry (Bin.1 a) c))
                                  (Nat.addcarry (bin2nat (Bin.1 a)) c))
 	     (Id.refl Nat (Nat.succ (Nat.mul2 (bin2nat a))))
 	     (rsubst Nat (Nat.addcarry (bin2nat a) Carry.1)
@@ -336,20 +336,20 @@ TypeCheck Bin.addcarry.correct : a:Bin -> c:Carry ->
    Id Nat (bin2nat (Bin.addcarry a c)) (Nat.addcarry (bin2nat a) c)
 
 
-Definition nat2bin = Nat.J (\n:Nat Bin) 
+Definition nat2bin = Nat.rec (\n:Nat Bin) 
    Bin.nil 
    (\n:Nat \r:Bin (Bin.addcarry r Carry.1))
 
-Definition nat2bin.correct = Bin.J (\b:Bin BinId (nat2bin (bin2nat b)) b)
+Definition nat2bin.correct = Bin.rec (\b:Bin BinId (nat2bin (bin2nat b)) b)
    (BinId.refl Bin.nil)
 
 
-Definition Bin.carry2bin = Carry.J (\x:Carry Bin -> Bin) Bin.0 Bin.1
-Definition Bin.negcarry2bin = Carry.J (\x:Carry Bin -> Bin) Bin.1 Bin.0
+Definition Bin.carry2bin = Carry.rec (\x:Carry Bin -> Bin) Bin.0 Bin.1
+Definition Bin.negcarry2bin = Carry.rec (\x:Carry Bin -> Bin) Bin.1 Bin.0
 
 Definition Bin.pluscarrycase0 = \a:Bin \add:(Bin -> Carry -> Bin)
                                 \b:Bin \carry:Carry
-    Bin.J (\x:Bin Bin)
+    Bin.rec (\x:Bin Bin)
          (Bin.addcarry (Bin.0 a) carry)
 	 (\b:Bin \r2:Bin
 	    (Bin.carry2bin carry) (add b Carry.0))   ; 0+0+carry
@@ -359,7 +359,7 @@ Definition Bin.pluscarrycase0 = \a:Bin \add:(Bin -> Carry -> Bin)
 
 Definition Bin.pluscarrycase1 = \a:Bin \add:(Bin -> Carry -> Bin)
                                 \b:Bin \carry:Carry
-     Bin.J (\x:Bin Bin)
+     Bin.rec (\x:Bin Bin)
          (Bin.addcarry (Bin.1 a) carry)
 	 (\b:Bin \r2:Bin
 	    (Bin.negcarry2bin carry) (add b carry))  ; 1+0+carry
@@ -368,7 +368,7 @@ Definition Bin.pluscarrycase1 = \a:Bin \add:(Bin -> Carry -> Bin)
          b
 
 Definition Bin.pluscarry =
-   Bin.J (\x:Bin Bin -> Carry -> Bin)
+   Bin.rec (\x:Bin Bin -> Carry -> Bin)
          (\b:Bin \carry:Carry Bin.addcarry b carry)
 	 Bin.pluscarrycase0
 	 Bin.pluscarrycase1
@@ -386,7 +386,7 @@ Evaluate Bin.plus (Bin.0 (Bin.1 (Bin.1 (Bin.1 Bin.nil))))
                   (Bin.1 (Bin.1 (Bin.1 (Bin.0 (Bin.1 (Bin.0 (Bin.1 (Bin.0 (Bin.1 (Bin.nil))))))))))
 
 Definition Bin.carry2bin.correct = \a:Bin
-  Carry.J (\c:Carry Id Nat (bin2nat ((Bin.carry2bin c) a))
+  Carry.rec (\c:Carry Id Nat (bin2nat ((Bin.carry2bin c) a))
 	  (Nat.addcarry (Nat.mul2 (bin2nat a)) c))
           (Id.refl Nat (Nat.mul2 (bin2nat a)))
 	  (Id.refl Nat (Nat.succ (Nat.mul2 (bin2nat a))))
@@ -401,7 +401,7 @@ Definition Bin.pluscarrycase0.correct =
          Id Nat (bin2nat (add b c))
                 (Nat.addcarry (Nat.plus (bin2nat a) (bin2nat b)) c))
   \b:Bin \c:Carry
-  Bin.J (\b:Bin
+  Bin.rec (\b:Bin
          Id Nat (bin2nat (Bin.pluscarrycase0 a add b c))
            (Nat.addcarry (Nat.plus (Nat.mul2 (bin2nat a))
 	                           (bin2nat b)) c))
@@ -423,7 +423,7 @@ Definition Bin.pluscarrycase0.correct =
         (\b:Bin \_:(Id Nat (bin2nat (Bin.pluscarrycase0 a add b c))
            (Nat.addcarry (Nat.plus (Nat.mul2 (bin2nat a))
 	                           (bin2nat b)) c))
-         Carry.J (\c:Carry Id Nat (bin2nat ((Bin.negcarry2bin c) (add b c)))
+         Carry.rec (\c:Carry Id Nat (bin2nat ((Bin.negcarry2bin c) (add b c)))
                    (Nat.addcarry (Nat.plus (Nat.mul2 (bin2nat a))
                                  (Nat.succ (Nat.mul2 (bin2nat b)))) c))
              (rsubst Nat
@@ -469,7 +469,7 @@ Definition Bin.pluscarrycase1.correct =
          Id Nat (bin2nat (add b c))
                 (Nat.addcarry (Nat.plus (bin2nat a) (bin2nat b)) c))
   \b:Bin \c:Carry
-  Bin.J (\b:Bin
+  Bin.rec (\b:Bin
          Id Nat (bin2nat (Bin.pluscarrycase1 a add b c))
            (Nat.addcarry (Nat.plus (Nat.succ (Nat.mul2 (bin2nat a)))
 	                           (bin2nat b)) c))
@@ -477,7 +477,7 @@ Definition Bin.pluscarrycase1.correct =
         (\b:Bin \_:(Id Nat (bin2nat (Bin.pluscarrycase1 a add b c))
            (Nat.addcarry (Nat.plus (Nat.succ (Nat.mul2 (bin2nat a)))
 	                           (bin2nat b)) c))
-         Carry.J (\c:Carry Id Nat (bin2nat ((Bin.negcarry2bin c) (add b c)))
+         Carry.rec (\c:Carry Id Nat (bin2nat ((Bin.negcarry2bin c) (add b c)))
                    (Nat.addcarry (Nat.plus (Nat.succ (Nat.mul2 (bin2nat a)))
                                  (Nat.mul2 (bin2nat b))) c))
              (rsubst Nat
@@ -565,7 +565,7 @@ TypeCheck Bin.pluscarrycase1.correct :
 
 
 Definition Bin.pluscarry.correct =
-   Bin.J (\x:Bin y:Bin -> c:Carry -> Id Nat (bin2nat (Bin.pluscarry x y c))
+   Bin.rec (\x:Bin y:Bin -> c:Carry -> Id Nat (bin2nat (Bin.pluscarry x y c))
                  (Nat.addcarry (Nat.plus (bin2nat x) (bin2nat y)) c))
 	 (\y:Bin \c:Carry
             subst Nat (bin2nat y) (Nat.plus Nat.0 (bin2nat y))
@@ -589,13 +589,13 @@ Evaluate Bin.mul10 (Bin.1 (Bin.1 (Bin.1 (Bin.0 (Bin.1 (Bin.0 (Bin.1 (Bin.0 (Bin.
 
 
 Definition Bin.mul = \a:Bin
-  Bin.J (\b:Bin Bin)
+  Bin.rec (\b:Bin Bin)
     Bin.nil
     (\b:Bin \mulab:Bin (Bin.0 mulab))
     (\b:Bin \mulab:Bin (Bin.plus (Bin.0 mulab) a))
 
 Definition Bin.mul.correct.aux0 = \a:Nat
-  Nat.J (\b:Nat Id Nat (Nat.plus (Nat.plus (Nat.mul2 a) b) b)
+  Nat.rec (\b:Nat Id Nat (Nat.plus (Nat.plus (Nat.mul2 a) b) b)
                        (Nat.mul2 (Nat.plus a b)))
     (Id.refl Nat (Nat.mul2 a))
     (\b:Nat \Hyp:(Id Nat (Nat.plus (Nat.plus (Nat.mul2 a) b) b)
@@ -618,7 +618,7 @@ TypeCheck Bin.mul.correct.aux0 : a:Nat -> b:Nat ->
    Id Nat (Nat.plus (Nat.plus (Nat.mul2 a) b) b) (Nat.mul2 (Nat.plus a b))
 
 Definition Bin.mul.correct.aux1 = \a:Nat
-  Nat.J (\b:Nat Id Nat (Nat.mul a (Nat.mul2 b)) (Nat.mul2 (Nat.mul a b)))
+  Nat.rec (\b:Nat Id Nat (Nat.mul a (Nat.mul2 b)) (Nat.mul2 (Nat.mul a b)))
     (Id.refl Nat Nat.0)
     (\b:Nat \Hyp:(Id Nat (Nat.mul a (Nat.mul2 b)) (Nat.mul2 (Nat.mul a b)))
      rsubst Nat
@@ -637,7 +637,7 @@ TypeCheck Bin.mul.correct.aux1 : a:Nat -> b:Nat ->
    Id Nat (Nat.mul a (Nat.mul2 b)) (Nat.mul2 (Nat.mul a b))
 
 Definition Bin.mul.correct = \a:Bin
-  Bin.J
+  Bin.rec
     (\b:Bin Id Nat (bin2nat (Bin.mul a b)) (Nat.mul (bin2nat a) (bin2nat b)))
     (Id.refl Nat Nat.0)
     (\b:Bin 
@@ -699,31 +699,31 @@ Inductive Dec : U =
 Evaluate Dec
 
 Definition Dec.mul2 =
-   Dec.J (\x:Dec Carry -> Dec) 
-      (Carry.J (\c:Carry Dec) Dec.nil (Dec.1 Dec.nil))
+   Dec.rec (\x:Dec Carry -> Dec) 
+      (Carry.rec (\c:Carry Dec) Dec.nil (Dec.1 Dec.nil))
       (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.J (\c:Carry Dec -> Dec) Dec.0 Dec.1 c) (r Carry.0))
+         (Carry.rec (\c:Carry Dec -> Dec) Dec.0 Dec.1 c) (r Carry.0))
       (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.J (\c:Carry Dec -> Dec) Dec.2 Dec.3 c) (r Carry.0))
+         (Carry.rec (\c:Carry Dec -> Dec) Dec.2 Dec.3 c) (r Carry.0))
       (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.J (\c:Carry Dec -> Dec) Dec.4 Dec.5 c) (r Carry.0))
+         (Carry.rec (\c:Carry Dec -> Dec) Dec.4 Dec.5 c) (r Carry.0))
       (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.J (\c:Carry Dec -> Dec) Dec.6 Dec.7 c) (r Carry.0))
+         (Carry.rec (\c:Carry Dec -> Dec) Dec.6 Dec.7 c) (r Carry.0))
       (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.J (\c:Carry Dec -> Dec) Dec.8 Dec.9 c) (r Carry.0))
+         (Carry.rec (\c:Carry Dec -> Dec) Dec.8 Dec.9 c) (r Carry.0))
       (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.J (\c:Carry Dec -> Dec) Dec.0 Dec.1 c) (r Carry.1))
+         (Carry.rec (\c:Carry Dec -> Dec) Dec.0 Dec.1 c) (r Carry.1))
       (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.J (\c:Carry Dec -> Dec) Dec.2 Dec.3 c) (r Carry.1))
+         (Carry.rec (\c:Carry Dec -> Dec) Dec.2 Dec.3 c) (r Carry.1))
       (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.J (\c:Carry Dec -> Dec) Dec.4 Dec.5 c) (r Carry.1))
+         (Carry.rec (\c:Carry Dec -> Dec) Dec.4 Dec.5 c) (r Carry.1))
       (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.J (\c:Carry Dec -> Dec) Dec.6 Dec.7 c) (r Carry.1))
+         (Carry.rec (\c:Carry Dec -> Dec) Dec.6 Dec.7 c) (r Carry.1))
       (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.J (\c:Carry Dec -> Dec) Dec.8 Dec.9 c) (r Carry.1))
+         (Carry.rec (\c:Carry Dec -> Dec) Dec.8 Dec.9 c) (r Carry.1))
 
 Definition dec2bin =
-   Dec.J (\x:Dec Bin) Bin.nil
+   Dec.rec (\x:Dec Bin) Bin.nil
       (\x:Dec \r:Bin Bin.mul10 r)
       (\x:Dec \r:Bin Bin.plus (Bin.mul10 r) (Bin.1 (Bin.nil)))
       (\x:Dec \r:Bin Bin.plus (Bin.mul10 r) (Bin.0 (Bin.1 (Bin.nil))))
@@ -736,14 +736,14 @@ Definition dec2bin =
       (\x:Dec \r:Bin Bin.plus (Bin.mul10 r) (Bin.1 (Bin.0 (Bin.0 (Bin.1 (Bin.nil))))))
 
 Definition bin2dec =
-   Bin.J (\x:Bin Dec) Dec.nil
+   Bin.rec (\x:Bin Dec) Dec.nil
      (\x:Bin \r:Dec (Dec.mul2 r Carry.0))
      (\x:Bin \r:Dec (Dec.mul2 r Carry.1))
 
 ; strip leading zero from a decimal number
 ; this function converts nil to nil and everything else to (Dec.0 r).
 Definition Dec.strip0.aux = \r:Dec 
-  (\z:(Dec -> Dec -> Dec) Dec.J (\x:Dec Dec) Dec.nil z z z z z z z z z z r)
+  (\z:(Dec -> Dec -> Dec) Dec.rec (\x:Dec Dec) Dec.nil z z z z z z z z z z r)
   (\_:Dec \_:Dec Dec.0 r)
 
 Evaluate Dec.0
@@ -751,13 +751,13 @@ Inductive DecId : a:Dec -> b:Dec -> U =
   embed : BinId (dec2bin a) (dec2bin b) -> DecId a b
 Evaluate Dec.1
 TypeCheck (\a:Dec \b:Dec \id:(DecId a b)
-  DecId.J a b (\x:(DecId a b) BinId (dec2bin a) (dec2bin b))
+  DecId.rec a b (\x:(DecId a b) BinId (dec2bin a) (dec2bin b))
     (\eq:(BinId (dec2bin a) (dec2bin b)) eq) id) :
   a:Dec -> b:Dec -> id:DecId a b -> BinId (dec2bin a) (dec2bin b)
 Definition DecId.refl = \a:Dec DecId.embed a a (BinId.refl (dec2bin a))
 
 Definition Dec.strip0.aux.correct =
-  Dec.J (\r:Dec DecId (Dec.strip0.aux r) (Dec.0 r))
+  Dec.rec (\r:Dec DecId (Dec.strip0.aux r) (Dec.0 r))
      (DecId.embed Dec.nil (Dec.0 Dec.nil) 
         (BinId.embed Bin.nil (dec2bin (Dec.0 Dec.nil)) 
 	   (Id.refl Nat Nat.0)))
@@ -786,7 +786,7 @@ TypeCheck Dec.strip0.aux.correct : r:Dec ->
   DecId (Dec.strip0.aux r) (Dec.0 r)
 
 Definition Dec.strip0 =
-   Dec.J (\x:Dec Dec) Dec.nil
+   Dec.rec (\x:Dec Dec) Dec.nil
       (\x:Dec \r:Dec (Dec.strip0.aux r))
       (\x:Dec \r:Dec Dec.1 r)
       (\x:Dec \r:Dec Dec.2 r)

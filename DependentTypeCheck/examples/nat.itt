@@ -5,7 +5,7 @@ Inductive Nat : U =
 
 ; The addition operator
 Definition plus = 
-  \a:Nat \b:Nat Nat.J (\n:Nat Nat) a (\n:Nat \r:Nat Nat.succ r) b
+  \a:Nat \b:Nat Nat.rec (\n:Nat Nat) a (\n:Nat \r:Nat Nat.succ r) b
 
 ; Define Equality type to reason about equalities.
 Inductive Id : A:U -> a:A -> b:A -> U =
@@ -15,7 +15,7 @@ Inductive Id : A:U -> a:A -> b:A -> U =
 Definition subst =
   \A:U \r:A \s:A \eq: (Id A r s)
   \C : (A -> U)
-  Id.J A r (\x:A \eq: (Id A r x) C r -> C x) (\x:(C r) x) s eq
+  Id.rec A r (\x:A \eq: (Id A r x) C r -> C x) (\x:(C r) x) s eq
 
 TypeCheck subst : A:U -> r:A -> s:A -> Id A r s -> C:(A -> U) -> C r -> C s
 
@@ -27,7 +27,7 @@ TypeCheck rsubst : A:U -> r:A -> s:A -> Id A s r -> C:(A -> U) -> C r -> C s
 
 ; prove n + 0 = 0 + n
 Definition symm0 =
-  Nat.J (\n:Nat Id Nat (plus n Nat.0) (plus Nat.0 n))
+  Nat.rec (\n:Nat Id Nat (plus n Nat.0) (plus Nat.0 n))
          (Id.refl Nat Nat.0)
          (\n:Nat \r:(Id Nat n (plus Nat.0 n))
             subst Nat n (plus Nat.0 n) r
@@ -37,7 +37,7 @@ TypeCheck symm0 : n:Nat -> Id Nat (plus n Nat.0) (plus Nat.0 n)
 
 ; prove succ(m + n) = (succ m) + n
 Definition symmstep =
-  \m:Nat Nat.J (\n:Nat Id Nat (Nat.succ (plus m n)) (plus (Nat.succ m) n))
+  \m:Nat Nat.rec (\n:Nat Id Nat (Nat.succ (plus m n)) (plus (Nat.succ m) n))
          (Id.refl Nat (Nat.succ m))
          (\n:Nat \r:(Id Nat (Nat.succ (plus m n)) (plus (Nat.succ m) n))
             subst Nat (Nat.succ (plus m n)) (plus (Nat.succ m) n) r
@@ -49,7 +49,7 @@ TypeCheck symmstep : m:Nat -> n:Nat ->
 
 ; Now prove m + n = n + m
 Definition symm =
-  Nat.J (\m:Nat n:Nat -> Id Nat (plus n m) (plus m n))
+  Nat.rec (\m:Nat n:Nat -> Id Nat (plus n m) (plus m n))
         symm0
         (\m:Nat \r:(n:Nat -> Id Nat (plus n m) (plus m n))
           \n:Nat rsubst Nat (plus m n) (plus n m) (r n)

@@ -86,7 +86,7 @@ action code {:
 	}
 	
 	public void pushBruijnVariable(String name, Term type, Symbol type$) {
-		if (type.getType() != null && !type.getType().equals(Term.U))
+		if (!type.getType().equals(Term.U))
 			parser.report_error("expected set type", type$);
 		varNames.add(name);
 		varTypes.add(type);
@@ -107,9 +107,9 @@ action code {:
 
 	public void registerType(InductiveType type) {
 		for (int i = 0; i < type.mConstrs.length; i++) {
-			globals.put(type.mName + "." + type.mConstrs[i].mName, type.mConstrs[i]);
+			globals.put(type.mConstrs[i].toString(), type.mConstrs[i]);
 		}
-		globals.put(type.mName + ".J", type.mJOperator);
+		globals.put(type.mRecOperator.toString(), type.mRecOperator);
 	}
 :}
 
@@ -170,7 +170,7 @@ inductivetype ::= ID:i COLON expr1:exprDom ARROW
 	  {: pushBruijnVariable("", exprDom, exprDom$); :}
 	  inductivetype:exprRng
 	  {: 
-		if (exprRng.getType() != null && !exprRng.getType().equals(Term.U))
+		if (!exprRng.getType().equals(Term.U))
 			parser.report_error("expected set type", exprRng$);
 		RESULT = new PiTerm(exprDom, exprRng); :}
 	| ID:u
@@ -205,7 +205,7 @@ expr ::=
 	  expr:exprRng
 	  {:
 		popBruijnVariable();
-		if (exprRng.getType() != null && !exprRng.getType().equals(Term.U))
+		if (!exprRng.getType().equals(Term.U))
 			parser.report_error("expected set type", exprRng$);
 		RESULT = new PiTerm(exprDom, exprRng);
 	  :}
@@ -220,8 +220,6 @@ expr1 ::=
 	  expr1:exprFunc expr2:exprArg
 	{:
 		Term exprFuncType = exprFunc.getType();
-		if (exprFuncType == null)
-			parser.report_error("Applying to a class", exprFunc$);
 		exprFuncType = exprFuncType.evaluateHead();
 		if (!(exprFuncType instanceof PiTerm))
 			parser.report_error("Applying to a non-function", exprFunc$);

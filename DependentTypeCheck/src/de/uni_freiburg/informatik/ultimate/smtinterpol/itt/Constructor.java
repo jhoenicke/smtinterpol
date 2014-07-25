@@ -131,7 +131,7 @@ public class Constructor extends Term {
 		return mInductiveType.mName + "." + mName;
 	}
 
-	public Term computeJType(Term cType) {
+	public Term computeRecType(Term cType) {
 		ArrayDeque<Term> constrParams = new ArrayDeque<Term>();
 		Term t = getType().evaluateHead();
 		Substitution shiftOne = Substitution.shift(1);
@@ -198,7 +198,7 @@ public class Constructor extends Term {
 		return param == mInductiveType;
 	}
 
-	public Term applyJ(Term constrCase, Term partialJTerm,
+	public Term applyRec(Term constrCase, Term partialRecTerm,
 			ArrayDeque<Term> constrArgs) {
 		// remove shared arguments (which reappear in constrArgs but are
 		// not used)
@@ -212,9 +212,9 @@ public class Constructor extends Term {
 			Term argType = arg.getType();
 			// if it is a recursive argument also add the recursive application
 			if (isTC(argType)) {
-				// partialJTerm contains everything except the priv arguments
+				// partialRecTerm contains everything except the priv arguments
 				// and arg.
-				Term rec = partialJTerm;
+				Term rec = partialRecTerm;
 
 				// Extract local parameters from arg type.
 				int numLocals = mInductiveType.mParams.length

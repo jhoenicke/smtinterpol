@@ -6,7 +6,7 @@ Inductive Id : A:U -> a:A -> b:A -> U =
 Definition subst =
   \A:U \r:A \s:A \eq: (Id A r s)
   \C : (A -> U)
-  Id.J A r (\x:A \eq: (Id A r x) C r -> C x) (\x:(C r) x) s eq
+  Id.rec A r (\x:A \eq: (Id A r x) C r -> C x) (\x:(C r) x) s eq
 
 TypeCheck subst : A:U -> r:A -> s:A -> Id A r s -> C:(A -> U) -> C r -> C s
 

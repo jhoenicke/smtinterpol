@@ -58,16 +58,16 @@ public class AppTerm extends Term {
 		}
 		AppTerm result = f == mFunc && a == mArg ? this 
 				: new AppTerm(f, a, type);
-		/* check for J operator */
+		/* check for Rec operator */
 		int numArgs = 1;
 		while (f instanceof AppTerm) {
 			f = ((AppTerm) f).mFunc;
 			numArgs++;
 		}
-		if (f instanceof JOperator) {
-			JOperator j = (JOperator) f;
-			if (numArgs == j.getNumArgs()) {
-				return j.applyJ(result);
+		if (f instanceof RecOperator) {
+			RecOperator rec = (RecOperator) f;
+			if (numArgs == rec.getNumArgs()) {
+				return rec.applyRec(result);
 			}
 		}
 		/* evaluation fix point reached */

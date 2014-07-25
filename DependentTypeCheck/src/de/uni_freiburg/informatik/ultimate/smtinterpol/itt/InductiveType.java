@@ -7,7 +7,7 @@ public class InductiveType extends Term {
 	String mName;
 	int    mNumShared;
 	Constructor[] mConstrs;
-	JOperator mJOperator;
+	RecOperator mRecOperator;
 	Term[] mParams;
 	
 	public InductiveType(String name, Term type) {
@@ -26,7 +26,7 @@ public class InductiveType extends Term {
 			assert mNumShared >= 0 && mNumShared <= mParams.length;
 			mConstrs = constrs.toArray(new Constructor[constrs.size()]);
 		}
-		mJOperator = new JOperator(this);
+		mRecOperator = new RecOperator(this);
 	}
 	
 	private static Term[] splitParams(Term type) {

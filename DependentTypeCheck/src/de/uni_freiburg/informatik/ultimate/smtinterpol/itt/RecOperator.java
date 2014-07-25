@@ -2,16 +2,16 @@ package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
 
 import java.util.ArrayDeque;
 
-public class JOperator extends Term {
+public class RecOperator extends Term {
 	InductiveType mInductiveType;
 	
-	public JOperator(InductiveType type) {
+	public RecOperator(InductiveType type) {
 		super(computeType(type));
 		mInductiveType = type;
 	}
 	
 	private static Term computeType(InductiveType type) {
-		// J : publicArgs -> C -> constructors -> privateArgs -> t -> C(t)
+		// rec : publicArgs -> C -> constructors -> privateArgs -> t -> C(t)
 		int numTCArgs = type.mParams.length;
 		int numShared = type.mNumShared;
 		int numPriv = numTCArgs - numShared;
@@ -53,7 +53,7 @@ public class JOperator extends Term {
 
 		// now come the constructors
 		for (int i = numConstrs - 1; i >= 0; i--) {
-			Term constrType = type.mConstrs[i].computeJType(cType);
+			Term constrType = type.mConstrs[i].computeRecType(cType);
 			result = new PiTerm(constrType, result);
 		}
 		// now comes C
@@ -71,14 +71,14 @@ public class JOperator extends Term {
 	}
 	
 	protected String toString(int offset, int prec) {
-		return mInductiveType.mName + ".J";
+		return mInductiveType.mName + ".rec";
 	}
 
-	public Term applyJ(AppTerm fullJApp) {
-		AppTerm jApp = fullJApp;
-		// The last parameter of J should be a constructor call.
-		Term lastArg = jApp.mArg.evaluateHead();
-		jApp = (AppTerm) jApp.mFunc;
+	public Term applyRec(AppTerm fullRecApp) {
+		AppTerm recApp = fullRecApp;
+		// The last parameter of rec should be a constructor call.
+		Term lastArg = recApp.mArg.evaluateHead();
+		recApp = (AppTerm) recApp.mFunc;
 		ArrayDeque<Term> constrArgs = new ArrayDeque<Term>();
 		while (lastArg instanceof AppTerm) {
 			AppTerm app = (AppTerm) lastArg;
@@ -86,23 +86,23 @@ public class JOperator extends Term {
 			lastArg = app.mFunc.evaluateHead();
 		}
 		if (!(lastArg instanceof Constructor))
-			return fullJApp;
+			return fullRecApp;
 		Constructor cons = (Constructor) lastArg;
 		assert cons.mInductiveType == mInductiveType;
-		// Now remove the local parameters from J; we already type checked
+		// Now remove the local parameters from rec; we already type checked
 		// that they are as expected.
 		int numLocals = mInductiveType.mParams.length - 
 				mInductiveType.mNumShared;
 		for (int i = 0; i < numLocals; i++)
-			jApp = (AppTerm) jApp.mFunc;
+			recApp = (AppTerm) recApp.mFunc;
 
 		// Now find the right constructor
-		AppTerm t = jApp;
+		AppTerm t = recApp;
 		int numConsToSkip = mInductiveType.mConstrs.length - cons.mIndex - 1;
 		for (int i = 0; i < numConsToSkip; i++)
 			t = (AppTerm) t.mFunc;
 		Term constrCase = t.mArg;
-		Term result = cons.applyJ(constrCase, jApp, constrArgs);
+		Term result = cons.applyRec(constrCase, recApp, constrArgs);
 		return result.evaluateHead();
 	}
 }

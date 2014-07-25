@@ -1,21 +1,19 @@
 package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
 
 /**
- * Everything is a term.  Every term has a type, which is again a term, or it
- * is null for classes (to avoid an infinite type hierarchy).
+ * Everything is a term.  Every term has a type, which is again a term.  By
+ * abuse of notation the term U representing the universe also has type U.
+ * Strictly speaking U_0 should have type U_1 and so on, but we never need
+ * the index, so we drop it in our representation.  Note that due to our
+ * restricted way of building terms this cannot lead to a contradiction.
  * 
  * There are functions an function types, the latter is always represented by
  * a PiTerm.  We distinguish the following terms by their type:
  * 
- * <ul><li>
- * A <em>class</em> is a term with type null.  A class is either a PiTerm 
- * (a function type) where domain or range is a class, or it is the special
- * class U, which represents the class of all sets.
- * </li>
- * 
- * <li>A <em>set</em> is a term with type U.  Function types are also sets
- * if they are not classes.</li>
- * 
+ * <ul>
+ * <li>A <em>type</em> is a term with type U.  Function types are also 
+ * types.</li>
+ *
  * <li>A <em>function</em> is a term with a function type, i.e., a type that 
  * is a PiTerm.  The function type is either a set or a class.  A function
  * term can also contain classes like U as argument type in a lambda term. 
@@ -29,12 +27,12 @@ package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
  * We also distinguish terms by the Java class hierarchy, i.e.,
  * {@link PiTerm}, {@link LambdaTerm}, {@link AppTerm}, 
  * {@link Variable},
- * {@link JOperator}, {@link Constructor}, {@link InductiveType}.
+ * {@link RecOperator}, {@link Constructor}, {@link InductiveType}.
  * However we sometimes rewrite terms to a normal form, which may change the
  * Java class used to represent the term.
  * 
  * A term is evaluated to a normal form by applying beta-reduction and
- * recursion (see {@link JOperator}).  We always evaluate the type of a term, 
+ * recursion (see {@link RecOperator}).  We always evaluate the type of a term, 
  * i.e., the type is always in normal form.  We only allow to build terms that
  * are well-typed and compute the type of each term (in normal form) before
  * building a term.  This ensures that a term is always a "real" object (at
@@ -54,7 +52,7 @@ public abstract class Term {
 	};
 
 	public Term(Term type) {
-		mType = type;
+		mType = type == null ? this : type;
 	}
 	
 	@SuppressWarnings("unused")
@@ -67,7 +65,7 @@ public abstract class Term {
 	/**
 	 * Converts the outer-most symbols of the term to normal form.  We stop
 	 * when the head is a PiTerm, a LambdaTerm, or an AppTerm where no further
-	 * beta-reduction or J-reduction can be performed.
+	 * beta-reduction or recursion-reduction can be performed.
 	 */
 	public Term evaluateHead() {
 		return this;

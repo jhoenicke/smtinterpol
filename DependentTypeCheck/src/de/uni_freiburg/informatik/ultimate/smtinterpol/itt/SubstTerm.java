@@ -17,7 +17,7 @@ public class SubstTerm extends Term {
 		// TODO check substitution?
 		Term type = term.getType();
 		/* avoid deep recursions */
-		if (type == Term.U || type == null)
+		if (type == Term.U)
 			return type;
 		return Term.substitute(type, subst, null);
 	}
@@ -72,10 +72,10 @@ public class SubstTerm extends Term {
 				}
 			}
 		} else {
-			/* term is Constructor, JOp, or InductiveType */
+			/* term is Constructor, RecOp, or InductiveType */
 			assert mSubTerm == Term.U || mSubTerm instanceof Constructor
 					|| mSubTerm instanceof InductiveType
-					|| mSubTerm instanceof JOperator;
+					|| mSubTerm instanceof RecOperator;
 			mEvaluated = mSubTerm;
 		}
 		assert !(mEvaluated instanceof SubstTerm) ||
