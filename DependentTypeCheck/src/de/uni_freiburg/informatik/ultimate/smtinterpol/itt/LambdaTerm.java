@@ -19,11 +19,10 @@ public class LambdaTerm extends Term {
 	Term mSubTerm;
 	
 	LambdaTerm mEvaluated;
+	int mNumFreeVariables;
 
 	public LambdaTerm(Term argType, Term subTerm) {
-		super(typecheck(argType, subTerm));
-		mArgType = argType;
-		mSubTerm = subTerm;
+		this(argType, subTerm, typecheck(argType, subTerm));
 	}
 
 	public LambdaTerm(Term argType, Term subTerm, Term type) {
@@ -31,6 +30,13 @@ public class LambdaTerm extends Term {
 		assert type.equals(typecheck(argType, subTerm));
 		mArgType = argType;
 		mSubTerm = subTerm;
+		mNumFreeVariables = Math.max(mArgType.numFreeVariables(), 
+				mSubTerm.numFreeVariables() - 1);
+	}
+	
+	@Override
+	public int numFreeVariables() {
+		return mNumFreeVariables;
 	}
 	
 	public static Term typecheck(Term argType, Term subTerm) {

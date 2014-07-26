@@ -6,11 +6,18 @@ public class SubstTerm extends Term {
 	Substitution mSubstitution;
 	
 	Term mEvaluated;
+	int mNumFreeVariables;
 	
 	public SubstTerm(Term term, Substitution subst, Term type) {
 		super(type);
 		mSubTerm = term;
 		mSubstitution = subst;
+		mNumFreeVariables = subst.numFreeVariables(term.numFreeVariables());
+	}
+	
+	@Override
+	public int numFreeVariables() {
+		return mNumFreeVariables;
 	}
 	
 	public static Term typecheck(Term term, Substitution subst) {

@@ -105,4 +105,22 @@ public abstract class Substitution {
 			Substitution first, Substitution second) {
 		return new Compose(first, second);
 	}
+
+	public int numFreeVariables(int numFreeVariables) {
+		int numFree = 0;
+		Substitution subst = this;
+		while (numFreeVariables > 0) {
+			subst = subst.evaluateHead();
+			if (subst instanceof Shift) {
+				numFree = Math.max(numFree, 
+						((Shift) subst).mOffset + numFreeVariables);
+				return numFree;
+			} else {
+				Cons cons = (Cons) subst;
+				numFree = Math.max(numFree, cons.mHead.numFreeVariables());
+				subst = cons.mTail;
+			}
+		}
+		return numFree;
+	}
 }

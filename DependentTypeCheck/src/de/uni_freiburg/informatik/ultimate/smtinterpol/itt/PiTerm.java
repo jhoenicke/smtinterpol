@@ -13,6 +13,7 @@ package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
 public class PiTerm extends Term {
 	Term mDomain;
 	Term mRange;
+	int mNumFreeVariables;
 	
 	public PiTerm(Term domain, Term range) {
 		this(domain, range, typecheck(domain, range));
@@ -22,6 +23,13 @@ public class PiTerm extends Term {
 		assert type.equals(typecheck(domain, range));
 		this.mDomain = domain;
 		this.mRange = range;
+		mNumFreeVariables = Math.max(mDomain.numFreeVariables(), 
+				mRange.numFreeVariables() - 1);
+	}
+	
+	@Override
+	public int numFreeVariables() {
+		return mNumFreeVariables;
 	}
 	
 	/**

@@ -812,4 +812,9 @@ Evaluate dec2bin (Dec.3 (Dec.9 (Dec.1 (Dec.0 (Dec.3 (Dec.4 (Dec.3 Dec.nil)))))))
 
 Evaluate bin2dec (Bin.mul (dec2bin (Dec.5 Dec.nil)) (dec2bin (Dec.7 Dec.nil)))
 Evaluate bin2dec (Bin.mul (dec2bin (Dec.5 (Dec.3 Dec.nil))) (dec2bin (Dec.7 (Dec.2 Dec.nil))))
-
+Evaluate bin2dec (Bin.mul (dec2bin (Dec.7 (Dec.5 (Dec.3 Dec.nil)))) (dec2bin (Dec.3 (Dec.7 (Dec.2 Dec.nil)))))
+Evaluate bin2dec (Bin.mul (dec2bin (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil))))) (dec2bin (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))
+Evaluate bin2dec (Bin.mul (dec2bin (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))) (dec2bin (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil)))))))
+Evaluate bin2dec (Bin.mul (dec2bin (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil))))))) (dec2bin (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))
+Evaluate bin2dec (Bin.mul (dec2bin (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))) (dec2bin (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil)))))))))
+Evaluate bin2dec (Bin.mul (dec2bin (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))) (dec2bin (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))

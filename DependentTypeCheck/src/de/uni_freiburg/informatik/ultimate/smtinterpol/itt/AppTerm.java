@@ -14,18 +14,24 @@ public class AppTerm extends Term {
 	Term mFunc, mArg;
 	
 	Term mEvaluated;
+	int mNumFreeVariables;
 
 	public AppTerm(Term func, Term arg, Term type) {
 		super(type);
 		assert type.equals(typecheck(func, arg));
 		mFunc = func;
 		mArg = arg;
+		mNumFreeVariables = 
+				Math.max(func.numFreeVariables(), arg.numFreeVariables());
 	}
 	
 	public AppTerm(Term func, Term arg) {
-		super(typecheck(func, arg));
-		mFunc = func;
-		mArg = arg;
+		this(func, arg, typecheck(func, arg));
+	}
+	
+	@Override
+	public int numFreeVariables() {
+		return mNumFreeVariables;
 	}
 	
 	public static Term typecheck(Term func, Term arg) {

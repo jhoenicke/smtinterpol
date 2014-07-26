@@ -75,7 +75,7 @@ public abstract class Term {
 		return toString(1, 0);
 	}
 
-	public int numVariable() {
+	public int numFreeVariables() {
 		return 0;
 	}
 
@@ -127,6 +127,8 @@ public abstract class Term {
 
 	public static Term substitute(Term term, Substitution subst, Term type) {
 		assert type == null || type.equals(SubstTerm.typecheck(term, subst));
+		if (term.numFreeVariables() == 0)
+			return term;
 		if (type == null)
 			type = SubstTerm.typecheck(term, subst);
 		return new SubstTerm(term, subst, type);

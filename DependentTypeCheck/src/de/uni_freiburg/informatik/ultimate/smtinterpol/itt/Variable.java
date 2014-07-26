@@ -10,7 +10,7 @@ public class Variable extends Term {
 	}
 
 	@Override
-	public int numVariable() {
+	public int numFreeVariables() {
 		return 1;
 	}
 	
