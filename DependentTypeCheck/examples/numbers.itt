@@ -223,6 +223,27 @@ Definition Nat.mul.assoc = \a:Nat \b:Nat
 	  (Nat.plus (Nat.mul a (Nat.mul b c)) (Nat.mul a b))
           (Nat.mul.distrib2 a (Nat.mul b c) b)))
 
+Definition Nat.add10 = \n:Nat
+	   (Nat.succ (Nat.succ (Nat.succ (Nat.succ (Nat.succ
+           (Nat.succ (Nat.succ (Nat.succ (Nat.succ (Nat.succ n))))))))))
+Definition Nat.mul10 =
+   Nat.rec (\x:Nat Nat) Nat.0 
+   (\x:Nat \r:Nat Nat.add10 r)
+Definition Nat.mul10.distr = \a:Nat
+  Nat.rec
+    (\b:Nat Id Nat (Nat.plus (Nat.mul10 a) (Nat.mul10 b))
+                   (Nat.mul10 (Nat.plus a b)))
+    (Id.refl Nat (Nat.mul10 a))
+    (\b:Nat \Hyp:(Id Nat (Nat.plus (Nat.mul10 a) (Nat.mul10 b))
+                         (Nat.mul10 (Nat.plus a b)))
+      (rsubst Nat
+	      (Nat.mul10 (Nat.plus a b))
+	      (Nat.plus (Nat.mul10 a) (Nat.mul10 b))
+             Hyp
+             (\x:Nat Id Nat (Nat.add10 x)
+                      (Nat.add10 (Nat.mul10 (Nat.plus a b))))
+             (Id.refl Nat (Nat.add10 (Nat.mul10 (Nat.plus a b))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Binary Numbers
 
@@ -236,13 +257,13 @@ Inductive Carry: U =
    0 : Carry,
    1 : Carry
 
-Definition Bin.addcarry =
-   Bin.rec (\x:Bin Carry -> Bin)
-         (Carry.rec (\x:Carry Bin) Bin.nil (Bin.1 Bin.nil))
-         (\a:Bin \r:(Carry -> Bin)
-	   (Carry.rec (\x:Carry Bin) (Bin.0 a) (Bin.1 a)))
-         (\a:Bin \r:(Carry -> Bin)
-	   (Carry.rec (\x:Carry Bin) (Bin.1 a) (Bin.0 (r Carry.1))))
+Definition Bin.succ = 
+   Bin.rec (\x:Bin Bin) 
+      (Bin.1 Bin.nil)
+      (\a:Bin \r:Bin Bin.1 a)
+      (\a:Bin \r:Bin Bin.0 r)
+Definition Bin.addcarry = \a:Bin
+   Carry.rec (\c:Carry Bin) a (Bin.succ a)
 TypeCheck Bin.addcarry : Bin -> Carry -> Bin
 
 Definition Bin.strip0.aux = \b:Bin
@@ -258,6 +279,20 @@ Definition Bin.strip0 =
 Definition bin2nat =
    Bin.rec (\x:Bin Nat) Nat.0 (\b:Bin \r:Nat Nat.mul2 r)
                             (\b:Bin \r:Nat Nat.succ (Nat.mul2 r))
+
+Definition Bin.succ.correct =
+   Bin.rec (\b:Bin Id Nat (bin2nat (Bin.succ b)) (Nat.succ (bin2nat b)))
+   (Id.refl Nat (Nat.succ Nat.0))
+   (\b:Bin \Hyp:(Id Nat (bin2nat (Bin.succ b)) (Nat.succ (bin2nat b)))
+      Id.refl Nat (Nat.succ (bin2nat (Bin.0 b))))
+   (\b:Bin \Hyp:(Id Nat (bin2nat (Bin.succ b)) (Nat.succ (bin2nat b)))
+      ;; show Id Nat Nat.mul2 (bin2nat (Bin.succ b))
+      ;;             (Nat.succ (Nat.succ (Nat.mul2 b)))
+      rsubst Nat (Nat.succ (bin2nat b)) (bin2nat (Bin.succ b)) Hyp	
+        (\x:Nat Id Nat (Nat.mul2 x)
+	               (Nat.mul2 (Nat.succ (bin2nat b))))
+        (Id.refl Nat (Nat.mul2 (Nat.succ (bin2nat b)))))
+
 
 Inductive BinId : a:Bin -> b:Bin -> U =
    embed : Id Nat (bin2nat a) (bin2nat b) -> BinId a b
@@ -377,6 +412,41 @@ Definition Bin.plus = \a:Bin \b:Bin Bin.pluscarry a b Carry.0
 
 TypeCheck Bin.plus : a:Bin -> b:Bin -> Bin
 
+Definition Bin.plus.pluscarry.lemma =
+  Bin.rec (\a:Bin b:Bin -> Id Bin (Bin.succ (Bin.plus a b))
+                                  (Bin.pluscarry a b Carry.1))
+    (\b:Bin Id.refl Bin (Bin.succ b))
+    (\a:Bin \Hyp:(b:Bin -> Id Bin (Bin.succ (Bin.plus a b))
+                                  (Bin.pluscarry a b Carry.1))
+     Bin.rec (\b:Bin Id Bin (Bin.succ (Bin.plus (Bin.0 a) b))
+                            (Bin.pluscarry (Bin.0 a) b Carry.1))
+	(Id.refl Bin (Bin.1 a))
+	(\b:Bin \_:(Id Bin (Bin.succ (Bin.plus (Bin.0 a) b))
+                           (Bin.pluscarry (Bin.0 a) b Carry.1))
+         Id.refl Bin (Bin.1 (Bin.plus a b)))
+        (\b:Bin \_:(Id Bin (Bin.succ (Bin.plus (Bin.0 a) b))
+                           (Bin.pluscarry (Bin.0 a) b Carry.1))
+         subst Bin (Bin.succ (Bin.plus a b))
+	           (Bin.pluscarry a b Carry.1) (Hyp b)
+           (\x:Bin Id Bin (Bin.succ (Bin.1 (Bin.plus a b)))
+	                  (Bin.0 x))
+           (Id.refl Bin (Bin.0 (Bin.succ (Bin.plus a b))))))
+    (\a:Bin \Hyp:(b:Bin -> Id Bin (Bin.succ (Bin.plus a b))
+                                  (Bin.pluscarry a b Carry.1))
+     Bin.rec (\b:Bin Id Bin (Bin.succ (Bin.plus (Bin.1 a) b))
+                            (Bin.pluscarry (Bin.1 a) b Carry.1))
+	(Id.refl Bin (Bin.0 (Bin.succ a)))
+        (\b:Bin \_:(Id Bin (Bin.succ (Bin.plus (Bin.1 a) b))
+                           (Bin.pluscarry (Bin.1 a) b Carry.1))
+         subst Bin (Bin.succ (Bin.plus a b))
+	           (Bin.pluscarry a b Carry.1) (Hyp b)
+           (\x:Bin Id Bin (Bin.succ (Bin.1 (Bin.plus a b)))
+	                  (Bin.0 x))
+           (Id.refl Bin (Bin.0 (Bin.succ (Bin.plus a b)))))
+        (\b:Bin \_:(Id Bin (Bin.succ (Bin.plus (Bin.1 a) b))
+                           (Bin.pluscarry (Bin.1 a) b Carry.1))
+         Id.refl Bin (Bin.1 (Bin.pluscarry a b Carry.1))))
+	   
 ; compute 23 + 17
 Evaluate Bin.plus (Bin.1 (Bin.1 (Bin.1 (Bin.0 (Bin.1 (Bin.nil))))))
 	          (Bin.1 (Bin.0 (Bin.0 (Bin.0 (Bin.1 (Bin.nil))))))
@@ -580,9 +650,112 @@ TypeCheck Bin.pluscarry.correct : a:Bin -> b:Bin -> c:Carry ->
    Id Nat (bin2nat (Bin.pluscarry a b c))
           (Nat.addcarry (Nat.plus (bin2nat a) (bin2nat b)) c)
 
-
-Definition Bin.mul10 = \a:Bin Bin.plus (Bin.0 a) (Bin.0 (Bin.0 (Bin.0 a)))
+Definition Bin.mul5 = \a:Bin (Bin.plus a (Bin.0 (Bin.0 a)))
+Definition Bin.mul10 = \a:Bin Bin.0 (Bin.mul5 a)
 TypeCheck Bin.mul10 : Bin -> Bin
+
+Definition Nat.mul2.mul10.Lemma = 
+   Nat.rec (\n:Nat Id Nat (Nat.mul10 (Nat.mul2 n)) (Nat.mul2 (Nat.mul10 n)))
+   (Id.refl Nat Nat.0)
+   (\n:Nat \Hyp:(Id Nat (Nat.mul10 (Nat.mul2 n)) (Nat.mul2 (Nat.mul10 n)))
+     subst Nat (Nat.mul10 (Nat.mul2 n)) (Nat.mul2 (Nat.mul10 n)) Hyp
+       (\x:Nat Id Nat (Nat.mul10 (Nat.mul2 (Nat.succ n)))
+        (Nat.plus x (bin2nat (Bin.0 (Bin.0 (Bin.1 (Bin.0 (Bin.1 Bin.nil))))))))
+       (Id.refl Nat (Nat.mul10 (Nat.mul2 (Nat.succ n)))))
+
+Definition Bin.mul2.add1.lemma = Bin.rec
+   (\b:Bin c:Bin -> Id Bin (Bin.plus b (Bin.1 c))
+                  (Bin.succ (Bin.plus b (Bin.0 c))))
+   (\c:Bin Id.refl Bin (Bin.1 c))
+   (\b:Bin \Hyp:(c:Bin -> Id Bin (Bin.plus b (Bin.1 c))
+                  (Bin.succ (Bin.plus b (Bin.0 c))))
+    \c:Bin
+    ;; Id Bin (Bin.plus (Bin.0 b) (Bin.1 c))
+    ;;        (Bin.succ (Bin.plus (Bin.0 b) (Bin.0 c)))
+    Id.refl Bin (Bin.1 (Bin.plus b c)))
+   (\b:Bin \Hyp:(c:Bin -> Id Bin (Bin.plus b (Bin.1 c))
+                  (Bin.succ (Bin.plus b (Bin.0 c))))
+    \c:Bin
+    ;; Id Bin (Bin.plus (Bin.1 b) (Bin.1 c))
+    ;;        (Bin.succ (Bin.plus (Bin.1 b) (Bin.0 c)))
+    ;; Id Bin Bin.0 (Bin.pluscarry b c Carry.1)
+    ;;        Bin.0 (Bin.succ (Bin.plus b c))
+    rsubst Bin (Bin.pluscarry b c Carry.1) (Bin.succ (Bin.plus b c))
+        (Bin.plus.pluscarry.lemma b c)
+        (\x:Bin Id Bin (Bin.0 (Bin.pluscarry b c Carry.1)) (Bin.0 x))
+	(Id.refl Bin (Bin.0 (Bin.pluscarry b c Carry.1))))
+
+Definition Bin.mul5.add2.lemma = Bin.rec
+   (\b:Bin Id Bin (Bin.plus b (Bin.0 (Bin.1 b)))
+                  (Bin.succ (Bin.succ (Bin.mul5 b))))
+   (Id.refl Bin (Bin.0 (Bin.1 Bin.nil)))
+   (\b:Bin \Hyp:(Id Bin (Bin.plus b (Bin.0 (Bin.1 b)))
+                  (Bin.succ (Bin.succ (Bin.mul5 b))))
+    ;; Id Bin (Bin.0 (Bin.plus b (Bin.1 (Bin.0 b))))
+    ;;        (Bin.0 (Bin.succ (Bin.mul5 b)))
+    rsubst Bin (Bin.succ (Bin.mul5 b))
+	  (Bin.plus b (Bin.1 (Bin.0 b)))
+	  (Bin.mul2.add1.lemma b (Bin.0 b))
+	  (\x:Bin Id Bin (Bin.0 x) (Bin.0 (Bin.succ (Bin.mul5 b))))
+	  (Id.refl Bin (Bin.0 (Bin.succ (Bin.mul5 b)))))
+   (\b:Bin \Hyp:(Id Bin (Bin.plus b (Bin.0 (Bin.1 b)))
+                  (Bin.succ (Bin.succ (Bin.mul5 b))))
+    ;; Id Bin (Bin.1 (Bin.plus b (Bin.1 (Bin.1 b))))
+    ;;        (Bin.1 (Bin.succ (Bin.plus b (Bin.0 (Bin.1 b)))))
+    subst Bin (Bin.plus b (Bin.1 (Bin.1 b)))
+          (Bin.succ (Bin.plus b (Bin.0 (Bin.1 b))))
+	  (Bin.mul2.add1.lemma b (Bin.1 b))
+          (\x:Bin Id Bin (Bin.1 (Bin.plus b (Bin.1 (Bin.1 b)))) (Bin.1 x))
+	  (Id.refl Bin (Bin.1 (Bin.plus b (Bin.1 (Bin.1 b))))))
+
+Definition Bin.mul10.correct = Bin.rec
+   (\b:Bin Id Nat (Nat.mul10 (bin2nat b)) (bin2nat (Bin.mul10 b)))
+   (Id.refl Nat Nat.0)
+   (\b:Bin \Hyp:(Id Nat (Nat.mul10 (bin2nat b)) (bin2nat (Bin.mul10 b)))
+     ;; Id Nat (Nat.mul10 (Nat.mul2 (bin2nat b)))
+     ;;        (Nat.mul2 (bin2nat (Bin.mul10 b)))
+     subst Nat (Nat.mul10 (bin2nat b))  (bin2nat (Bin.mul10 b)) Hyp
+        (\x:Nat Id Nat (Nat.mul10 (Nat.mul2 (bin2nat b))) (Nat.mul2 x))
+     (Nat.mul2.mul10.Lemma (bin2nat b)))
+   (\b:Bin \Hyp:(Id Nat (Nat.mul10 (bin2nat b)) (bin2nat (Bin.mul10 b)))
+     ;; Id Nat (Nat.mul10 (Nat.succ (Nat.mul2 (bin2nat b))))
+     ;;        (Nat.mul2 (bin2nat (Bin.1 (Bin.plus b (Bin.0 Bin.1 b)))))
+     ;;        (Nat.mul2 (Nat.succ (Nat.mul2 (bin2nat (Bin.plus b (Bin.0 Bin.1 b))))))
+     rsubst Bin (Bin.succ (Bin.succ (Bin.mul5 b)))
+       (Bin.plus b (Bin.0 (Bin.1 b)))
+       (Bin.mul5.add2.lemma b)
+       (\x:Bin Id Nat (Nat.mul10 (bin2nat (Bin.1 b)))
+                   (Nat.mul2 (Nat.succ (Nat.mul2 (bin2nat x)))))
+       (rsubst Nat (Nat.succ (bin2nat (Bin.succ (Bin.mul5 b))))
+          (bin2nat (Bin.succ (Bin.succ (Bin.mul5 b))))
+	  (Bin.succ.correct (Bin.succ (Bin.mul5 b)))
+	  (\x:Nat Id Nat (Nat.mul10 (bin2nat (Bin.1 b)))
+                   (Nat.mul2 (Nat.succ (Nat.mul2 x))))
+       (rsubst Nat (Nat.succ (bin2nat (Bin.mul5 b)))
+          (bin2nat (Bin.succ (Bin.mul5 b)))
+	  (Bin.succ.correct (Bin.mul5 b))
+	  (\x:Nat Id Nat (Nat.mul10 (bin2nat (Bin.1 b)))
+                   (Nat.mul2 (Nat.succ (Nat.mul2 (Nat.succ x)))))
+       ;; Id Nat Nat.mul10 (bin2nat (Bin.1 b))
+       ;;        Nat.succ*10 (Nat.mul10 (Nat.mul2 b))
+       ;;        Nat.mul2 (Nat.succ*5 (Nat.mul2 (bin2nat (Bin.mul5 b))))
+       (subst Nat (Nat.mul10 (bin2nat b))
+          (bin2nat (Bin.mul10 b))
+          Hyp
+          (\x:Nat Id Nat (Nat.mul10 (bin2nat (Bin.1 b)))
+                   (Nat.mul2 (Nat.succ (Nat.succ (Nat.succ (Nat.succ (Nat.succ
+		             x)))))))
+       (subst Nat (Nat.mul10 (Nat.mul2 (bin2nat b)))
+          (Nat.mul2 (Nat.mul10 (bin2nat b)))
+	  (Nat.mul2.mul10.Lemma (bin2nat b))
+          (\x:Nat Id Nat (Nat.mul10 (bin2nat (Bin.1 b)))
+                   (Nat.succ (Nat.succ (Nat.succ (Nat.succ (Nat.succ
+                   (Nat.succ (Nat.succ (Nat.succ (Nat.succ (Nat.succ
+		             x)))))))))))
+          (Id.refl Nat (Nat.mul10 (bin2nat (Bin.1 b)))))))))
+
+TypeCheck Bin.mul10.correct : 
+   b:Bin -> Id Nat (Nat.mul10 (bin2nat b)) (bin2nat (Bin.mul10 b))
 
 ; compute 343 * 10
 Evaluate Bin.mul10 (Bin.1 (Bin.1 (Bin.1 (Bin.0 (Bin.1 (Bin.0 (Bin.1 (Bin.0 (Bin.1 (Bin.nil))))))))))
@@ -698,29 +871,25 @@ Inductive Dec : U =
 
 Evaluate Dec
 
-Definition Dec.mul2 =
-   Dec.rec (\x:Dec Carry -> Dec) 
-      (Carry.rec (\c:Carry Dec) Dec.nil (Dec.1 Dec.nil))
-      (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.rec (\c:Carry Dec -> Dec) Dec.0 Dec.1 c) (r Carry.0))
-      (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.rec (\c:Carry Dec -> Dec) Dec.2 Dec.3 c) (r Carry.0))
-      (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.rec (\c:Carry Dec -> Dec) Dec.4 Dec.5 c) (r Carry.0))
-      (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.rec (\c:Carry Dec -> Dec) Dec.6 Dec.7 c) (r Carry.0))
-      (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.rec (\c:Carry Dec -> Dec) Dec.8 Dec.9 c) (r Carry.0))
-      (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.rec (\c:Carry Dec -> Dec) Dec.0 Dec.1 c) (r Carry.1))
-      (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.rec (\c:Carry Dec -> Dec) Dec.2 Dec.3 c) (r Carry.1))
-      (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.rec (\c:Carry Dec -> Dec) Dec.4 Dec.5 c) (r Carry.1))
-      (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.rec (\c:Carry Dec -> Dec) Dec.6 Dec.7 c) (r Carry.1))
-      (\x:Dec \r:(Carry -> Dec) \c:Carry
-         (Carry.rec (\c:Carry Dec -> Dec) Dec.8 Dec.9 c) (r Carry.1))
+Definition dec2nat = \d:Dec
+   (\s:((Nat -> Nat) -> (Nat -> Nat))
+    Dec.rec (\x:Dec Nat) Nat.0
+      (\x:Dec Nat.mul10)
+      (\x:Dec s Nat.mul10)
+      (\x:Dec s (s Nat.mul10))
+      (\x:Dec s (s (s Nat.mul10)))
+      (\x:Dec s (s (s (s Nat.mul10))))
+      (\x:Dec s (s (s (s (s Nat.mul10)))))
+      (\x:Dec s (s (s (s (s (s Nat.mul10))))))
+      (\x:Dec s (s (s (s (s (s (s Nat.mul10)))))))
+      (\x:Dec s (s (s (s (s (s (s (s Nat.mul10))))))))
+      (\x:Dec s (s (s (s (s (s (s (s (s Nat.mul10)))))))))
+      d)
+   (\f:(Nat -> Nat) \n:Nat Nat.succ (f n))
+
+Inductive DecId : a:Dec -> b:Dec -> U =
+  embed : Id Nat (dec2nat a) (dec2nat b) -> DecId a b
+
 
 Definition dec2bin =
    Dec.rec (\x:Dec Bin) Bin.nil
@@ -735,10 +904,42 @@ Definition dec2bin =
       (\x:Dec \r:Bin Bin.plus (Bin.mul10 r) (Bin.0 (Bin.0 (Bin.0 (Bin.1 (Bin.nil))))))
       (\x:Dec \r:Bin Bin.plus (Bin.mul10 r) (Bin.1 (Bin.0 (Bin.0 (Bin.1 (Bin.nil))))))
 
-Definition bin2dec =
-   Bin.rec (\x:Bin Dec) Dec.nil
-     (\x:Bin \r:Dec (Dec.mul2 r Carry.0))
-     (\x:Bin \r:Dec (Dec.mul2 r Carry.1))
+Definition dec2bin2nat.correct.aux = \c:Bin
+      (\d:Dec \Hyp:(Id Nat (bin2nat (dec2bin d)) (dec2nat d))
+       subst Nat (bin2nat (dec2bin d)) (dec2nat d) Hyp
+         (\x:Nat Id Nat
+	    (bin2nat (Bin.plus (Bin.mul10 (dec2bin d)) c))
+	    (Nat.plus (Nat.mul10 x) (bin2nat c)))
+	 (rsubst Nat (bin2nat (Bin.mul10 (dec2bin d)))
+	    (Nat.mul10 (bin2nat (dec2bin d)))
+	    (Bin.mul10.correct (dec2bin d))
+	    (\x:Nat Id Nat
+	      (bin2nat (Bin.plus (Bin.mul10 (dec2bin d)) c))
+	      (Nat.plus x (bin2nat c)))
+	    (Bin.pluscarry.correct (Bin.mul10 (dec2bin d)) 
+	                           c Carry.0)))
+TypeCheck dec2bin2nat.correct.aux : c:Bin -> d:Dec ->
+  Id Nat (bin2nat (dec2bin d)) (dec2nat d) ->
+  Id Nat (bin2nat (Bin.plus (Bin.mul10 (dec2bin d)) c))
+         (Nat.plus (Nat.mul10 (dec2nat d)) (bin2nat c))
+
+Definition dec2bin2nat.correct = 
+   Dec.rec (\d:Dec Id Nat (bin2nat (dec2bin d)) (dec2nat d))
+      (Id.refl Nat Nat.0)
+      (dec2bin2nat.correct.aux Bin.nil)
+      (dec2bin2nat.correct.aux (Bin.1 Bin.nil))
+      (dec2bin2nat.correct.aux (Bin.0 (Bin.1 Bin.nil)))
+      (dec2bin2nat.correct.aux (Bin.1 (Bin.1 Bin.nil)))
+      (dec2bin2nat.correct.aux (Bin.0 (Bin.0 (Bin.1 Bin.nil))))
+      (dec2bin2nat.correct.aux (Bin.1 (Bin.0 (Bin.1 Bin.nil))))
+      (dec2bin2nat.correct.aux (Bin.0 (Bin.1 (Bin.1 Bin.nil))))
+      (dec2bin2nat.correct.aux (Bin.1 (Bin.1 (Bin.1 Bin.nil))))
+      (dec2bin2nat.correct.aux (Bin.0 (Bin.0 (Bin.0 (Bin.1 Bin.nil)))))
+      (dec2bin2nat.correct.aux (Bin.1 (Bin.0 (Bin.0 (Bin.1 Bin.nil)))))
+	    
+TypeCheck Bin.pluscarry.correct : a:Bin -> b:Bin -> c:Carry ->
+   Id Nat (bin2nat (Bin.pluscarry a b c))
+          (Nat.addcarry (Nat.plus (bin2nat a) (bin2nat b)) c)
 
 ; strip leading zero from a decimal number
 ; this function converts nil to nil and everything else to (Dec.0 r).
@@ -746,44 +947,39 @@ Definition Dec.strip0.aux = \r:Dec
   (\z:(Dec -> Dec -> Dec) Dec.rec (\x:Dec Dec) Dec.nil z z z z z z z z z z r)
   (\_:Dec \_:Dec Dec.0 r)
 
-Evaluate Dec.0
-Inductive DecId : a:Dec -> b:Dec -> U =
-  embed : BinId (dec2bin a) (dec2bin b) -> DecId a b
-Evaluate Dec.1
+
+
 TypeCheck (\a:Dec \b:Dec \id:(DecId a b)
-  DecId.rec a b (\x:(DecId a b) BinId (dec2bin a) (dec2bin b))
-    (\eq:(BinId (dec2bin a) (dec2bin b)) eq) id) :
-  a:Dec -> b:Dec -> id:DecId a b -> BinId (dec2bin a) (dec2bin b)
-Definition DecId.refl = \a:Dec DecId.embed a a (BinId.refl (dec2bin a))
+  DecId.rec a b (\x:(DecId a b) Id Nat (dec2nat a) (dec2nat b))
+    (\eq:(Id Nat (dec2nat a) (dec2nat b)) eq) id) :
+  a:Dec -> b:Dec -> id:DecId a b -> Id Nat (dec2nat a) (dec2nat b)
+
+Definition DecId.refl = \a:Dec DecId.embed a a (Id.refl Nat (dec2nat a))
+
+Definition Dec.strip0.aux.correct.lemma =
+  \cipher: (Dec -> Dec) 
+  \eq:(r:Dec -> Id Dec (Dec.strip0.aux (cipher r)) (Dec.0 (cipher r)))
+  \r:Dec \_:(Id Nat (dec2nat (Dec.strip0.aux r)) (dec2nat (Dec.0 r)))
+   rsubst Dec (Dec.0 (cipher r)) (Dec.strip0.aux (cipher r)) (eq r)
+      (\x:Dec Id Nat (dec2nat (Dec.0 (cipher r))) (dec2nat x))
+      (Id.refl Nat (dec2nat (Dec.0 (cipher r))))
 
 Definition Dec.strip0.aux.correct =
-  Dec.rec (\r:Dec DecId (Dec.strip0.aux r) (Dec.0 r))
-     (DecId.embed Dec.nil (Dec.0 Dec.nil) 
-        (BinId.embed Bin.nil (dec2bin (Dec.0 Dec.nil)) 
-	   (Id.refl Nat Nat.0)))
-     (\r:Dec \_:(DecId (Dec.strip0.aux r) (Dec.0 r))
-      DecId.refl (Dec.0 (Dec.0 r)))
-     (\r:Dec \_:(DecId (Dec.strip0.aux r) (Dec.0 r))
-      DecId.refl (Dec.0 (Dec.1 r)))
-     (\r:Dec \_:(DecId (Dec.strip0.aux r) (Dec.0 r))
-      DecId.refl (Dec.0 (Dec.2 r)))
-     (\r:Dec \_:(DecId (Dec.strip0.aux r) (Dec.0 r))
-      DecId.refl (Dec.0 (Dec.3 r)))
-     (\r:Dec \_:(DecId (Dec.strip0.aux r) (Dec.0 r))
-      DecId.refl (Dec.0 (Dec.4 r)))
-     (\r:Dec \_:(DecId (Dec.strip0.aux r) (Dec.0 r))
-      DecId.refl (Dec.0 (Dec.5 r)))
-     (\r:Dec \_:(DecId (Dec.strip0.aux r) (Dec.0 r))
-      DecId.refl (Dec.0 (Dec.6 r)))
-     (\r:Dec \_:(DecId (Dec.strip0.aux r) (Dec.0 r))
-      DecId.refl (Dec.0 (Dec.7 r)))
-     (\r:Dec \_:(DecId (Dec.strip0.aux r) (Dec.0 r))
-      DecId.refl (Dec.0 (Dec.8 r)))
-     (\r:Dec \_:(DecId (Dec.strip0.aux r) (Dec.0 r))
-      DecId.refl (Dec.0 (Dec.9 r)))
+  Dec.rec (\r:Dec Id Nat (dec2nat (Dec.strip0.aux r)) (dec2nat (Dec.0 r)))
+     (Id.refl Nat Nat.0)
+     (Dec.strip0.aux.correct.lemma Dec.0 (\r:Dec Id.refl Dec (Dec.0 (Dec.0 r))))
+     (Dec.strip0.aux.correct.lemma Dec.1 (\r:Dec Id.refl Dec (Dec.0 (Dec.1 r))))
+     (Dec.strip0.aux.correct.lemma Dec.2 (\r:Dec Id.refl Dec (Dec.0 (Dec.2 r))))
+     (Dec.strip0.aux.correct.lemma Dec.3 (\r:Dec Id.refl Dec (Dec.0 (Dec.3 r))))
+     (Dec.strip0.aux.correct.lemma Dec.4 (\r:Dec Id.refl Dec (Dec.0 (Dec.4 r))))
+     (Dec.strip0.aux.correct.lemma Dec.5 (\r:Dec Id.refl Dec (Dec.0 (Dec.5 r))))
+     (Dec.strip0.aux.correct.lemma Dec.6 (\r:Dec Id.refl Dec (Dec.0 (Dec.6 r))))
+     (Dec.strip0.aux.correct.lemma Dec.7 (\r:Dec Id.refl Dec (Dec.0 (Dec.7 r))))
+     (Dec.strip0.aux.correct.lemma Dec.8 (\r:Dec Id.refl Dec (Dec.0 (Dec.8 r))))
+     (Dec.strip0.aux.correct.lemma Dec.9 (\r:Dec Id.refl Dec (Dec.0 (Dec.9 r))))
 
 TypeCheck Dec.strip0.aux.correct : r:Dec ->
-  DecId (Dec.strip0.aux r) (Dec.0 r)
+  Id Nat (dec2nat (Dec.strip0.aux r)) (dec2nat (Dec.0 r))
 
 Definition Dec.strip0 =
    Dec.rec (\x:Dec Dec) Dec.nil
@@ -798,23 +994,400 @@ Definition Dec.strip0 =
       (\x:Dec \r:Dec Dec.8 r)
       (\x:Dec \r:Dec Dec.9 r)
 
-Evaluate dec2bin (Dec.3 (Dec.4 (Dec.3 Dec.nil)))
-Evaluate bin2dec (dec2bin (Dec.3 (Dec.4 (Dec.3 Dec.nil))))
-Evaluate dec2bin (Dec.0 (Dec.3 (Dec.4 (Dec.3 Dec.nil))))
-Evaluate dec2bin (Dec.1 (Dec.0 (Dec.3 (Dec.4 (Dec.3 Dec.nil)))))
-Evaluate dec2bin (Dec.9 (Dec.1 (Dec.0 (Dec.3 (Dec.4 (Dec.3 Dec.nil))))))
-Evaluate dec2bin (Dec.3 (Dec.9 (Dec.1 (Dec.0 (Dec.3 (Dec.4 (Dec.3 Dec.nil)))))))
-Evaluate bin2dec (dec2bin (Dec.3 (Dec.9 (Dec.1 (Dec.0 (Dec.3 (Dec.4 (Dec.3 Dec.nil))))))))
+Definition Dec.strip0.lemma = \cipher:Dec
+      \d:Dec \eq:(Id Nat (dec2nat (Dec.strip0 d)) (dec2nat d))
+	   rsubst Nat (dec2nat d) (dec2nat (Dec.strip0 d)) eq
+	       (\x:Nat Id Nat (Nat.plus (Nat.mul10 x) (dec2nat cipher))
+	                   (Nat.plus (Nat.mul10 (dec2nat d)) (dec2nat cipher)))
+	       (Id.refl Nat (Nat.plus (Nat.mul10 (dec2nat d)) (dec2nat cipher)))
+
+Definition Dec.strip0.correct =
+   Dec.rec (\d:Dec Id Nat (dec2nat (Dec.strip0 d)) (dec2nat d))
+      (Id.refl Nat Nat.0)
+      (\d:Dec \r:(Id Nat (dec2nat (Dec.strip0 d)) (dec2nat d))
+         subst Nat (dec2nat (Dec.strip0 d)) (dec2nat d) r
+	   (\x:Nat Id Nat (dec2nat (Dec.strip0.aux (Dec.strip0 d))) 
+                          (Nat.mul10 x))
+	   (Dec.strip0.aux.correct (Dec.strip0 d)))
+      (Dec.strip0.lemma (Dec.1 Dec.nil))
+      (Dec.strip0.lemma (Dec.2 Dec.nil))
+      (Dec.strip0.lemma (Dec.3 Dec.nil))
+      (Dec.strip0.lemma (Dec.4 Dec.nil))
+      (Dec.strip0.lemma (Dec.5 Dec.nil))
+      (Dec.strip0.lemma (Dec.6 Dec.nil))
+      (Dec.strip0.lemma (Dec.7 Dec.nil))
+      (Dec.strip0.lemma (Dec.8 Dec.nil))
+      (Dec.strip0.lemma (Dec.9 Dec.nil))
+	      
+TypeCheck Dec.strip0.correct : d:Dec ->
+  Id Nat (dec2nat (Dec.strip0 d)) (dec2nat d)
+
+Definition Dec.succ = 
+  Dec.rec (\x:Dec Dec)
+    (Dec.1 Dec.nil)
+    (\x:Dec \r:Dec Dec.1 x)
+    (\x:Dec \r:Dec Dec.2 x)
+    (\x:Dec \r:Dec Dec.3 x)
+    (\x:Dec \r:Dec Dec.4 x)
+    (\x:Dec \r:Dec Dec.5 x)
+    (\x:Dec \r:Dec Dec.6 x)
+    (\x:Dec \r:Dec Dec.7 x)
+    (\x:Dec \r:Dec Dec.8 x)
+    (\x:Dec \r:Dec Dec.9 x)
+    (\x:Dec \r:Dec Dec.0 r)
+
+Definition Dec.succ.correct.aux0 = \digit: (Dec -> Dec)
+  \d:Dec \_:(Id Nat (dec2nat (Dec.succ d)) (Nat.succ (dec2nat d)))
+  Id.refl Nat (Nat.succ (Nat.plus (Nat.mul10 (dec2nat d))
+                                  (dec2nat (digit Dec.nil))))
+
+Definition Dec.succ.correct = 
+  Dec.rec (\d:Dec Id Nat (dec2nat (Dec.succ d)) (Nat.succ (dec2nat d)))
+    (Id.refl Nat (Nat.succ Nat.0))
+    (Dec.succ.correct.aux0 Dec.0)
+    (Dec.succ.correct.aux0 Dec.1)
+    (Dec.succ.correct.aux0 Dec.2)
+    (Dec.succ.correct.aux0 Dec.3)
+    (Dec.succ.correct.aux0 Dec.4)
+    (Dec.succ.correct.aux0 Dec.5)
+    (Dec.succ.correct.aux0 Dec.6)
+    (Dec.succ.correct.aux0 Dec.7)
+    (Dec.succ.correct.aux0 Dec.8)
+    (\d:Dec \Hyp:(Id Nat (dec2nat (Dec.succ d)) (Nat.succ (dec2nat d)))
+     subst Nat (dec2nat (Dec.succ d)) (Nat.succ (dec2nat d)) Hyp
+        (\x:Nat Id Nat (Nat.mul10 (dec2nat (Dec.succ d)))
+	               (Nat.mul10 x))
+	(Id.refl Nat (Nat.mul10 (dec2nat (Dec.succ d)))))
+
+Definition nat2dec = Nat.rec (\n:Nat Dec) Dec.nil (\n:Nat \d:Dec (Dec.succ d))
+
+Definition nat2dec2nat.correct =
+  Nat.rec (\n:Nat Id Nat (dec2nat (nat2dec n)) n)
+    (Id.refl Nat Nat.0)
+    (\n:Nat \Hyp:(Id Nat (dec2nat (nat2dec n)) n)
+      subst Nat (dec2nat (nat2dec n)) n Hyp
+	    (\x:Nat Id Nat (dec2nat (Dec.succ (nat2dec n)))
+                           (Nat.succ x))
+            (Dec.succ.correct (nat2dec n)))
+
+Definition Dec.mul2.aux = \dig0 : (Dec -> Dec) \dig1 : (Dec -> Dec) \nc:Carry
+   (\x:Dec \r:(Carry -> Dec) \c:Carry 
+      (Carry.rec (\c:Carry Dec -> Dec) dig0 dig1 c) (r nc))
+
+Definition Dec.mul2 =
+   Dec.rec (\x:Dec Carry -> Dec) 
+      (Carry.rec (\c:Carry Dec) Dec.nil (Dec.1 Dec.nil))
+      (Dec.mul2.aux Dec.0 Dec.1 Carry.0)
+      (Dec.mul2.aux Dec.2 Dec.3 Carry.0)
+      (Dec.mul2.aux Dec.4 Dec.5 Carry.0)
+      (Dec.mul2.aux Dec.6 Dec.7 Carry.0)
+      (Dec.mul2.aux Dec.8 Dec.9 Carry.0)
+      (Dec.mul2.aux Dec.0 Dec.1 Carry.1)
+      (Dec.mul2.aux Dec.2 Dec.3 Carry.1)
+      (Dec.mul2.aux Dec.4 Dec.5 Carry.1)
+      (Dec.mul2.aux Dec.6 Dec.7 Carry.1)
+      (Dec.mul2.aux Dec.8 Dec.9 Carry.1)
+
+Definition bin2dec =
+   Bin.rec (\x:Bin Dec) Dec.nil
+     (\x:Bin \r:Dec (Dec.mul2 r Carry.0))
+     (\x:Bin \r:Dec (Dec.mul2 r Carry.1))
+
+Definition Dec.addcarry = \d:Dec
+  Carry.rec (\c:Carry Dec) d (Dec.succ d)
+
+Definition Dec.addcarry.correct = \d:Dec
+  Carry.rec (\c:Carry Id Nat (dec2nat (Dec.addcarry d c)) (Nat.addcarry (dec2nat d) c))
+    (Id.refl Nat (dec2nat d))
+    (Dec.succ.correct d)
+
+Definition Dec.mul2.correct.lemma1.aux = 
+  \digit:(Dec -> Dec) \carry:Carry
+  \d:Dec \_:(Id Dec (Dec.succ (Dec.mul2 d Carry.0)) (Dec.mul2 d Carry.1))
+    (Id.refl Dec (digit (Dec.mul2 d carry)))
+
+Definition Dec.mul2.correct.lemma1 = \d:Dec
+  Carry.rec 
+    (\c:Carry Id Dec (Dec.addcarry (Dec.mul2 d Carry.0) c) (Dec.mul2 d c))
+    (Id.refl Dec (Dec.mul2 d Carry.0))
+    (Dec.rec 
+       (\d:Dec Id Dec (Dec.succ (Dec.mul2 d Carry.0)) (Dec.mul2 d Carry.1))
+       (Id.refl Dec (Dec.1 Dec.nil))
+       (Dec.mul2.correct.lemma1.aux Dec.1 Carry.0)
+       (Dec.mul2.correct.lemma1.aux Dec.3 Carry.0)
+       (Dec.mul2.correct.lemma1.aux Dec.5 Carry.0)
+       (Dec.mul2.correct.lemma1.aux Dec.7 Carry.0)
+       (Dec.mul2.correct.lemma1.aux Dec.9 Carry.0)
+       (Dec.mul2.correct.lemma1.aux Dec.1 Carry.1)
+       (Dec.mul2.correct.lemma1.aux Dec.3 Carry.1)
+       (Dec.mul2.correct.lemma1.aux Dec.5 Carry.1)
+       (Dec.mul2.correct.lemma1.aux Dec.7 Carry.1)
+       (Dec.mul2.correct.lemma1.aux Dec.9 Carry.1)
+       d)
+
+Definition Dec.mul2.correct.aux =
+  \ciph:(Dec -> Dec) \ciph2:(Carry -> Dec -> Dec) \nc:Carry
+  \cipheq:(d:Dec -> c: Carry -> 
+           Id Nat (dec2nat (ciph2 c (Dec.addcarry d nc)))
+	          (Nat.addcarry (Nat.plus (dec2nat (Dec.0 d))
+		                (Nat.mul2 (dec2nat (ciph Dec.nil)))) c))
+  \d:Dec \eq:(c:Carry -> Id Nat (dec2nat (Dec.mul2 d c))
+                              (Nat.addcarry (Nat.mul2 (dec2nat d)) c))
+  \c:Carry
+  ;; Result should be
+  ;;  Id Nat (dec2nat (ciph2 c (Dec.mul2 d nc)))
+  ;;         (Nat.addcarry (Nat.mul2 (Nat.plus (dec2nat (Dec.0 d))
+  ;;                                           (dec2nat (ciph Dec.nil)))) c)
+    (subst Dec (Dec.addcarry (Dec.mul2 d Carry.0) nc)
+       (Dec.mul2 d nc)
+       (Dec.mul2.correct.lemma1 d nc)
+       (\x:Dec Id Nat (dec2nat (ciph2 c x))
+                      (Nat.addcarry (Nat.mul2 (Nat.plus (dec2nat (Dec.0 d))
+                                                 (dec2nat (ciph Dec.nil)))) c))
+  ;; Result should be
+  ;;  Id Nat (dec2nat (ciph2 c (Dec.addcarry (Dec.mul2 d Carry.0) nc)))
+  ;;         (Nat.addcarry (Nat.mul2 (Nat.plus (dec2nat (Dec.0 d))
+  ;;                                           (dec2nat (ciph Dec.nil)))) c)
+    (subst Nat (Nat.plus (Nat.mul2 (Nat.mul10 (dec2nat d)))
+                        (Nat.mul2 (dec2nat (ciph Dec.nil))))
+              (Nat.mul2 (Nat.plus (Nat.mul10 (dec2nat d))
+                                  (dec2nat (ciph Dec.nil))))
+	      (Nat.mul2.distr (Nat.mul10 (dec2nat d)) (dec2nat (ciph Dec.nil)))
+       (\x:Nat Id Nat (dec2nat (ciph2 c (Dec.addcarry (Dec.mul2 d Carry.0) nc)))
+                      (Nat.addcarry x c))
+  ;; Result should be
+  ;;  Id Nat (dec2nat (ciph2 c (Dec.addcarry (Dec.mul2 d Carry.0) nc)))
+  ;;         (Nat.addcarry (Nat.plus (Nat.mul2 (dec2nat (Dec.0 d)))
+  ;;                                 (Nat.mul2 (dec2nat (ciph Dec.nil)))) c)
+    (subst Nat (Nat.mul10 (Nat.mul2 (dec2nat d)))
+           (Nat.mul2 (dec2nat (Dec.0 d)))
+	   (Nat.mul2.mul10.Lemma (dec2nat d))
+      (\x:Nat Id Nat (dec2nat (ciph2 c (Dec.addcarry (Dec.mul2 d Carry.0) nc)))
+                      (Nat.addcarry (Nat.plus x 
+		                       (Nat.mul2 (dec2nat (ciph Dec.nil)))) c))
+  ;; Result should be
+  ;;  Id Nat (dec2nat (ciph2 c (Dec.addcarry (Dec.mul2 d Carry.0) nc)))
+  ;;         (Nat.addcarry (Nat.plus (Nat.mul10 (Nat.mul2 (dec2nat d)))
+  ;;                                 (Nat.mul2 (dec2nat (ciph Dec.nil)))) c)
+    (subst Nat (dec2nat (Dec.mul2 d Carry.0))
+           (Nat.mul2 (dec2nat d))
+	   (eq Carry.0)
+      (\x:Nat Id Nat (dec2nat (ciph2 c (Dec.addcarry (Dec.mul2 d Carry.0) nc)))
+                      (Nat.addcarry (Nat.plus (Nat.mul10 x)
+		                       (Nat.mul2 (dec2nat (ciph Dec.nil)))) c))
+  ;; Result should be
+  ;;  Id Nat (dec2nat (ciph2 c (Dec.addcarry (Dec.mul2 d Carry.0) nc)))
+  ;;         (Nat.addcarry (Nat.plus (Nat.mul10 (dec2nat (Dec.mul2 d Carry.0)))
+  ;;                                 (Nat.mul2 (dec2nat (ciph Dec.nil)))) c)
+    (cipheq (Dec.mul2 d Carry.0) c)))))
+
+Definition Dec.mul2.correct.aux1 = 
+    \dig1:(Dec -> Dec) \dig2:(Dec -> Dec) \c:Carry \nc:Carry
+    \d:Dec
+    \eqa:(Id Nat (Nat.plus (Nat.mul10 (Nat.addcarry Nat.0 nc))
+                           (dec2nat (dig2 Dec.nil)))
+                 (Nat.addcarry (Nat.mul2 (dec2nat (dig1 Dec.nil))) c))
+    \eqb:(d:Dec -> Id Nat (dec2nat (dig2 d))
+                           (Nat.plus (Nat.mul10 (dec2nat d))
+			             (dec2nat (dig2 Dec.nil))))
+	   (rsubst Nat (Nat.plus (Nat.mul10 (dec2nat (Dec.addcarry d nc)))
+		                (dec2nat (dig2 Dec.nil)))
+		      (dec2nat (dig2 (Dec.addcarry d nc)))
+		      (eqb (Dec.addcarry d nc))
+               (\x:Nat Id Nat x (Nat.plus (dec2nat (Dec.0 d))
+                              (Nat.addcarry (Nat.mul2 (dec2nat (dig1 Dec.nil))) c)))
+	   (rsubst Nat (Nat.addcarry (dec2nat d) nc)
+	               (dec2nat (Dec.addcarry d nc)) 
+		       (Dec.addcarry.correct d nc)
+	       (\x:Nat Id Nat (Nat.plus (Nat.mul10 x) 
+                                        (dec2nat (dig2 Dec.nil)))
+                              (Nat.plus (dec2nat (Dec.0 d))
+                                        (Nat.addcarry (Nat.mul2 (dec2nat (dig1 Dec.nil))) c)))
+           (subst  Nat (Nat.plus (Nat.mul10 (dec2nat d))
+	                         (Nat.mul10 (Nat.addcarry Nat.0 nc)))
+	               (Nat.mul10 (Nat.addcarry (dec2nat d) nc))
+                   (rsubst Nat (Nat.plus (dec2nat d) (Nat.addcarry Nat.0 nc))
+		               (Nat.addcarry (dec2nat d) nc)
+			(Carry.rec (\nc:Carry Id Nat 
+                              (Nat.addcarry (dec2nat d) nc)
+		              (Nat.plus (dec2nat d) (Nat.addcarry Nat.0 nc)))
+                          (Id.refl Nat (dec2nat d))
+			  (Id.refl Nat (Nat.succ (dec2nat d)))
+			  nc)
+                      (\x: Nat Id Nat (Nat.plus (Nat.mul10 (dec2nat d))
+				           (Nat.mul10 (Nat.addcarry Nat.0 nc)))
+				      (Nat.mul10 x))
+                      (Nat.mul10.distr (dec2nat d) (Nat.addcarry Nat.0 nc)))
+	       (\x:Nat Id Nat (Nat.plus x 
+                                        (dec2nat (dig2 Dec.nil)))
+                              (Nat.plus (dec2nat (Dec.0 d))
+                                        (Nat.addcarry (Nat.mul2 (dec2nat (dig1 Dec.nil))) c)))
+           (subst  Nat (Nat.plus (Nat.mul10 (Nat.addcarry Nat.0 nc))
+			         (dec2nat (dig2 Dec.nil)))
+		       (Nat.addcarry (Nat.mul2 (dec2nat (dig1 Dec.nil))) c)
+                       eqa
+	       (\x:Nat Id Nat (Nat.plus (Nat.plus (dec2nat (Dec.0 d))
+	                                (Nat.mul10 (Nat.addcarry Nat.0 nc)))
+	                                (dec2nat (dig2 Dec.nil)))
+                              (Nat.plus (dec2nat (Dec.0 d))
+			                x))
+		       (Nat.plus.assoc (dec2nat (Dec.0 d))
+                                       (Nat.mul10 (Nat.addcarry Nat.0 nc))
+				       (dec2nat (dig2 Dec.nil)))))))
+
+Definition Dec.mul2.correct.aux2 = 
+    \dig1:(Dec -> Dec) \dig2:(Dec -> Dec) \dig3:(Dec -> Dec)
+    \nc:Carry
+    \eq1a:(Id Nat (Nat.plus (Nat.mul10 (Nat.addcarry Nat.0 nc))
+                           (dec2nat (dig2 Dec.nil)))
+                 (Nat.mul2 (dec2nat (dig1 Dec.nil))))
+    \eq1b:(d:Dec -> Id Nat (dec2nat (dig2 d))
+                           (Nat.plus (Nat.mul10 (dec2nat d))
+			             (dec2nat (dig2 Dec.nil))))
+    \eq2a:(Id Nat (Nat.plus (Nat.mul10 (Nat.addcarry Nat.0 nc))
+                           (dec2nat (dig3 Dec.nil)))
+                 (Nat.succ (Nat.mul2 (dec2nat (dig1 Dec.nil)))))
+    \eq2b:(d:Dec -> Id Nat (dec2nat (dig3 d))
+                           (Nat.plus (Nat.mul10 (dec2nat d))
+			             (dec2nat (dig3 Dec.nil))))
+    (Dec.mul2.correct.aux 
+       dig1 (Carry.rec (\c:Carry Dec -> Dec) dig2 dig3) nc
+       (\d:Dec Carry.rec 
+	   (\c:Carry 
+           Id Nat (dec2nat (Carry.rec (\c:Carry Dec -> Dec) dig2 dig3 c 
+                            (Dec.addcarry d nc)))
+	          (Nat.addcarry (Nat.plus (dec2nat (Dec.0 d))
+		                (Nat.mul2 (dec2nat (dig1 Dec.nil)))) c))
+           (Dec.mul2.correct.aux1 dig1 dig2 Carry.0 nc d eq1a eq1b)
+           (Dec.mul2.correct.aux1 dig1 dig3 Carry.1 nc d eq2a eq2b)))
+					     
+Evaluate Dec.0
+Definition Dec.mul2.correct = 
+  Dec.rec (\d:Dec c:Carry -> Id Nat (dec2nat (Dec.mul2 d c))
+                                    (Nat.addcarry (Nat.mul2 (dec2nat d)) c))
+    (Carry.rec (\c:Carry Id Nat (dec2nat (Dec.mul2 Dec.nil c))
+                                    (Nat.addcarry Nat.0 c))
+       (Id.refl Nat Nat.0) (Id.refl Nat (Nat.succ Nat.0)))
+    (Dec.mul2.correct.aux2 Dec.0 Dec.0 Dec.1 Carry.0
+        (Id.refl Nat (dec2nat Dec.nil))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.0 d)))
+        (Id.refl Nat (dec2nat (Dec.1 Dec.nil)))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.1 d))))
+    (Dec.mul2.correct.aux2 Dec.1 Dec.2 Dec.3 Carry.0
+        (Id.refl Nat (dec2nat (Dec.2 Dec.nil)))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.2 d)))
+        (Id.refl Nat (dec2nat (Dec.3 (Dec.0 Dec.nil))))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.3 d))))
+    (Dec.mul2.correct.aux2 Dec.2 Dec.4 Dec.5 Carry.0
+        (Id.refl Nat (dec2nat (Dec.4 (Dec.0 Dec.nil))))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.4 d)))
+        (Id.refl Nat (dec2nat (Dec.5 (Dec.0 Dec.nil))))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.5 d))))
+    (Dec.mul2.correct.aux2 Dec.3 Dec.6 Dec.7 Carry.0
+        (Id.refl Nat (dec2nat (Dec.6 Dec.nil)))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.6 d)))
+        (Id.refl Nat (dec2nat (Dec.7 Dec.nil)))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.7 d))))
+    (Dec.mul2.correct.aux2 Dec.4 Dec.8 Dec.9 Carry.0
+        (Id.refl Nat (dec2nat (Dec.8 Dec.nil)))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.8 d)))
+        (Id.refl Nat (dec2nat (Dec.9 Dec.nil)))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.9 d))))
+    (Dec.mul2.correct.aux2 Dec.5 Dec.0 Dec.1 Carry.1
+        (Id.refl Nat (dec2nat (Dec.0 (Dec.1 Dec.nil))))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.0 d)))
+        (Id.refl Nat (dec2nat (Dec.1 (Dec.1 Dec.nil))))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.1 d))))
+    (Dec.mul2.correct.aux2 Dec.6 Dec.2 Dec.3 Carry.1
+        (Id.refl Nat (dec2nat (Dec.2 (Dec.1 Dec.nil))))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.2 d)))
+        (Id.refl Nat (dec2nat (Dec.3 (Dec.1 Dec.nil))))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.3 d))))
+    (Dec.mul2.correct.aux2 Dec.7 Dec.4 Dec.5 Carry.1
+        (Id.refl Nat (dec2nat (Dec.4 (Dec.1 Dec.nil))))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.4 d)))
+        (Id.refl Nat (dec2nat (Dec.5 (Dec.1 Dec.nil))))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.5 d))))
+    (Dec.mul2.correct.aux2 Dec.8 Dec.6 Dec.7 Carry.1
+        (Id.refl Nat (dec2nat (Dec.6 (Dec.1 Dec.nil))))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.6 d)))
+        (Id.refl Nat (dec2nat (Dec.7 (Dec.1 Dec.nil))))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.7 d))))
+    (Dec.mul2.correct.aux2 Dec.9 Dec.8 Dec.9 Carry.1
+        (Id.refl Nat (dec2nat (Dec.8 (Dec.1 Dec.nil))))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.8 d)))
+        (Id.refl Nat (dec2nat (Dec.9 (Dec.1 Dec.nil))))
+        (\d:Dec Id.refl Nat (dec2nat (Dec.9 d))))
+Evaluate Dec.1
+
+Definition bin2dec2nat.correct.aux = 
+  \carry:Carry \b:Bin \Hyp:(Id Nat (dec2nat (bin2dec b)) (bin2nat b))
+    subst Nat (dec2nat (bin2dec b)) (bin2nat b) Hyp
+       (\x:Nat Id Nat (dec2nat (Dec.mul2 (bin2dec b) carry))
+                      (Nat.addcarry (Nat.mul2 x) carry))
+       (Dec.mul2.correct (bin2dec b) carry)
+TypeCheck bin2dec2nat.correct.aux : 
+  carry:Carry -> b:Bin -> Id Nat (dec2nat (bin2dec b)) (bin2nat b) ->
+    Id Nat (dec2nat (Dec.mul2 (bin2dec b) carry))
+           (Nat.addcarry (Nat.mul2 (bin2nat b)) carry)
+
+Definition bin2dec2nat.correct = 
+  Bin.rec (\b:Bin Id Nat (dec2nat (bin2dec b)) (bin2nat b))
+    (Id.refl Nat Nat.0)
+    (bin2dec2nat.correct.aux Carry.0)
+    (bin2dec2nat.correct.aux Carry.1)
 
 
-Evaluate dec2bin (Dec.3 (Dec.9 (Dec.1 (Dec.0 (Dec.3 (Dec.4 (Dec.3 Dec.nil)))))))
-;Evaluate dec2bin (Dec.1 (Dec.2 (Dec.3 (Dec.4 (Dec.5 (Dec.3 (Dec.9 (Dec.1 (Dec.0 (Dec.3 (Dec.4 (Dec.3 Dec.nil))))))))))))
+Definition Dec.plus = \a:Dec \b:Dec bin2dec (Bin.plus (dec2bin a) (dec2bin b))
+Definition Dec.mul = \a:Dec \b:Dec bin2dec (Bin.mul (dec2bin a) (dec2bin b))
 
-Evaluate bin2dec (Bin.mul (dec2bin (Dec.5 Dec.nil)) (dec2bin (Dec.7 Dec.nil)))
-Evaluate bin2dec (Bin.mul (dec2bin (Dec.5 (Dec.3 Dec.nil))) (dec2bin (Dec.7 (Dec.2 Dec.nil))))
-Evaluate bin2dec (Bin.mul (dec2bin (Dec.7 (Dec.5 (Dec.3 Dec.nil)))) (dec2bin (Dec.3 (Dec.7 (Dec.2 Dec.nil)))))
-Evaluate bin2dec (Bin.mul (dec2bin (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil))))) (dec2bin (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))
-Evaluate bin2dec (Bin.mul (dec2bin (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))) (dec2bin (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil)))))))
-Evaluate bin2dec (Bin.mul (dec2bin (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil))))))) (dec2bin (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))
-Evaluate bin2dec (Bin.mul (dec2bin (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))) (dec2bin (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil)))))))))
-Evaluate bin2dec (Bin.mul (dec2bin (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil))))))))))))))) (dec2bin (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))))
+Definition Dec.plus.correct = \a:Dec \b:Dec
+  (subst Nat (bin2nat (dec2bin a)) (dec2nat a) (dec2bin2nat.correct a)
+    (\x:Nat Id Nat (Nat.plus x (dec2nat b))
+                (dec2nat (Dec.plus a b)))
+  (subst Nat (bin2nat (dec2bin b)) (dec2nat b) (dec2bin2nat.correct b)
+    (\x:Nat Id Nat (Nat.plus (bin2nat (dec2bin a)) x)
+                (dec2nat (Dec.plus a b)))
+  (subst Nat (bin2nat (Bin.plus (dec2bin a) (dec2bin b)))
+                  (Nat.plus (bin2nat (dec2bin a)) (bin2nat (dec2bin b)))
+		  (Bin.pluscarry.correct (dec2bin a) (dec2bin b) Carry.0)
+    (\x:Nat  Id Nat x (dec2nat (Dec.plus a b)))
+  (rsubst Nat (bin2nat (Bin.plus (dec2bin a) (dec2bin b)))
+              (dec2nat (bin2dec (Bin.plus (dec2bin a) (dec2bin b))))
+        (bin2dec2nat.correct (Bin.plus (dec2bin a) (dec2bin b)))
+    (\x:Nat Id Nat (bin2nat (Bin.plus (dec2bin a) (dec2bin b))) x)
+  (Id.refl Nat (bin2nat (Bin.plus (dec2bin a) (dec2bin b))))))))
+				 
+TypeCheck Dec.plus.correct : a:Dec -> b:Dec ->
+  Id Nat (Nat.plus (dec2nat a) (dec2nat b)) (dec2nat (Dec.plus a b))
+
+Definition Dec.mul.correct = \a:Dec \b:Dec
+  (subst Nat (bin2nat (dec2bin a)) (dec2nat a) (dec2bin2nat.correct a)
+    (\x:Nat Id Nat (Nat.mul x (dec2nat b))
+                (dec2nat (Dec.mul a b)))
+  (subst Nat (bin2nat (dec2bin b)) (dec2nat b) (dec2bin2nat.correct b)
+    (\x:Nat Id Nat (Nat.mul (bin2nat (dec2bin a)) x)
+                (dec2nat (Dec.mul a b)))
+  (subst Nat (bin2nat (Bin.mul (dec2bin a) (dec2bin b)))
+                  (Nat.mul (bin2nat (dec2bin a)) (bin2nat (dec2bin b)))
+		  (Bin.mul.correct (dec2bin a) (dec2bin b))
+    (\x:Nat  Id Nat x (dec2nat (Dec.mul a b)))
+  (rsubst Nat (bin2nat (Bin.mul (dec2bin a) (dec2bin b)))
+              (dec2nat (bin2dec (Bin.mul (dec2bin a) (dec2bin b))))
+        (bin2dec2nat.correct (Bin.mul (dec2bin a) (dec2bin b)))
+    (\x:Nat Id Nat (bin2nat (Bin.mul (dec2bin a) (dec2bin b))) x)
+  (Id.refl Nat (bin2nat (Bin.mul (dec2bin a) (dec2bin b))))))))
+				 
+TypeCheck Dec.plus.correct : a:Dec -> b:Dec ->
+  Id Nat (Nat.plus (dec2nat a) (dec2nat b)) (dec2nat (Dec.plus a b))
+
+Evaluate Dec.mul (Dec.5 Dec.nil) (Dec.7 Dec.nil)
+Evaluate Dec.mul (Dec.5 (Dec.3 Dec.nil)) (Dec.7 (Dec.2 Dec.nil))
+Evaluate Dec.mul (Dec.7 (Dec.5 (Dec.3 Dec.nil))) (Dec.3 (Dec.7 (Dec.2 Dec.nil)))
+Evaluate Dec.mul (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))) (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))
+Evaluate Dec.mul (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil))))) (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil)))))
+Evaluate Dec.mul (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))) (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))
+Evaluate Dec.mul (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil))))))) (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil)))))))
+Evaluate Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))
+Evaluate Dec.mul (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))) (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil)))))))))))))))
+Evaluate Dec.mul (Dec.mul (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))) (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil)))))))))))))))) (Dec.mul (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))) (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))))
