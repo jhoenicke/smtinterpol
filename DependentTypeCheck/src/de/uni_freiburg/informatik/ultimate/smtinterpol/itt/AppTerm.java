@@ -44,7 +44,7 @@ public class AppTerm extends Term {
 			throw new IllegalArgumentException("Typecheck: function parameter has wrong type");
 		// note that type != null
 		return Term.substitute(
-				pi.mRange, Substitution.cons(arg, Substitution.shift(0)), 
+				pi.mRange, Substitution.cons(arg, Substitution.shift(0), pi.mRange.numFreeVariables()), 
 				pi.mRange.getType());
 	}
 
@@ -59,7 +59,8 @@ public class AppTerm extends Term {
 	public Term myEvaluate(Term f, Term a, Term type) {
 		if (f instanceof LambdaTerm) {
 			return Term.substitute(((LambdaTerm) f).mSubTerm, 
-					Substitution.cons(a, Substitution.shift(0)),
+					Substitution.cons(a, Substitution.shift(0), 
+							((LambdaTerm) f).mSubTerm.numFreeVariables()),
 					getType()).evaluateHead();
 		}
 		AppTerm result = f == mFunc && a == mArg ? this 

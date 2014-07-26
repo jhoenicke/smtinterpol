@@ -33,9 +33,8 @@ public class Constructor extends Term {
 				if (arg instanceof SubstTerm) {
 					SubstTerm subst = (SubstTerm) arg;
 					if (subst.mSubTerm instanceof Variable
-						&& subst.mSubstitution instanceof Substitution.Shift
-						&& ((Substitution.Shift) 
-								subst.mSubstitution).mOffset == offset)
+						&& subst.mSubstitution.mSubstTerms.length == 0
+						&& subst.mSubstitution.mShiftOffset == offset)
 						break;
 				}
 				offset++;
@@ -58,7 +57,8 @@ public class Constructor extends Term {
 			throw new IllegalArgumentException("Constructor malformed");
 		Substitution backShift = Substitution.shift(0);
 		for (int i = 0; i < indType.mParams.length - indType.mNumShared; i++)
-			backShift = Substitution.cons(Term.variable(0, Term.U), backShift);
+			backShift = Substitution.cons(Term.variable(0, Term.U), backShift,
+					Integer.MAX_VALUE);
 		declType = Term.substitute(declType, backShift, null);
 		for (int i = indType.mNumShared - 1; i >= 0; i--) {
 			declType = new PiTerm(indType.mParams[i], declType);
@@ -82,9 +82,9 @@ public class Constructor extends Term {
 					return false;
 				SubstTerm subst = (SubstTerm) app.mArg;
 				if (! (subst.mSubTerm instanceof Variable)
-					|| !(subst.mSubstitution instanceof Substitution.Shift))
+					|| subst.mSubstitution.mSubstTerms.length != 0)
 					return false;
-				int index = ((Substitution.Shift) subst.mSubstitution).mOffset;
+				int index = subst.mSubstitution.mShiftOffset;
 				if (index != offset + argNum)
 					return false;
 			}
@@ -107,9 +107,9 @@ public class Constructor extends Term {
 			SubstTerm subst = (SubstTerm) type;
 			if (!(subst.mSubTerm instanceof Variable))
 				return false;
-			if (!(subst.mSubstitution instanceof Substitution.Shift))
+			if (subst.mSubstitution.mSubstTerms.length != 0)
 				return false;
-			int index = ((Substitution.Shift) subst.mSubstitution).mOffset;
+			int index = subst.mSubstitution.mShiftOffset;
 			assert index < offset + indType.mParams.length;
 			return index < offset
 				|| index >= offset + indType.mParams.length - indType.mNumShared;
@@ -151,8 +151,8 @@ public class Constructor extends Term {
 			t = pi.mRange.evaluateHead();
 			me = new AppTerm(Term.substitute(me, shiftOne, null), 
 					Term.variable(0, param));
-			reorderVars = Substitution.cons(Term.variable(0, param),
-					Substitution.compose(reorderVars, shiftOne));
+			reorderVars = Substitution.consShifted(Term.variable(0, param),
+					reorderVars, Integer.MAX_VALUE);
 			offset++;
 			if (isTC(param)) {
 				Term c = buildCTerm(Term.substitute(param, shiftOne, null), 
@@ -161,7 +161,7 @@ public class Constructor extends Term {
 				constrParams.add(c);
 				offset++;
 				me = Term.substitute(me, shiftOne, null);
-				reorderVars = Substitution.compose(reorderVars, shiftOne);
+				reorderVars = Substitution.compose(reorderVars, shiftOne, Integer.MAX_VALUE);
 			}
 		}
 		t = Term.substitute(t, reorderVars, null);

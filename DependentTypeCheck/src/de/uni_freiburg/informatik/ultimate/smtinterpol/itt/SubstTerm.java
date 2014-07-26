@@ -36,7 +36,8 @@ public class SubstTerm extends Term {
 		if (mSubTerm instanceof SubstTerm) {
 			SubstTerm subsubst = (SubstTerm) mSubTerm;
 			mEvaluated = Term.substitute(subsubst.mSubTerm,
-					Substitution.compose(subsubst.mSubstitution, mSubstitution),
+					Substitution.compose(subsubst.mSubstitution, mSubstitution,
+							subsubst.mSubTerm.numFreeVariables()),
 					getType()).
 					evaluateHead();
 		} else if (mSubTerm instanceof AppTerm) {
@@ -48,9 +49,9 @@ public class SubstTerm extends Term {
 		} else if (mSubTerm instanceof LambdaTerm) {
 			LambdaTerm lam = (LambdaTerm) mSubTerm;
 			Term substArg = Term.substitute(lam.mArgType, mSubstitution, null);
-			Substitution shifted = Substitution.cons(
-					Term.variable(0, substArg),
-					Substitution.compose(mSubstitution, Substitution.shift(1)));
+			Substitution shifted = Substitution.consShifted(
+					Term.variable(0, substArg), mSubstitution,
+					lam.mSubTerm.numFreeVariables());
 			mEvaluated = new LambdaTerm(
 					substArg,
 					Term.substitute(lam.mSubTerm, shifted, null), 
@@ -58,26 +59,18 @@ public class SubstTerm extends Term {
 		} else if (mSubTerm instanceof PiTerm) {
 			PiTerm pi = (PiTerm) mSubTerm;
 			Term substArg = Term.substitute(pi.mDomain, mSubstitution, null);
-			Substitution shifted = Substitution.cons(
-					Term.variable(0, substArg),
-					Substitution.compose(mSubstitution, Substitution.shift(1)));
+			Substitution shifted = Substitution.consShifted(
+					Term.variable(0, substArg), mSubstitution,
+					pi.mRange.numFreeVariables());
 			mEvaluated = new PiTerm(
 					substArg,
 					Term.substitute(pi.mRange, shifted, null), 
 					getType()).evaluateHead();
 		} else if (mSubTerm instanceof Variable) {
-			Substitution subst = mSubstitution.evaluateHead();
-			if (subst instanceof Substitution.Cons) {
-				mEvaluated = ((Substitution.Cons) subst).mHead.evaluateHead();
-			} else {
-				assert subst instanceof Substitution.Shift;
-				if (subst == mSubstitution) {
-					mEvaluated = this;
-				} else {
-					mEvaluated = Term.substitute(mSubTerm, subst, getType());
-					((SubstTerm) mEvaluated).mEvaluated = mEvaluated;
-				}
-			}
+			if (mSubstitution.mSubstTerms.length == 0)
+				mEvaluated = this;
+			else
+				mEvaluated = mSubstitution.mSubstTerms[0].evaluateHead();
 		} else {
 			/* term is Constructor, RecOp, or InductiveType */
 			assert mSubTerm == Term.U || mSubTerm instanceof Constructor
@@ -94,8 +87,8 @@ public class SubstTerm extends Term {
 	@Override
 	protected String toString(int offset, int prec) {
 		if (mSubTerm instanceof Variable
-			&& mSubstitution instanceof Substitution.Shift) {
-			int index = ((Substitution.Shift) mSubstitution).mOffset;
+			&& mSubstitution.mSubstTerms.length == 0) {
+			int index = mSubstitution.mShiftOffset;
 			return "@" + (offset - index - 1);
 		}
 		
@@ -111,7 +104,7 @@ public class SubstTerm extends Term {
 			return false;
 		SubstTerm other = (SubstTerm) o;
 		assert other.mSubTerm instanceof Variable;
-		return ((Substitution.Shift) mSubstitution).mOffset
-				== ((Substitution.Shift) other.mSubstitution).mOffset;
+		return mSubstitution.mShiftOffset
+				== other.mSubstitution.mShiftOffset;
 	}
 }

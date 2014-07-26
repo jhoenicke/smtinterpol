@@ -1,125 +1,99 @@
 package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
 
-public abstract class Substitution {
-	public static class Shift extends Substitution {
-		int mOffset;
-		
-		public Shift(int offset) {
-			mOffset = offset;
-		}
+import java.util.Arrays;
 
-		public String toString(int prec) {
-			String str = "^" + mOffset;
-			return prec >= 2 ? "(" + str + ")" : str;
-		}
-
-		public Substitution evaluateHead() {
-			return this;
-		}
+public class Substitution {
+	Term[] mSubstTerms;
+	int mShiftOffset;
+	
+	public static Term[] EMPTY = new Term[0];
+	public static Substitution[] sShifts = new Substitution[0];
+	
+	public Substitution(Term[] substterms, int offset) {
+		mSubstTerms = substterms;
+		mShiftOffset = offset;
 	}
 	
-	public static class Cons extends Substitution {
-		Term mHead;
-		Substitution mTail;
-		
-		Substitution mEvaluated;
-		
-		public Cons(Term head, Substitution tail) {
-			mHead = head;
-			mTail = tail;
-		}
-		
-		public String toString(int prec) {
-			String str = mHead.toString(1, 1) + "." 
-					+ mTail.toString(1);
-			return prec >= 2 ? "(" + str + ")" : str;
-		}
-
-		public Substitution evaluateHead() {
-			return this;
-		}
-	}
-	
-	public static class Compose extends Substitution {
-		Substitution mFirst;
-		Substitution mSecond;
-		
-		Substitution mEvaluated;
-		
-		public Compose(Substitution first, Substitution second) {
-			mFirst = first;
-			mSecond = second;
-		}
-		
-		public String toString(int prec) {
-			String str = mFirst.toString(2) + " o " 
-					+ mSecond.toString(1);
-			return prec >= 1 ? "(" + str + ")" : str;
-		}
-
-		public Substitution evaluateHead() {
-			if (mEvaluated == null) {
-				Substitution first = mFirst.evaluateHead();
-				if (first instanceof Cons) {
-					Cons cons = (Cons) first;
-					mEvaluated = Substitution.cons(
-							Term.substitute(cons.mHead, mSecond, null),
-							Substitution.compose(cons.mTail, mSecond));
-				} else {
-					assert first instanceof Shift;
-					int offset = ((Shift) first).mOffset;
-					Substitution second = mSecond.evaluateHead();
-					while (offset > 0) {
-						if (second instanceof Shift) {
-							second = Substitution.shift(
-									offset + ((Shift) second).mOffset);
-							break;
-						}
-						second = ((Cons) second).mTail.evaluateHead();
-						offset--;
-					}
-					mEvaluated = second;
-				}
-			}
-			return mEvaluated;
-		}
+	public String toString(int prec) {
+		StringBuilder sb = new StringBuilder();
+		for (Term t : mSubstTerms)
+			sb.append(t.toString(1, 1)).append('.');
+		sb.append('^').append(mShiftOffset);
+		return sb.toString();
 	}
 
-	public abstract String toString(int prec);
-
-	public abstract Substitution evaluateHead();
-	
 	public String toString() {
 		return toString(0);
 	}
 
 	public static Substitution shift(int offset) {
-		return new Shift(offset);
+		if (offset >= sShifts.length) {
+			int oldlen = sShifts.length;
+			sShifts = Arrays.copyOf(sShifts, 
+					Math.max(offset + 1, sShifts.length * 2));
+			for (int i = oldlen; i < sShifts.length; i++)
+				sShifts[i] = new Substitution(EMPTY, i);
+		}
+		return sShifts[offset];
 	}
 
-	public static Substitution cons(Term first, Substitution second) {
-		return new Cons(first, second);
+	public static Substitution cons(Term first, Substitution second, 
+			int maxVariable) {
+		Term[] terms = new Term[Math.min(maxVariable,
+				second.mSubstTerms.length + 1)];
+		if (terms.length == 0)
+			return shift(second.mShiftOffset);
+		terms[0] = first;
+		for (int i = 1; i < terms.length; i++)
+			terms[i] = second.mSubstTerms[i - 1];
+		return new Substitution(terms, second.mShiftOffset);
+	}
+
+	public static Substitution consShifted(Term first, Substitution second, 
+			int maxVariable) {
+		Term[] terms = new Term[Math.min(maxVariable,
+				second.mSubstTerms.length + 1)];
+		if (terms.length == 0)
+			return shift(second.mShiftOffset);
+		terms[0] = first;
+		for (int i = 1; i < terms.length; i++)
+			terms[i] = Term.substitute(second.mSubstTerms[i - 1], shift(1), null);
+		return new Substitution(terms, second.mShiftOffset + 1);
 	}
 
 	public static Substitution compose(
-			Substitution first, Substitution second) {
-		return new Compose(first, second);
+			Substitution first, Substitution second,
+			int maxVariable) {
+		int secondLen = Math.max(0, second.mSubstTerms.length
+				- first.mShiftOffset);
+		Term[] terms = new Term[Math.min(first.mSubstTerms.length + secondLen,
+				maxVariable)];
+		if (terms.length == 0)
+			return shift(first.mShiftOffset - second.mSubstTerms.length
+					+ second.mShiftOffset);
+		for (int i = 0; i < terms.length; i++) {
+			if (i < first.mSubstTerms.length) {
+				terms[i] = Term.substitute(first.mSubstTerms[i], second, null);
+			} else {
+				terms[i] = second.mSubstTerms[i
+						- first.mSubstTerms.length + first.mShiftOffset];
+			}
+		}
+		int offset = first.mShiftOffset <= second.mSubstTerms.length
+				? second.mShiftOffset
+				: second.mShiftOffset + first.mShiftOffset - second.mSubstTerms.length;
+		return new Substitution(terms, offset);
 	}
 
 	public int numFreeVariables(int numFreeVariables) {
 		int numFree = 0;
-		Substitution subst = this;
-		while (numFreeVariables > 0) {
-			subst = subst.evaluateHead();
-			if (subst instanceof Shift) {
+		for (int i = 0; i < numFreeVariables; i++) {
+			if (i >= mSubstTerms.length) {
 				numFree = Math.max(numFree, 
-						((Shift) subst).mOffset + numFreeVariables);
+						mShiftOffset + numFreeVariables - mSubstTerms.length);
 				return numFree;
-			} else {
-				Cons cons = (Cons) subst;
-				numFree = Math.max(numFree, cons.mHead.numFreeVariables());
-				subst = cons.mTail;
 			}
+			numFree = Math.max(numFree, mSubstTerms[i].numFreeVariables());
 		}
 		return numFree;
 	}

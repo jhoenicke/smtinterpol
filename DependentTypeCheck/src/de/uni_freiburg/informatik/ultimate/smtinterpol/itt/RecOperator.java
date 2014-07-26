@@ -40,7 +40,8 @@ public class RecOperator extends Term {
 			constrArgTypes[i] = Term.substitute(type.mParams[numShared + i], 
 					constrShift, null);
 			Term var = Term.variable(numPriv - i, constrArgTypes[i]);
-			constrShift = Substitution.cons(Term.variable(0, constrArgTypes[i]), Substitution.compose(constrShift, Substitution.shift(1)));
+			constrShift = Substitution.consShifted(Term.variable(0, constrArgTypes[i]), 
+					constrShift, Integer.MAX_VALUE);
 			result = new AppTerm(result, var);
 		}
 		constrArgTypes[numPriv] = Term.substitute(tcType, constrShift, null);

@@ -11,7 +11,7 @@ public class Variable extends Term {
 
 	@Override
 	public int numFreeVariables() {
-		return 1;
+		return Math.max(1, getType().numFreeVariables());
 	}
 	
 	public Term evaluateHead() {
