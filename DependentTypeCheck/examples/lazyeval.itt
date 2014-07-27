@@ -1,0 +1,286 @@
+;;;; This example istaken from
+;; http://stackoverflow.com/questions/20693819/lazy-evaluation-correctness-and-totality-coq?rq=1
+;;
+;; Show soundness and completeness of a lazy evaluation calculus
+;;
+
+;; Sigma types 
+
+Inductive Sigma : A:U -> B:(A -> U) -> U =
+  pair : a:A -> b:B a -> Sigma A B
+
+Definition E =
+  \A:U \B:(A -> U) \C:(Sigma A B -> U)
+  \c: (Sigma A B) \d:(x:A -> y: B x -> C (Sigma.pair A B x y))
+  Sigma.rec A B C d c
+
+Definition Sigma.p1 =
+ \A:U \B:(A -> U) \c:(Sigma A B)
+ E A B (\z:(Sigma A B) A) c (\x:A \y:(B x) x)
+Definition Sigma.p2 =
+ \A:U \B:(A -> U) \c:(Sigma A B)
+ E A B (\z:(Sigma A B) B (Sigma.p1 A B z)) c (\x:A \y:(B x) y)
+
+
+;; Binary sum type
+
+Inductive sum : A:U -> B:U -> U =
+  inl : A -> sum A B,
+  inr : B -> sum A B
+
+;; Binary product type
+
+Inductive prod : A:U -> B:U -> U =
+  pair : A -> B -> prod A B
+
+;; Three useful finite sets
+
+Inductive N_0 : U =
+
+Inductive N_1 : U = 0:N_1
+
+Inductive N_2 : U = 0:N_2, 1: N_2
+
+;; Natural numbers
+
+Inductive N : U =
+  0 : N,
+  succ : N -> N
+
+;; Boolean to truth-value converter
+
+Definition Tr =
+  N_2.rec (\c:N_2 U) N_0 N_1
+
+;; Identity type
+
+Inductive I : A:U -> x:A -> A -> U =
+  r :  I A x x
+
+TypeCheck I.rec :
+   A:U -> x:A -> C:(y:A -> I A x y -> U) ->
+   caser:(C x (I.r A x)) ->
+   y:A -> t:(I A x y) -> C y t
+
+;; functions are extensional wrt identity types
+
+Definition I_I_extensionality =
+  \A:U \B:U \f:(A -> B)
+  \x:A
+  I.rec A x (\y:A \r:(I A x y) I B (f x) (f y))
+    (I.r B (f x))
+
+TypeCheck I_I_extensionality :
+ A:U -> B:U -> f:(A -> B) -> x:A -> y:A -> I A x y -> I B (f x) (f y)
+
+
+
+;; addition
+
+Definition add =
+ \m:N N.rec (\n:N N) m (\n:N \rec:N N.succ rec)
+
+;; multiplication
+
+Definition mul =
+ \m:N N.rec (\n:N N) N.0 (\n:N \rec:N add rec m)
+
+;; Axioms of Peano verified
+
+Definition P1a = \x:N I.r N x
+TypeCheck P1a : x:N -> I N (add x N.0) x
+
+Definition P1b = \x:N \y:N I.r N (N.succ (add x y))
+TypeCheck P1b : x:N -> y:N -> I N (add x (N.succ y)) (N.succ (add x y))
+
+Definition P2a = \x:N I.r N N.0
+TypeCheck P2a : x:N -> I N (mul x N.0) N.0
+
+Definition P2b = \x:N \y:N I.r N (mul x (N.succ y))
+TypeCheck P2b : x:N -> y:N -> I N (mul x (N.succ y)) (add (mul x y) x)
+
+Definition pd = 
+  N.rec (\n:N N) N.0 (\n:N \r:N n)
+
+Definition P3 = 
+  \x:N \y:N I_I_extensionality N N pd (N.succ x) (N.succ y)
+TypeCheck P3 : x:N -> y:N -> I N (N.succ x) (N.succ y) -> I N x y
+
+Definition not = \A:U A -> N_0
+
+Definition isnonzero =
+  N.rec (\n:N N_2)
+   N_2.0 (\x:N \y:N_2 N_2.1)
+
+;; the fourth peano axiom
+;; Definition P4 =
+;;   \x: N \p:(I N (N.succ x) N.0)
+;;   I.rec N (N.succ x) 
+;;     (\y:N \p:(I N (N.succ x) y) Tr (isnonzero (N.succ x)) -> Tr (isnonzero y))
+;;     (\t:(Tr (isnonzero (N.succ x))) t)
+;;     N.0
+;;     p
+;;     N_1.0
+Definition P4 = 
+  \x:N I.rec N (N.succ x) 
+     (\y:N \p:(I N (N.succ x) y) Tr (isnonzero y))
+     N_1.0 N.0
+TypeCheck P4 : x:N -> not (I N (N.succ x) N.0)
+
+Definition P5 = N.rec
+TypeCheck P5 : P:(N -> U) -> P N.0 -> 
+    (x:N -> P x -> P (N.succ x)) -> x:N -> P x
+
+;; I(A,-,-) is an equivalence relation
+
+Definition Ireflexive = I.r
+
+Definition Isymmetric =
+ \A:U \x:A I.rec A x (\y:A \p:(I A x y) I A y x) (I.r A x)
+TypeCheck Isymmetric : A:U -> x:A -> y:A -> I A x y -> I A y x
+
+Definition Itransitive =
+ \A:U \x:A \y:A \z:A \p1:(I A x y)
+   I.rec A y (\z:A \p2:(I A y z) I A x z) p1 z
+TypeCheck Itransitive : A:U -> x:A -> y:A -> z:A ->
+   I A x y -> I A y z -> I A x z
+
+Definition or = sum
+
+;; arithmetical expressions
+
+Inductive Aexp : U =
+  zer: Aexp,
+  suc: Aexp -> Aexp,
+  pls: Aexp -> Aexp -> Aexp
+
+;; denotation of an expression
+
+Definition denotation =
+  Aexp.rec (\a: Aexp N)
+    N.0
+    (\a1:Aexp \rec:N N.succ rec)
+    (\a1:Aexp \rec1:N \a2:Aexp \rec2:N add rec1 rec2)
+
+;; predicate for distinguishing
+;; canonical expressions
+
+Definition Canonical =
+  \x:Aexp 
+    or (I Aexp x Aexp.zer) 
+       (Sigma Aexp (\y:Aexp I Aexp x (Aexp.suc y)))
+
+;; the computation relation is
+;; an inductively defined relation *)
+
+Inductive Comp : Aexp -> Aexp -> U =
+  refrule : a:Aexp -> Canonical a -> Comp a a,
+  zerrule : a:Aexp -> b:Aexp -> c:Aexp -> 
+            p:Comp b Aexp.zer -> q:Comp a c -> Comp (Aexp.pls a b) c,
+  sucrule : a:Aexp -> b:Aexp -> c:Aexp -> 
+            p:Comp b (Aexp.suc c) -> 
+            Comp (Aexp.pls a b) (Aexp.suc (Aexp.pls a c))
+
+;; Computations only give canonical
+;; expressions as results
+
+Definition canonical_zer = 
+  sum.inl (I Aexp Aexp.zer Aexp.zer)
+      (Sigma Aexp (\y:Aexp I Aexp Aexp.zer (Aexp.suc y)))
+      (I.r Aexp Aexp.zer)
+Definition canonical_suc = \x:Aexp
+  sum.inr (I Aexp (Aexp.suc x) Aexp.zer)
+      (Sigma Aexp (\y:Aexp I Aexp (Aexp.suc x) (Aexp.suc y)))
+      (Sigma.pair Aexp (\y:Aexp I Aexp (Aexp.suc x) (Aexp.suc y))
+             x (I.r Aexp (Aexp.suc x)))
+
+Definition Only_canonical_results =
+  Comp.rec (\x:Aexp \y:Aexp \p:(Comp x y) Canonical y)
+    (\a:Aexp \ca:(Canonical a) ca)     ; refrule
+    (\a:Aexp \b:Aexp \c:Aexp        ; zerrule
+     \p:(Comp b Aexp.zer) \cz:(Canonical Aexp.zer)
+     \q:(Comp a c) \cq:(Canonical c) cq)
+    (\a:Aexp \b:Aexp \c:Aexp        ; sucrule
+     \p:(Comp b (Aexp.suc c)) \cp:(Canonical (Aexp.suc c))
+     canonical_suc (Aexp.pls a c))
+
+TypeCheck Only_canonical_results : 
+   x:Aexp -> y:Aexp -> (Comp x y) -> Canonical y
+
+;; Correctness: the computation relation
+;; preserves denotation of expressions
+
+Definition correct_wrt_semantics =
+  Comp.rec (\x:Aexp \y:Aexp \p:(Comp x y) 
+            I N (denotation x) (denotation y))
+    (\a:Aexp \ca:(Canonical a) I.r N (denotation a))
+    (\a:Aexp \b:Aexp \c:Aexp        ; zerrule
+     \p:(Comp b Aexp.zer) \eqp:(I N (denotation b) N.0)
+     \q:(Comp a c) \eqq:(I N (denotation a) (denotation c))
+     Itransitive N
+        (denotation (Aexp.pls a b)) 
+        (denotation a)  ;; denotation (Aexp.pls a N.0) simplifies
+	(denotation c)
+        (I_I_extensionality N N 
+           (\x:N add (denotation a) x) (denotation b) N.0 eqp)
+        eqq)
+    (\a:Aexp \b:Aexp \c:Aexp        ; sucrule
+     \p:(Comp b (Aexp.suc c)) 
+     \eqp:(I N (denotation b) (denotation (Aexp.suc c)))
+     I_I_extensionality N N (\x:N add (denotation a) x) 
+         (denotation b) (denotation (Aexp.suc c)) eqp)
+
+TypeCheck correct_wrt_semantics :
+   x:Aexp -> y:Aexp -> p:Comp x y -> I N (denotation x) (denotation y)
+
+;; every input leads to some result
+
+Definition Comp_is_total_lemma =
+  Aexp.rec (\x:Aexp (Sigma Aexp (\y:Aexp Comp x y)))
+    (Sigma.pair Aexp (\y:Aexp Comp Aexp.zer y)
+        Aexp.zer (Comp.refrule Aexp.zer canonical_zer))
+    (\x:Aexp \Hyp: (Sigma Aexp (\y:Aexp Comp x y))
+     Sigma.pair Aexp (\y:Aexp Comp (Aexp.suc x) y)
+        (Aexp.suc x) (Comp.refrule (Aexp.suc x) (canonical_suc x)))
+    (\a:Aexp \Hypa: (Sigma Aexp (\y:Aexp Comp a y))
+     \b:Aexp \Hypb: (Sigma Aexp (\y:Aexp Comp b y))
+     (\asimp: Aexp \acomp:(Comp a asimp)
+      \bsimp: Aexp \bcomp:(Comp b bsimp)
+      sum.rec (I Aexp bsimp Aexp.zer)
+        (Sigma Aexp (\y:Aexp I Aexp bsimp (Aexp.suc y)))
+        (\c:(Canonical bsimp) Sigma Aexp (\y:Aexp Comp (Aexp.pls a b) y))
+        (\eqz:(I Aexp bsimp Aexp.zer)
+	   Sigma.pair Aexp (\y:Aexp Comp (Aexp.pls a b) y)
+	         asimp
+		 (Comp.zerrule a b asimp 
+                          (I.rec Aexp bsimp 
+			         (\y:Aexp \_:(I Aexp bsimp y) Comp b y) 
+                                 bcomp Aexp.zer eqz)
+			  acomp))
+        (\sig:(Sigma Aexp (\y:Aexp I Aexp bsimp (Aexp.suc y)))
+         (\y:Aexp \yeq:(I Aexp bsimp (Aexp.suc y))
+	   Sigma.pair Aexp (\y:Aexp Comp (Aexp.pls a b) y)
+	         (Aexp.suc (Aexp.pls a y))
+		 (Comp.sucrule a b y
+                          (I.rec Aexp bsimp 
+			         (\y:Aexp \_:(I Aexp bsimp y) Comp b y) 
+                                 bcomp (Aexp.suc y) yeq)))
+         (Sigma.p1 Aexp (\y:Aexp I Aexp bsimp (Aexp.suc y)) sig)
+         (Sigma.p2 Aexp (\y:Aexp I Aexp bsimp (Aexp.suc y)) sig))
+        (Only_canonical_results b bsimp bcomp))
+      (Sigma.p1 Aexp (\y:Aexp Comp a y) Hypa)
+      (Sigma.p2 Aexp (\y:Aexp Comp a y) Hypa)
+      (Sigma.p1 Aexp (\y:Aexp Comp b y) Hypb)
+      (Sigma.p2 Aexp (\y:Aexp Comp b y) Hypb))
+
+Definition Comp_is_total =
+  \x:Aexp 
+  (\xsimp:Aexp \xcomp:(Comp x xsimp)	
+   Sigma.pair Aexp (\y:Aexp (prod (Comp x y) (Canonical y)))
+              xsimp (prod.pair (Comp x xsimp) (Canonical xsimp)
+                               xcomp (Only_canonical_results x xsimp xcomp)))
+  (Sigma.p1 Aexp (\y:Aexp Comp x y) (Comp_is_total_lemma x))
+  (Sigma.p2 Aexp (\y:Aexp Comp x y) (Comp_is_total_lemma x))
+
+TypeCheck Comp_is_total :
+  x:Aexp -> Sigma Aexp (\y:Aexp (prod (Comp x y) (Canonical y)))

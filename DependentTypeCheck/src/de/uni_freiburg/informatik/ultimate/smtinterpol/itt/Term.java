@@ -98,8 +98,8 @@ public abstract class Term {
 			return true;
 		boolean result = me.equalsHead(other);
 		if (!result) {
-			System.err.println("Unequal: " + this + " != " + o);
-			System.err.println("evaled head: " + me + " != " + other);
+			System.err.println("Unequal: " + me.evaluate());
+			System.err.println(" is !=   " + other.evaluate());
 		}
 		return result;
 	}
