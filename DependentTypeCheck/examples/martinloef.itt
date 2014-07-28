@@ -1,0 +1,68 @@
+;; All Martin-Löf types from his 1984 paper
+
+Inductive Pi : A:U -> B:(A->U) -> U =
+   lam : (x:A -> B x) -> Pi A B
+
+Definition Ap = \A:U \B:(A->U) ->
+   Pi.rec A B (\f:Pi A B -> x:A -> B x)
+      (\b:(x:A -> B x) -> b)
+
+TypeCheck Ap : A:U -> B:(A->U) -> f:Pi A B -> x:A -> B x
+
+Inductive Sigma : A:U -> B:(A->U) -> U =
+   pair : x:A -> y:(B x) -> Sigma A B
+Definition pi1 = \A:U \B:(A->U) -> 
+   Sigma.rec A B (\s:Sigma A B -> A)
+     (\x:A \y:(B x) -> x)
+Definition pi2 = \A:U \B:(A->U) -> 
+   Sigma.rec A B (\s:Sigma A B -> B (pi1 A B s))
+     (\x:A \y:(B x) -> y)
+
+Inductive + : A:U -> B:U -> U =
+  i : A -> + A B,
+  j : B -> + A B
+
+Inductive I : A:U -> a:A -> b:A -> U =
+  r  : I A a a
+
+Inductive N0 : U =
+Inductive N1 : U = 0:N1
+Inductive N2 : U = 0:N2, 1:N2
+Inductive N3 : U = 0:N3, 1:N3, 2:N3
+;...
+Inductive N : U =
+  0 : N,
+  s : N -> N
+Definition N.pd = 
+  N.rec (\n:N -> N) N.0 (\n:N \r:N -> n)
+Definition N.add = \a:N ->
+  N.rec (\b:N -> N) a (\b:N \r:N -> N.s r)
+Definition N.mul = \a:N ->
+  N.rec (\b:N -> N) N.0 (\b:N \r:N -> N.add r a)
+
+Inductive List : A:U -> U =
+  nil  : List A,
+  cons : A -> List A -> List A
+
+Inductive W : A:U -> B:(A->U) -> U =
+   sup : a:A -> b:(B a -> W A B) -> W A B
+
+Definition Nat = W N2 (N2.rec (\_:N2 -> U) N0 N1)
+Definition Ord = W N3 (N3.rec (\_:N3 -> U) N0 N1 N)
+
+Inductive O : U =
+  0   : O,
+  s   : O -> O,
+  sup : (N->O) -> O
+
+Definition not = \A:U -> A -> N0
+
+Definition wellordlemma =
+  \A:U \B:(A->U)
+  \pre:Sigma A (\x:A -> not (B x)) ->
+  W.sup A B (pi1 A (\x:A -> not (B x)) pre) 
+    (\a:B (pi1 A (\x:A -> not (B x)) pre) -> 
+       N0.rec (\_:N0 -> W A B) (pi2 A (\x:A -> not (B x)) pre a))
+
+TypeCheck wellordlemma : A:U -> B:(A->U) -> 
+   Sigma A (\x:A -> not (B x)) -> W A B
