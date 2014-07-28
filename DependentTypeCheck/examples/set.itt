@@ -31,8 +31,10 @@ Definition russel =
   Set.comprehension (Set U)
       (\x:Set U -> (Bool.not (isElem U (Reflect U x) x)))
 
-
 Evaluate russel
 EvaluateType russel
 
 ;Evaluate isElem (Set U) (Reflect (Set U) russel) russel
+
+Inductive USet : U =
+  comprehension : A:U -> (A -> Bool) -> USet

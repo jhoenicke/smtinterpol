@@ -23,7 +23,7 @@ public class RecOperator extends Term {
 		Term[] tcVars = new Term[numTCArgs];
 		for (int i = 0; i < numTCArgs; i++) {
 			tcVars[i] = Term.variable(numTCArgs - i - 1, type.mParams[i]);
-			tcType = new AppTerm(tcType, tcVars[i]);
+			tcType = Term.application(tcType, tcVars[i], null);
 		}
 		// The type of C: (privateArgs -> TC -> U)
 		Term cType = new PiTerm(tcType, Term.U);
@@ -42,11 +42,11 @@ public class RecOperator extends Term {
 			Term var = Term.variable(numPriv - i, constrArgTypes[i]);
 			constrShift = Substitution.consShifted(Term.variable(0, constrArgTypes[i]), 
 					constrShift, Integer.MAX_VALUE);
-			result = new AppTerm(result, var);
+			result = Term.application(result, var, null);
 		}
 		constrArgTypes[numPriv] = Term.substitute(tcType, constrShift, null);
-		result = new AppTerm(result, Term.variable(0, 
-				constrArgTypes[numPriv]));
+		result = Term.application(result, Term.variable(0, 
+				constrArgTypes[numPriv]), null);
 		// locals -> t -> clt
 		for (int i = numPriv; i >= 0; i--) {
 			result = new PiTerm(constrArgTypes[i], result);
@@ -92,8 +92,8 @@ public class RecOperator extends Term {
 		assert cons.mInductiveType == mInductiveType;
 		// Now remove the local parameters from rec; we already type checked
 		// that they are as expected.
-		int numLocals = mInductiveType.mParams.length - 
-				mInductiveType.mNumShared;
+		int numLocals = mInductiveType.mParams.length
+				- mInductiveType.mNumShared;
 		for (int i = 0; i < numLocals; i++)
 			recApp = (AppTerm) recApp.mFunc;
 

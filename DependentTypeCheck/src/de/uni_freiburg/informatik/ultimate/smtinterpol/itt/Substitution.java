@@ -36,7 +36,7 @@ public class Substitution {
 		}
 		return sShifts[offset];
 	}
-
+	
 	public static Substitution cons(Term first, Substitution second, 
 			int maxVariable) {
 		Term[] terms = new Term[Math.min(maxVariable,

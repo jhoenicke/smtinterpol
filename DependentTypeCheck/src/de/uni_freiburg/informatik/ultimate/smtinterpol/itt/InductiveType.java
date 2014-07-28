@@ -28,19 +28,20 @@ public class InductiveType extends Term {
 		}
 		mRecOperator = new RecOperator(this);
 	}
-	
+
 	private static Term[] splitParams(Term type) {
 		ArrayDeque<Term> params = new ArrayDeque<Term>();
+		type = type.evaluateHead();
 		while (type instanceof PiTerm) {
 			PiTerm pi = (PiTerm) type;
-			params.addLast(pi.mDomain);
-			type = pi.mRange;
+			params.addLast(pi.mDomain.evaluate());
+			type = pi.mRange.evaluateHead();
 		}
 		if (type != Term.U)
 			throw new IllegalArgumentException("Typecheck: Illegal Inductive Type");
 		return params.toArray(new Term[params.size()]);
 	}
-	
+
 	protected String toString(int offset, int prec) {
 		return mName;
 	}

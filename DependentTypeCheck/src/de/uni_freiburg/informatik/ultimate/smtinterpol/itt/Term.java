@@ -109,9 +109,14 @@ public abstract class Term {
 	}
 	
 	public static Term application(Term func, Term arg, Term type) {
-		assert type == null || type.equals(AppTerm.typecheck(func, arg));
-		if (type == null)
-			type = AppTerm.typecheck(func, arg);
+		if (type == null) {
+			type = ((PiTerm) func.getType().evaluateHead()).mRange;
+			if (type.numFreeVariables() > 0) {
+				Substitution subst = new Substitution(new Term[] { arg }, 0);
+				type = Term.substitute(type, subst, Term.U);
+			}
+		}
+		assert type.equals(AppTerm.typecheck(func, arg));
 		return new AppTerm(func, arg, type);
 	}
 
@@ -132,6 +137,9 @@ public abstract class Term {
 	public static Term substitute(Term term, Substitution subst, Term type) {
 		assert type == null || type.equals(SubstTerm.typecheck(term, subst));
 		if (term.numFreeVariables() == 0)
+			return term;
+		if (subst.mShiftOffset == 0 && subst.mSubstTerms.length == 0
+				&& !(term instanceof Variable))
 			return term;
 		if (type == null)
 			type = SubstTerm.typecheck(term, subst);
