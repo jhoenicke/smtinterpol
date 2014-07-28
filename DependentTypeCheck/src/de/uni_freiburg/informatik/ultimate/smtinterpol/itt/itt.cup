@@ -118,14 +118,15 @@ scan with {: return getScanner().next_token(); :}
 
 
 /* Keywords */
-terminal INDUCTIVE, DEFINITION, TYPECHECK, EVALUATETYPE, EVALUATE;
+terminal INDUCTIVE, DEFINITION, CHECK, TYPECHECK, EVALUATETYPE, EVALUATE, ASSUME;
 /* Symbols */
 terminal ARROW, COLON, LPAR, RPAR, LAMBDA, COMMA, EQUALS;
 terminal String ID;
 
 non terminal goal, declaration, inductivedecl;
 non terminal Term inductivetype;
-non terminal Term expr, expr1, expr2;
+non terminal Term expr, expr2, expr3;
+non terminal Term exprPi, exprPiFront, exprApp, exprLambda, exprInLambda;
 non terminal Constructor constrdecl;
 non terminal ArrayList<Constructor> constrdecls;
 
@@ -133,9 +134,19 @@ non terminal ArrayList<Constructor> constrdecls;
 goal ::= declaration*;
 
 declaration ::= inductivedecl
+	| ASSUME ID:i COLON expr:t
+	  {:
+		globals.put(i, new Assumption(i, t));
+	  :}
 	| DEFINITION ID:i EQUALS expr:e
-	  {: globals.put(i, e); :}
-	| TYPECHECK expr1:e COLON expr:t
+	  {: e.setName(i); globals.put(i, e); :}
+	| CHECK expr:e1 EQUALS expr:e2
+	  {:
+		if (!e1.equals(e2))
+			parser.report_error("Check failed: " + e1.evaluate()
+					+ " is not " + e2.evaluate(), e1$);
+	  :}
+	| TYPECHECK expr2:e COLON expr:t
 	  {:
 		if (!e.getType().equals(t))
 			parser.report_error("TypeCheck failed: " + e.getType().evaluate()
@@ -162,11 +173,11 @@ inductivedecl ::= INDUCTIVE ID:i COLON inductivetype:type
 		inductiveType = null;
 	  :};
 
-inductivetype ::= ID:i COLON expr1:exprDom ARROW 
+inductivetype ::= ID:i COLON expr2:exprDom ARROW 
 	  {: pushBruijnVariable(i, exprDom, exprDom$); :}
 	  inductivetype:exprRng
 	  {: RESULT = new PiTerm(exprDom, exprRng); :}
-	| expr1:exprDom ARROW 
+	| expr2:exprDom ARROW 
 	  {: pushBruijnVariable("", exprDom, exprDom$); :}
 	  inductivetype:exprRng
 	  {: 
@@ -175,9 +186,9 @@ inductivetype ::= ID:i COLON expr1:exprDom ARROW
 		RESULT = new PiTerm(exprDom, exprRng); :}
 	| ID:u
 	  {:
-	  	if (!u.equals("U"))
-			parser.report_error("expected type U", u$);
 		RESULT = lookupName(u);
+		if (!RESULT.equals(Term.U))
+			parser.report_error("expected type U", u$);
 	  :}
 	;
 
@@ -194,30 +205,27 @@ constrdecl ::=
 	:} 
 	;
 
-expr ::=
-	  ID:i COLON expr1:exprDom ARROW 
-	  {: pushBruijnVariable(i, exprDom, exprDom$); :}
-	  expr:exprRng
-	  {: popBruijnVariable();
-	     RESULT = new PiTerm(exprDom, exprRng); :}
-	| expr1:exprDom ARROW 
-	  {: pushBruijnVariable("", exprDom, exprDom$); :}
-	  expr:exprRng
-	  {:
-		popBruijnVariable();
-		if (!exprRng.getType().equals(Term.U))
-			parser.report_error("expected set type", exprRng$);
-		RESULT = new PiTerm(exprDom, exprRng);
-	  :}
-	| LAMBDA ID:i COLON expr2:exprArg
-	  {: pushBruijnVariable(i, exprArg, exprArg$); :}
-	  expr:exprSub
-	  {: popBruijnVariable();
-	     RESULT = new LambdaTerm(exprArg, exprSub); :}
-	| expr1
+expr ::= exprPi
+	| exprLambda
+	| expr2
 	;
-expr1 ::=
-	  expr1:exprFunc expr2:exprArg
+expr2 ::= exprApp
+	| expr3
+	;
+expr3 ::= ID:i
+	{:
+		RESULT = lookupName(i);
+		if (RESULT == null)
+			parser.report_error("Undefined Symbol " + i, i$);
+	:}
+	| LPAR expr:e {: RESULT = e; :} RPAR
+	;
+
+exprInLambda ::= exprLambda:expr
+	| ARROW expr:expr {: RESULT = expr; :}
+	;
+
+exprApp ::= expr2:exprFunc expr3:exprArg
 	{:
 		Term exprFuncType = exprFunc.getType();
 		exprFuncType = exprFuncType.evaluateHead();
@@ -228,15 +236,29 @@ expr1 ::=
 				" expected: " + ((PiTerm)exprFuncType).mDomain.evaluate(), exprArg$);
 		RESULT = new AppTerm(exprFunc, exprArg);
 	:}
-	| expr2
+	;
+exprLambda ::= LAMBDA ID:i COLON expr2:exprArg
+	{:
+		pushBruijnVariable(i, exprArg, exprArg$);
+	:}
+	exprInLambda:exprSub
+	{:
+		popBruijnVariable();
+		RESULT = new LambdaTerm(exprArg, exprSub);
+	:}
+	;
+exprPi ::= exprPiFront:exprDom expr:exprRng
+	{:
+		popBruijnVariable();
+		if (!exprRng.getType().equals(Term.U))
+			parser.report_error("expected set type", exprRng$);
+		RESULT = new PiTerm(exprDom, exprRng);
+	:}
 	;
 
-expr2 ::=
-	  ID:i
-	{:
-		RESULT = lookupName(i);
-		if (RESULT == null)
-			parser.report_error("Undefined Symbol " + i, i$);
-	:}
-	| LPAR expr:e {: RESULT = e; :} RPAR
+exprPiFront ::=
+	ID:i COLON expr2:exprDom ARROW
+	{: pushBruijnVariable(i, exprDom, exprDom$); RESULT = exprDom; :}
+	| expr2:exprDom ARROW
+	{: pushBruijnVariable("", exprDom, exprDom$); RESULT = exprDom; :}
 	;

@@ -83,9 +83,11 @@ public class AppTerm extends Term {
 	}
 
 	public String toString(int offset, int prec) {
-		String str = mFunc.toString(offset, 1) + " " 
-				+ mArg.toString(offset, 2);
-		return prec >= 2 ? "(" + str + ")" : str;
+		if (mName != null)
+			return mName;
+		String str = mFunc.toString(offset, 2) + " " 
+				+ mArg.toString(offset, 3);
+		return prec >= 3 ? "(" + str + ")" : str;
 	}
 	
 	public boolean equalsHead(Term o) {

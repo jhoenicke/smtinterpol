@@ -54,7 +54,9 @@ public class PiTerm extends Term {
 	}
 
 	public String toString(int offset, int prec) {
-		String str = "@" + offset + " : " + mDomain.toString(offset,1)
+		if (mName != null)
+			return mName;
+		String str = "@" + offset + " : " + mDomain.toString(offset,2)
 				+ " -> " + mRange.toString(offset + 1, 0);
 		return prec >= 1 ? "(" + str + ")" : str;
 	}

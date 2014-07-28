@@ -49,9 +49,19 @@ public class LambdaTerm extends Term {
 	}
 
 	public String toString(int offset, int prec) {
-		String str = "\\@" + offset + " : " + mArgType.toString(offset, 2)
-						+ " " + mSubTerm.toString(offset + 1, 0);
-		return prec >= 1 ? "(" + str + ")" : str;
+		if (mName != null)
+			return mName;
+		StringBuilder sb = new StringBuilder();
+		if (prec >= 1)
+			sb.append('(');
+		sb.append("\\@").append(offset).append(" : ");
+		sb.append(mArgType.toString(offset, 2)).append(' ');
+		if (!(mSubTerm instanceof LambdaTerm))
+			sb.append("-> ");
+		sb.append(mSubTerm.toString(offset + 1, 0));
+		if (prec >= 1)
+			sb.append(')');
+		return sb.toString();
 	}
 
 	public boolean equalsHead(Term o) {

@@ -46,6 +46,10 @@ public abstract class Term {
 	 * for classes.
 	 */
 	Term mType;
+	/**
+	 * The name of the term.  This is set for defined terms.
+	 */
+	String mName;
 	
 	public final static Term U = new Term(null) {
 		public String toString(int offset, int prec) { return "U"; }
@@ -158,5 +162,9 @@ public abstract class Term {
 		} else {
 			return t;
 		}
+	}
+	
+	public void setName(String name) {
+		mName = name;
 	}
 }

@@ -1,4 +1,3 @@
-
 Inductive Bool : U = true : Bool, false : Bool
 Inductive Id: A:U -> a:A -> A -> U =
   refl : Id A a a
@@ -6,14 +5,14 @@ Inductive Id: A:U -> a:A -> A -> U =
 Inductive T : U = tt:T
 Inductive F : U =
 
-Definition Bool2U = Bool.rec (\x:Bool U) T F
-Definition Bool.not = Bool.rec (\x:Bool Bool) Bool.false Bool.true
+Definition Bool2U = Bool.rec (\x:Bool -> U) T F
+Definition Bool.not = Bool.rec (\x:Bool -> Bool) Bool.false Bool.true
 
 Definition trueNotFalse =
- \eq:(Id Bool Bool.true Bool.false)
-   Id.rec Bool Bool.true (\b:Bool \e:(Id Bool Bool.true b) Bool2U b) 
+ \eq:Id Bool Bool.true Bool.false ->
+   Id.rec Bool Bool.true (\b:Bool \e:Id Bool Bool.true b -> Bool2U b) 
      T.tt Bool.false eq
-TypeCheck trueNotFalse : (Id Bool Bool.true Bool.false) -> F
+TypeCheck trueNotFalse : Id Bool Bool.true Bool.false -> F
 
 Inductive Prop : b:Bool -> U =
   p : Bool2U b -> Prop b
@@ -22,15 +21,15 @@ Inductive Set : A:U -> U =
   comprehension : (A -> Bool) -> Set A
 
 Definition isElem =
-  \A:U \a:A Set.rec A (\S:(Set A) Bool) (\f:(A -> Bool) f a)
+  \A:U \a:A -> Set.rec A (\S:Set A -> Bool) (\f:(A -> Bool) -> f a)
 TypeCheck isElem : A:U -> A -> Set A -> Bool
 
-Inductive Reflect : A:U -> S:(Set A) -> U =
+Inductive Reflect : A:U -> S:Set A -> U =
   i : a:A -> Bool2U (isElem A a S) -> Reflect A S
 
 Definition russel =
   Set.comprehension (Set U)
-      (\x:(Set U) (Bool.not (isElem U (Reflect U x) x)))
+      (\x:Set U -> (Bool.not (isElem U (Reflect U x) x)))
 
 
 Evaluate russel

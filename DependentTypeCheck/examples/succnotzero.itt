@@ -8,7 +8,7 @@ Inductive Nat:U =
   0 : Nat,
   succ : Nat -> Nat
 
-Definition iszero = Nat.rec (\n:Nat U) T (\n:Nat \r:U F)
+Definition iszero = Nat.rec (\n:Nat -> U) T (\n:Nat \r:U -> F)
 
 TypeCheck T.tt : iszero Nat.0
 
@@ -16,14 +16,13 @@ Inductive Id : A:U -> a:A -> b:A -> U =
   refl : Id A a a
 
 Definition subst =
-  \A:U \r:A \s:A \eq: (Id A r s)
-  \C : (A -> U)
-  Id.rec A r (\x:A \eq: (Id A r x) C r -> C x) (\x:(C r) x) s eq
+  \A:U \r:A \s:A \eq: (Id A r s) \C:(A -> U) ->
+  Id.rec A r (\x:A \eq:Id A r x -> C r -> C x) (\x:C r -> x) s eq
 
 Definition succNotZero = 
-  \n:Nat \eq:(Id Nat Nat.0 (Nat.succ n))
+  \n:Nat \eq:Id Nat Nat.0 (Nat.succ n) ->
   subst Nat Nat.0 (Nat.succ n) eq
-     (\x:Nat iszero x)
+     (\x:Nat -> iszero x)
      T.tt
 
 TypeCheck succNotZero : n:Nat -> Id Nat Nat.0 (Nat.succ n) -> F

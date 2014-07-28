@@ -5,55 +5,63 @@ Inductive Nat : U =
 
 ; The addition operator
 Definition plus = 
-  \a:Nat \b:Nat Nat.rec (\n:Nat Nat) a (\n:Nat \r:Nat Nat.succ r) b
+  \a:Nat -> Nat.rec (\n:Nat -> Nat) a (\n:Nat \r:Nat -> Nat.succ r)
 
-; Define Equality type to reason about equalities.
+; Now we create the Identity type to express equalities.
 Inductive Id : A:U -> a:A -> b:A -> U =
   refl : Id A a a
 
-; Standard rule for substitution (forward and backward)
+; The standard rules for substitution, symmetry and reverse substitution
 Definition subst =
-  \A:U \r:A \s:A \eq: (Id A r s)
-  \C : (A -> U)
-  Id.rec A r (\x:A \eq: (Id A r x) C r -> C x) (\x:(C r) x) s eq
+  \A:U \r:A \s:A \eq:Id A r s \C:(A -> U) ->
+  Id.rec A r (\x:A \eq:Id A r x -> C r -> C x) (\x:C r -> x) s eq
 
 TypeCheck subst : A:U -> r:A -> s:A -> Id A r s -> C:(A -> U) -> C r -> C s
 
-Definition rsubst =
-  \A:U \r:A \s:A \eq: (Id A s r)
-  subst A r s (subst A s r eq (\x:A Id A x s) (Id.refl A s))
+Definition symm =
+  \A:U \r:A -> Id.rec A r (\s:A \eq:Id A r s -> Id A s r) (Id.refl A r)
+TypeCheck symm : A:U -> r:A -> s:A -> Id A r s -> Id A s r
 
+Definition rsubst =
+  \A:U \r:A \s:A \eq:Id A s r ->
+  subst A r s (symm A s r eq)
 TypeCheck rsubst : A:U -> r:A -> s:A -> Id A s r -> C:(A -> U) -> C r -> C s
+
+Definition trans =
+  \A:U \r:A \s:A \t:A \eq1:Id A r s ->
+  Id.rec A s (\t:A \eq:Id A s t -> Id A r t) eq1 t
+TypeCheck trans : A:U -> r:A -> s:A -> t:A -> Id A r s -> Id A s t -> Id A r t
 
 ; prove n + 0 = 0 + n
 Definition symm0 =
-  Nat.rec (\n:Nat Id Nat (plus n Nat.0) (plus Nat.0 n))
+  Nat.rec (\n:Nat -> Id Nat (plus n Nat.0) (plus Nat.0 n))
          (Id.refl Nat Nat.0)
-         (\n:Nat \r:(Id Nat n (plus Nat.0 n))
+         (\n:Nat \r:(Id Nat n (plus Nat.0 n)) ->
             subst Nat n (plus Nat.0 n) r
-                  (\x:Nat Id Nat (Nat.succ n) (Nat.succ x))
+                  (\x:Nat -> Id Nat (Nat.succ n) (Nat.succ x))
                   (Id.refl Nat (Nat.succ n)))
 TypeCheck symm0 : n:Nat -> Id Nat (plus n Nat.0) (plus Nat.0 n)
 
 ; prove succ(m + n) = (succ m) + n
 Definition symmstep =
-  \m:Nat Nat.rec (\n:Nat Id Nat (Nat.succ (plus m n)) (plus (Nat.succ m) n))
+  \m:Nat -> 
+  Nat.rec (\n:Nat -> Id Nat (Nat.succ (plus m n)) (plus (Nat.succ m) n))
          (Id.refl Nat (Nat.succ m))
-         (\n:Nat \r:(Id Nat (Nat.succ (plus m n)) (plus (Nat.succ m) n))
+         (\n:Nat \r:Id Nat (Nat.succ (plus m n)) (plus (Nat.succ m) n) ->
             subst Nat (Nat.succ (plus m n)) (plus (Nat.succ m) n) r
-                  (\x:Nat Id Nat (Nat.succ (Nat.succ (plus m n))) (Nat.succ x))
-                  (Id.refl Nat (Nat.succ (Nat.succ (plus m n)))))
+                (\x:Nat -> Id Nat (Nat.succ (Nat.succ (plus m n))) (Nat.succ x))
+                (Id.refl Nat (Nat.succ (Nat.succ (plus m n)))))
 
 TypeCheck symmstep : m:Nat -> n:Nat -> 
                      Id Nat (Nat.succ (plus m n)) (plus (Nat.succ m) n)
 
 ; Now prove m + n = n + m
 Definition symm =
-  Nat.rec (\m:Nat n:Nat -> Id Nat (plus n m) (plus m n))
+  Nat.rec (\m:Nat -> n:Nat -> Id Nat (plus n m) (plus m n))
         symm0
         (\m:Nat \r:(n:Nat -> Id Nat (plus n m) (plus m n))
-          \n:Nat rsubst Nat (plus m n) (plus n m) (r n)
-               (\x:Nat Id Nat (Nat.succ x) (plus (Nat.succ m) n))
+         \n:Nat -> rsubst Nat (plus m n) (plus n m) (r n)
+               (\x:Nat -> Id Nat (Nat.succ x) (plus (Nat.succ m) n))
                (symmstep m n))
 
 TypeCheck symm : m:Nat -> n:Nat -> Id Nat (plus n m) (plus m n)

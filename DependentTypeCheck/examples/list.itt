@@ -11,13 +11,13 @@ Definition nil = List.nil
 Definition cons = List.cons
 
 ; The recursive functions append and rev
-Definition append = \A:U \l1:(List A) \l2:(List A)
-  List.rec A (\x:(List A) List A) l2 
-          (\a:A \l1:(List A) \r:(List A) cons A a r) l1
+Definition append = \A:U \l1:(List A) \l2:(List A) ->
+  List.rec A (\x:List A -> List A) l2 
+          (\a:A \l1:List A \r:List A -> cons A a r) l1
 
-Definition rev = \A:U \l:(List A)
-  List.rec A (\x:(List A) List A) (nil A)
-          (\a:A \l:(List A) \r:(List A) (append A r (cons A a (nil A)))) l
+Definition rev = \A:U \l:(List A) ->
+  List.rec A (\x:List A -> List A) (nil A)
+          (\a:A \l:List A \r:List A -> append A r (cons A a (nil A))) l
 
 ; Now we create the Identity type to express equalities.
 Inductive Id : A:U -> a:A -> b:A -> U =
@@ -25,36 +25,37 @@ Inductive Id : A:U -> a:A -> b:A -> U =
 
 ; The standard rules for substitution, symmetry and reverse substitution
 Definition subst =
-  \A:U \r:A \s:A \eq: (Id A r s)
-  \C : (A -> U)
-  Id.rec A r (\x:A \eq: (Id A r x) C r -> C x) (\x:(C r) x) s eq
+  \A:U \r:A \s:A \eq:Id A r s \C:(A -> U) ->
+  Id.rec A r (\x:A \eq:Id A r x -> C r -> C x) (\x:C r -> x) s eq
 
 TypeCheck subst : A:U -> r:A -> s:A -> Id A r s -> C:(A -> U) -> C r -> C s
 
 Definition symm =
-  \A:U \r:A \s:A \eq: (Id A r s)
-  subst A r s eq (\x:A Id A x r) (Id.refl A r)
-
+  \A:U \r:A -> Id.rec A r (\s:A \eq:Id A r s -> Id A s r) (Id.refl A r)
 TypeCheck symm : A:U -> r:A -> s:A -> Id A r s -> Id A s r
 
 Definition rsubst =
-  \A:U \r:A \s:A \eq: (Id A s r)
+  \A:U \r:A \s:A \eq:Id A s r ->
   subst A r s (symm A s r eq)
-
 TypeCheck rsubst : A:U -> r:A -> s:A -> Id A s r -> C:(A -> U) -> C r -> C s
+
+Definition trans =
+  \A:U \r:A \s:A \t:A \eq1:Id A r s ->
+  Id.rec A s (\t:A \eq:Id A s t -> Id A r t) eq1 t
+TypeCheck trans : A:U -> r:A -> s:A -> t:A -> Id A r s -> Id A s t -> Id A r t
 
 ; Now we prove that append is associative
 
-Definition appendassoc = \A:U \l1:(List A) \l2:(List A) \l3:(List A)
-  List.rec A (\x:(List A) Id (List A) (append A x (append A l2 l3))
+Definition appendassoc = \A:U \l1:List A \l2:List A \l3:List A ->
+  List.rec A (\x:List A -> Id (List A) (append A x (append A l2 l3))
 	                    (append A (append A x l2) l3))
   (Id.refl (List A) (append A l2 l3))
-  (\a:A \l: (List A)
-   (\t1:(List A) \t2:(List A)
-    \r: (Id (List A) t1 t2)
+  (\a:A \l: (List A) ->
+   (\t1:List A \t2:List A
+    \r:Id (List A) t1 t2 ->
 	                             
     subst (List A) t1 t2 r
-      (\x:(List A) Id (List A) (cons A a t1) (cons A a x))
+      (\x:(List A) -> Id (List A) (cons A a t1) (cons A a x))
       (Id.refl (List A) (cons A a t1)))
     (append A l (append A l2 l3)) (append A (append A l l2) l3))
   l1
@@ -64,14 +65,14 @@ TypeCheck appendassoc : A:U -> l1:List A -> l2:List A -> l3:List A ->
 
 ; prove (append l nil) = l
 
-Definition appendnil = \A:U \l:(List A)
-  List.rec A (\x:(List A) Id (List A) x (append A x (nil A)))
+Definition appendnil = \A:U \l:(List A) ->
+  List.rec A (\x:List A -> Id (List A) x (append A x (nil A)))
   (Id.refl (List A) (nil A))
-  (\a:A \l: (List A)
+  (\a:A \l:List A ->
    (\t2:(List A)
-    \r: (Id (List A) l t2)
+    \r: (Id (List A) l t2) ->
     subst (List A) l t2 r
-      (\x:(List A) Id (List A) (cons A a l) (cons A a x))
+      (\x:List A -> Id (List A) (cons A a l) (cons A a x))
       (Id.refl (List A) (cons A a l)))
     (append A l (nil A)))
   l
@@ -80,17 +81,17 @@ TypeCheck appendnil :
 
 ; prove distributivity of rev and append:  
 ;   rev (append l1 l2) = append (rev l2) (rev l1)
-Definition revappend = \A:U \l1:(List A) \l2:(List A)
+Definition revappend = \A:U \l1:List A \l2:List A ->
   List.rec A 
-    (\x:(List A) Id (List A) (rev A (append A x l2)) 
-                             (append A (rev A l2) (rev A x)))
+    (\x:List A -> Id (List A) (rev A (append A x l2)) 
+                              (append A (rev A l2) (rev A x)))
     (appendnil A (rev A l2))
-    (\a:A \l1:(List A) 
-     \rec:(Id (List A) (rev A (append A l1 l2))
-                       (append A (rev A l2) (rev A l1)))
+    (\a:A \l1:List A 
+     \rec:Id (List A) (rev A (append A l1 l2))
+                      (append A (rev A l2) (rev A l1)) ->
      rsubst (List A) (append A (rev A l2) (rev A l1)) (rev A (append A l1 l2)) 
            rec
-      (\x:(List A)
+      (\x:List A ->
             Id (List A) 
                (append A x (cons A a (nil A)))
                (append A (rev A l2) (append A (rev A l1) (cons A a (nil A)))))
@@ -104,16 +105,16 @@ TypeCheck revappend : A:U -> l1:List A -> l2:List A ->
      Id (List A) (rev A (append A l1 l2)) (append A (rev A l2) (rev A l1))
 
 ; Prove rev rev l = l.
-Definition revrev = \A:U \l:(List A)
-  List.rec A (\x:(List A) Id (List A) x (rev A (rev A x)))
+Definition revrev = \A:U \l:(List A) ->
+  List.rec A (\x:List A -> Id (List A) x (rev A (rev A x)))
            (Id.refl (List A) (nil A))
-           (\a:A \l:(List A) \r:(Id (List A) l (rev A (rev A l)))
-           (rsubst (List A) (rev A (rev A l)) l r
-              (\x:(List A) Id (List A) (cons A a x) 
+           (\a:A \l:List A \r:Id (List A) l (rev A (rev A l)) ->
+            rsubst (List A) (rev A (rev A l)) l r
+              (\x:List A -> Id (List A) (cons A a x) 
                       (rev A (append A (rev A l) (cons A a (nil A)))))
-           (symm (List A) (rev A (append A (rev A l) (cons A a (nil A))))
+              (symm (List A) (rev A (append A (rev A l) (cons A a (nil A))))
                  (cons A a (rev A (rev A l)))
-                 (revappend A (rev A l) (cons A a (nil A))))))
+                 (revappend A (rev A l) (cons A a (nil A)))))
            l
 
 TypeCheck revrev : A:U -> l:List A ->
