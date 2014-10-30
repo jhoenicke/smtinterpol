@@ -1,5 +1,12 @@
 package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
 
+/**
+ * A subst term is a term on which a substitution is applied.  Instead
+ * of applying the substitution eagerly, we collect all substitution and
+ * only apply them lazily when descending into the term.
+ * 
+ * @author hoenicke
+ */
 public class SubstTerm extends Term {
 	
 	Term mSubTerm;
@@ -19,12 +26,19 @@ public class SubstTerm extends Term {
 	public int numFreeVariables() {
 		return mNumFreeVariables;
 	}
-	
+
+	/**
+	 * Compute the type of a substituted term.  This is the type of 
+	 * the subterm substituted with the same substitution.
+	 * @param term the sub term.
+	 * @param subst the substitution.
+	 * @return the type of the SubstTerm.
+	 */
 	public static Term typecheck(Term term, Substitution subst) {
 		// TODO check substitution?
 		Term type = term.getType();
 		/* avoid deep recursions */
-		if (type == Term.U)
+		if (type.numFreeVariables() == 0)
 			return type;
 		return Term.substitute(type, subst, null);
 	}
@@ -72,10 +86,13 @@ public class SubstTerm extends Term {
 			else
 				mEvaluated = mSubstitution.mSubstTerms[0].evaluateHead();
 		} else {
-			/* term is Constructor, RecOp, or InductiveType */
-			assert mSubTerm == Term.U || mSubTerm instanceof Constructor
+			/* term is Universe, Constructor, RecOp, or InductiveType, 
+			 * or assumption */
+			assert mSubTerm instanceof UniverseTerm
+					|| mSubTerm instanceof Constructor
 					|| mSubTerm instanceof InductiveType
-					|| mSubTerm instanceof RecOperator;
+					|| mSubTerm instanceof RecOperator
+					|| mSubTerm instanceof Assumption;
 			mEvaluated = mSubTerm;
 		}
 		assert !(mEvaluated instanceof SubstTerm) ||

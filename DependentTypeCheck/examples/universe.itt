@@ -1,0 +1,19 @@
+TypeCheck U : U1
+TypeCheck U : U2
+
+Inductive T : U =
+  tt:T
+
+TypeCheck T : U
+TypeCheck (T -> U) : U1
+TypeCheck (U -> T) : U1
+TypeCheck (U -> U) : U1
+TypeCheck (T -> U1) : U2
+TypeCheck (U1 -> T) : U2
+TypeCheck (U1 -> U1) : U2
+
+Inductive Foo : x:T -> U =
+  c : Foo x
+
+TypeCheck (x:T -> Foo x) : U
+

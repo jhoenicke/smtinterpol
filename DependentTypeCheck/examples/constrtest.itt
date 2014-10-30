@@ -1,24 +1,24 @@
 Inductive F:U =
-TypeCheck F.rec : C:(F -> U) -> t:F -> C t 
+TypeCheck F.rec : C:(F -> U1) -> t:F -> C t 
 
 Inductive T:U = tt:T
-TypeCheck T.rec : C:(T -> U) -> (C T.tt) -> t:T -> C t
+TypeCheck T.rec : C:(T -> U1) -> (C T.tt) -> t:T -> C t
 Check \C:(T->U) \e:C T.tt -> T.rec C e T.tt = 
       \C:(T->U) \e:C T.tt -> e
 
 Inductive Id : A:U -> a:A -> b:A -> U = 
   refl : Id A a a
-TypeCheck Id.rec : A:U -> a:A -> C:(b:A -> Id A a b -> U) -> 
+TypeCheck Id.rec : A:U -> a:A -> C:(b:A -> Id A a b -> U1) -> 
    (C a (Id.refl A a)) -> b:A -> t:Id A a b -> C b t
-Check \A:U \a:A \C:(b:A -> Id A a b -> U) \e:C a (Id.refl A a) -> 
+Check \A:U \a:A \C:(b:A -> Id A a b -> U1) \e:C a (Id.refl A a) -> 
           Id.rec A a C e a (Id.refl A a) = 
-      \A:U \a:A \C:(b:A -> Id A a b -> U) \e:C a (Id.refl A a) -> e
+      \A:U \a:A \C:(b:A -> Id A a b -> U1) \e:C a (Id.refl A a) -> e
 
 Inductive P1:A:U -> U = 
   c1 : A -> P1 A, 
   c2 : P1 A -> P1 A, 
   c3 : P1 A -> A -> P1 A
-TypeCheck P1.rec : A:U -> C:(P1 A -> U) -> 
+TypeCheck P1.rec : A:U -> C:(P1 A -> U1) -> 
   (a:A -> C (P1.c1 A a)) -> 
   (p:P1 A -> r:C p -> C (P1.c2 A p)) ->
   (p:P1 A -> r:C p -> a:A -> C (P1.c3 A p a)) ->
@@ -28,7 +28,7 @@ Inductive P2:A:U -> a:A -> U =
   c1 : A -> P2 A a, 
   c2 : P2 A a -> P2 A a, 
   c3 : P2 A a -> A -> P2 A a
-TypeCheck P2.rec : A:U -> a:A -> C:(P2 A a -> U) -> 
+TypeCheck P2.rec : A:U -> a:A -> C:(P2 A a -> U1) -> 
   (b:A -> C (P2.c1 A a b)) -> 
   (p:P2 A a -> r:C p -> C (P2.c2 A a p)) ->
   (p:P2 A a -> r:C p -> b:A -> C (P2.c3 A a p b)) ->
@@ -38,18 +38,18 @@ Inductive P3:A:U -> A -> U =
   c1 : a:A -> P3 A a, 
   c2 : a:A -> P3 A a -> P3 A a, 
   c3 : b:A -> P3 A b -> a:A -> P3 A a
-TypeCheck P3.rec : A:U -> C:(a: A -> P3 A a -> U) -> 
+TypeCheck P3.rec : A:U -> C:(a: A -> P3 A a -> U1) -> 
   (b:A -> C b (P3.c1 A b)) -> 
   (a:A -> p:P3 A a -> r:C a p -> C a (P3.c2 A a p)) ->
   (b:A -> p:P3 A b -> r:C b p -> a:A -> C a (P3.c3 A b p a)) ->
   a:A -> t: P3 A a -> C a t
-Check \A:U \C:(a: A -> P3 A a -> U) \e1:(b:A -> C b (P3.c1 A b)) 
+Check \A:U \C:(a: A -> P3 A a -> U1) \e1:(b:A -> C b (P3.c1 A b)) 
       \e2:(a:A -> p:P3 A a -> r:C a p -> C a (P3.c2 A a p))
       \e3:(b:A -> p:P3 A b -> r:C b p -> a:A -> C a (P3.c3 A b p a))
       \b:A \a:A ->
       P3.rec A C e1 e2 e3 a (P3.c3 A b (P3.c2 A b (P3.c1 A b)) a)
   =
-      \A:U \C:(a: A -> P3 A a -> U) \e1:(b:A -> C b (P3.c1 A b)) 
+      \A:U \C:(a: A -> P3 A a -> U1) \e1:(b:A -> C b (P3.c1 A b)) 
       \e2:(a:A -> p:P3 A a -> r:C a p -> C a (P3.c2 A a p))
       \e3:(b:A -> p:P3 A b -> r:C b p -> a:A -> C a (P3.c3 A b p a))
       \b:A \a:A ->
@@ -58,32 +58,32 @@ Check \A:U \C:(a: A -> P3 A a -> U) \e1:(b:A -> C b (P3.c1 A b))
 
 Inductive W : A:U -> B:(A->U) -> U =
   sup : a:A -> b:(B a -> W A B) -> W A B
-TypeCheck W.rec : A:U -> B:(A->U) -> C:(W A B -> U) ->
+TypeCheck W.rec : A:U -> B:(A->U) -> C:(W A B -> U1) ->
    (a:A -> b:(B a -> W A B) -> rec:(v:B a -> C (b v)) -> C (W.sup A B a b)) ->
    t:W A B -> C t
 
-Check \A:U \B:(A->U) \C:(W A B -> U) 
+Check \A:U \B:(A->U) \C:(W A B -> U1) 
       \e: (a:A -> b:(B a -> W A B) -> rec:(v:B a -> C (b v)) -> C (W.sup A B a b))
       \a:A \b:(B a -> W A B) ->
       W.rec A B C e (W.sup A B a b) =
-      \A:U \B:(A->U) \C:(W A B -> U) 
+      \A:U \B:(A->U) \C:(W A B -> U1) 
       \e: (a:A -> b:(B a -> W A B) -> rec:(v:B a -> C (b v)) -> C (W.sup A B a b))
       \a:A \b:(B a -> W A B) ->
       e a b (\v:B a -> W.rec A B C e (b v))
 
 Inductive W1 : A:U -> B:(A->U) -> a:A -> B a -> U =
   sup : a:A -> b:(v:B a -> W1 A B a v) -> v:B a -> W1 A B a v
-TypeCheck W1.rec : A:U -> B:(A->U) -> C:(a:A -> v:B a -> W1 A B a v -> U) ->
+TypeCheck W1.rec : A:U -> B:(A->U) -> C:(a:A -> v:B a -> W1 A B a v -> U1) ->
    (a:A -> b:(v:B a -> W1 A B a v) -> rec:(v:B a -> C a v (b v)) -> v:B a -> 
         C a v (W1.sup A B a b v)) ->
    a:A -> v:B a -> t:W1 A B a v -> C a v t
 
-Check \A:U \B:(A->U) \C:(a:A -> v:B a -> W1 A B a v -> U) 
+Check \A:U \B:(A->U) \C:(a:A -> v:B a -> W1 A B a v -> U1) 
       \e: (a:A -> b:(v:B a -> W1 A B a v) -> rec:(v:B a -> C a v (b v)) -> 
            v:B a -> C a v (W1.sup A B a b v))
       \a:A \b:(v:B a -> W1 A B a v) \v:B a ->
       W1.rec A B C e a v (W1.sup A B a b v) =
-      \A:U \B:(A->U) \C:(a:A -> v:B a -> W1 A B a v -> U) 
+      \A:U \B:(A->U) \C:(a:A -> v:B a -> W1 A B a v -> U1) 
       \e: (a:A -> b:(v:B a -> W1 A B a v) -> rec:(v:B a -> C a v (b v)) -> 
            v:B a -> C a v (W1.sup A B a b v))
       \a:A \b:(v:B a -> W1 A B a v) \v:B a ->

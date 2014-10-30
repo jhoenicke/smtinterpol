@@ -45,10 +45,13 @@ The overall syntax of a file is:
             | Evaluate expr
             | EvaluateType expr
 
-Note that the `Assume` command can introduce unsoundness.  Every expression
-has a type.  There is one predefined expression `U` that has type `U` and
-stands for the universe of all types.  New types can be created with the
-keyword `Inductive`.  An inductive declaration looks like this:
+Note that the `Assume` command can introduce unsoundness.  Every
+expression has a type.  There are predefined expression `Ui` having
+type `U(i+1)` for every natural number `i`, which is the universe
+hierarchy.  The universe `U0` is also denoted by `U`.  We assume `Ui`
+is a subtype of `U(i+1)`, i.e., every expression of type `Ui` is also
+of type `U(i+1)`.  New types can be created with the keyword
+`Inductive`.  An inductive declaration looks like this:
 
     Inductive Nat : U =
         0 : Nat,
@@ -57,7 +60,7 @@ keyword `Inductive`.  An inductive declaration looks like this:
 This declaration defines `Nat : U`, `Nat.0 : Nat`, `Nat.s : Nat -> Nat`, and
 additionally a recursion operator `Nat.rec`.  The latter has the type
 
-    TypeCheck Nat.rec : C:(Nat -> U) -> (C Nat.0) -> 
+    TypeCheck Nat.rec : C:(Nat -> U1) -> (C Nat.0) -> 
                         (n:Nat -> rec:C n -> C (Nat.s n)) ->
                         n:Nat -> C n
 

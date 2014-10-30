@@ -69,7 +69,7 @@ action code {:
 	
 	{
 		globals = new HashMap<String,Term>();
-		globals.put("U", Term.U);
+		globals.put("U", Term.universe(0));
 		locals = new HashMap<String, Integer>();
 		varNames = new ArrayList<String>();
 		varTypes = new ArrayList<Term>();
@@ -82,11 +82,22 @@ action code {:
 			int debruijn = varTypes.size() - 1 - index;
 			return Term.variable(debruijn, varTypes.get(index));
 		}
-		return globals.get(id);
+		if (globals.containsKey(id)) {
+			return globals.get(id);
+		}
+		if (id.startsWith("U")) {
+			try {
+				int num = Integer.parseInt(id.substring(1));
+				return Term.universe(num);
+			} catch (NumberFormatException ex) {
+				/* ignore */
+			}
+		}
+		return null;
 	}
 	
 	public void pushBruijnVariable(String name, Term type, Symbol type$) {
-		if (!type.getType().equals(Term.U))
+		if (!(type.getType().evaluateHead() instanceof UniverseTerm))
 			parser.report_error("expected set type", type$);
 		varNames.add(name);
 		varTypes.add(type);
@@ -148,7 +159,7 @@ declaration ::= inductivedecl
 	  :}
 	| TYPECHECK expr2:e COLON expr:t
 	  {:
-		if (!e.getType().equals(t))
+		if (!e.getType().isSubType(t))
 			parser.report_error("TypeCheck failed: " + e.getType().evaluate()
 					+ " is not " + t.evaluate(), e$);
 	  :}
@@ -181,13 +192,13 @@ inductivetype ::= ID:i COLON expr2:exprDom ARROW
 	  {: pushBruijnVariable("", exprDom, exprDom$); :}
 	  inductivetype:exprRng
 	  {: 
-		if (!exprRng.getType().equals(Term.U))
+		if (!(exprRng.getType().evaluateHead() instanceof UniverseTerm))
 			parser.report_error("expected set type", exprRng$);
 		RESULT = new PiTerm(exprDom, exprRng); :}
 	| ID:u
 	  {:
 		RESULT = lookupName(u);
-		if (!RESULT.equals(Term.U))
+		if (!RESULT.equals(Term.universe(0)))
 			parser.report_error("expected type U", u$);
 	  :}
 	;
@@ -199,7 +210,7 @@ constrdecls ::=
 constrdecl ::=
 	ID:i COLON expr:e
 	{: 
-		if (!e.getType().equals(Term.U))
+		if (!(e.getType().evaluateHead() instanceof UniverseTerm))
 			parser.report_error("Type of constructor malformed", e$);
 		RESULT = new Constructor(i, inductiveIndex++, inductiveType, e);
 	:} 
@@ -231,7 +242,7 @@ exprApp ::= expr2:exprFunc expr3:exprArg
 		exprFuncType = exprFuncType.evaluateHead();
 		if (!(exprFuncType instanceof PiTerm))
 			parser.report_error("Applying to a non-function", exprFunc$);
-		else if (!exprArg.getType().equals(((PiTerm)exprFuncType).mDomain))
+		else if (!exprArg.getType().isSubType(((PiTerm)exprFuncType).mDomain))
 			parser.report_error("Argument has wrong type "+exprArg.getType().evaluate() +
 				" expected: " + ((PiTerm)exprFuncType).mDomain.evaluate(), exprArg$);
 		RESULT = new AppTerm(exprFunc, exprArg);
@@ -250,7 +261,7 @@ exprLambda ::= LAMBDA ID:i COLON expr2:exprArg
 exprPi ::= exprPiFront:exprDom expr:exprRng
 	{:
 		popBruijnVariable();
-		if (!exprRng.getType().equals(Term.U))
+		if (!(exprRng.getType().evaluateHead() instanceof UniverseTerm))
 			parser.report_error("expected set type", exprRng$);
 		RESULT = new PiTerm(exprDom, exprRng);
 	:}

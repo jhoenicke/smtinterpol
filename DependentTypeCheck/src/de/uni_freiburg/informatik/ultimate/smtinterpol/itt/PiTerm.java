@@ -20,7 +20,7 @@ public class PiTerm extends Term {
 	}
 	public PiTerm(Term domain, Term range, Term type) {
 		super(type);
-		assert type.equals(typecheck(domain, range));
+		assert typecheck(domain, range).isSubType(type);
 		this.mDomain = domain;
 		this.mRange = range;
 		mNumFreeVariables = Math.max(mDomain.numFreeVariables(), 
@@ -41,11 +41,15 @@ public class PiTerm extends Term {
 	 * @return the type of the pi term.
 	 */
 	public static Term typecheck(Term domain, Term range) {
-		Term domType = domain.getType();
-		Term rngType = range.getType();
-		if (domType.equals(Term.U) && rngType.equals(Term.U))
-			return Term.U;
-		throw new IllegalArgumentException("Typecheck: PI");
+		Term domType = domain.getType().evaluateHead();
+		Term rngType = range.getType().evaluateHead();
+		if (domType instanceof UniverseTerm
+			&& rngType instanceof UniverseTerm) {
+			int domLevel = ((UniverseTerm) domType).getLevel();
+			int rngLevel = ((UniverseTerm) rngType).getLevel();
+			return Term.universe(Math.max(domLevel, rngLevel));
+		}
+		throw new IllegalArgumentException("Typecheck: PI "+domType+" and "+rngType);
 	}
 
 	@Override
@@ -66,5 +70,13 @@ public class PiTerm extends Term {
 			return false;
 		PiTerm other = (PiTerm) o;
 		return mDomain.equals(other.mDomain) && mRange.equals(other.mRange);
+	}
+
+	public boolean isSubTypeHead(Term o) {
+		if (!(o instanceof PiTerm))
+			return false;
+		PiTerm other = (PiTerm) o;
+		return other.mDomain.isSubType(mDomain)
+				&& mRange.isSubType(other.mRange);
 	}
 }

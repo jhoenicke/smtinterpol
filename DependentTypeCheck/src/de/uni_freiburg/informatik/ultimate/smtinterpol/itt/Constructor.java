@@ -2,11 +2,26 @@ package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
 
 import java.util.ArrayDeque;
 
+/**
+ * This term represents a constructor of an inductive type.  The constructor
+ * is declared in the inductive type definition.  In addition to the type
+ * declared there, the real type also takes the shared parameters of the
+ * inductive type as arguments.
+ * 
+ * @author hoenicke
+ */
 public class Constructor extends Term {
 	InductiveType mInductiveType;
 	String mName;
 	int    mIndex;
 	
+	/**
+	 * Creates a constructor term.
+	 * @param name name of the constructor (usually of the form "type.cons").
+	 * @param index the index of the constructor.
+	 * @param type the inductive type for which the constructor is build.
+	 * @param declType the type of the constructor.
+	 */
 	public Constructor(String name, int index, 
 			InductiveType type, Term declType) {
 		super(computeType(type, declType));
@@ -15,6 +30,13 @@ public class Constructor extends Term {
 		mIndex = index;
 	}
 	
+	/**
+	 * Computes the type of a constructor.  This adds the shared parameters
+	 * from the inductive type as arguments to the declared type.
+	 * @param indType  the inductive type to which the constructor belongs.
+	 * @param declType the declared type of the constructor.
+	 * @return the real type of the constructor.
+	 */
 	private static Term computeType(InductiveType indType, Term declType) {
 		if (indType.mNumShared == -1) {
 			indType.mNumShared = indType.mParams.length
@@ -33,12 +55,13 @@ public class Constructor extends Term {
 		/* Check the return type */
 		if (!checkTCApplication(indType, type, offset))
 			throw new IllegalArgumentException("Constructor malformed");
-		/* Substitute private parameters with U, we already checked
-		 * they are not present in the type.
+		/* Get rid of private parameters by substituting them with U.
+		 * We already checked they are not present in the type, so it
+		 * does not matter what we substitute them with.
 		 */
 		Term[] dummy = new Term[indType.mParams.length - indType.mNumShared];
 		for (int i = 0; i < dummy.length; i++)
-			dummy[i] = Term.U;
+			dummy[i] = Term.universe(0);
 		Substitution backShift = new Substitution(dummy, 0);
 		declType = Term.substitute(declType, backShift, null);
 		/* Now add the shared parameters in front of the type */
@@ -48,6 +71,12 @@ public class Constructor extends Term {
 		return declType.evaluate();
 	}
 
+	/**
+	 * Computes the number of shared and private arguments of a inductive 
+	 * type by looking at the return type of the current constructor.
+	 * @param type the declared type of the constructor.
+	 * @return the number of private arguments.
+	 */
 	private static int countPrivateVars(Term type) {
 		/* compute the number of shared arguments by looking at return type */
 		// get return type and update offset to expected inherited parameter
@@ -103,6 +132,19 @@ public class Constructor extends Term {
 		return type == indType && argNum == indType.mParams.length;
 	}
 
+	/**
+	 * Recursive function that checks if all types occuring in a 
+	 * declared type of the constructor are clean.  In particular it
+	 * checks if the inductive type occurs only positively and only
+	 * with the right arguments and that only shared parameters of
+	 * the inductive type are referenced.
+	 * @param indType the inductive type.
+	 * @param type the type to check.
+	 * @param offset the number of local parameters.
+	 * @param allowTC true if this is a positive occurence, i.e.,
+	 * the inductive type may be referenced.
+	 * @return
+	 */
 	private static boolean checkClean(InductiveType indType, Term type, 
 			int offset, boolean allowTC) {
 		if (allowTC && checkTCApplication(indType, type, offset))
@@ -113,7 +155,7 @@ public class Constructor extends Term {
 		if (type instanceof AppTerm) {
 			AppTerm app = (AppTerm) type;
 			return checkClean(indType, app.mFunc, offset, false)
-				&& checkClean(indType, app.mArg, offset + 1, false);
+				&& checkClean(indType, app.mArg, offset, false);
 		}
 		if (type instanceof SubstTerm) {
 			SubstTerm subst = (SubstTerm) type;

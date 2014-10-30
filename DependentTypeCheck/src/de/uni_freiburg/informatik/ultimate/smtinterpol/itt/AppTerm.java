@@ -18,7 +18,7 @@ public class AppTerm extends Term {
 
 	public AppTerm(Term func, Term arg, Term type) {
 		super(type);
-		assert type.equals(typecheck(func, arg));
+		assert typecheck(func, arg).isSubType(type);
 		mFunc = func;
 		mArg = arg;
 		mNumFreeVariables = 
@@ -40,7 +40,7 @@ public class AppTerm extends Term {
 			throw new IllegalArgumentException("Typecheck: applying a non-function");
 		}
 		PiTerm pi = (PiTerm) funcType;
-		if (!pi.mDomain.equals(arg.getType()))
+		if (!arg.getType().isSubType(pi.mDomain))
 			throw new IllegalArgumentException("Typecheck: function parameter has wrong type");
 		// note that type != null
 		return Term.substitute(

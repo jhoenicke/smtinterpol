@@ -58,7 +58,7 @@ Inductive I : A:U -> x:A -> A -> U =
   r :  I A x x
 
 TypeCheck I.rec :
-   A:U -> x:A -> C:(y:A -> I A x y -> U) ->
+   A:U -> x:A -> C:(y:A -> I A x y -> U1) ->
    caser:(C x (I.r A x)) ->
    y:A -> t:(I A x y) -> C y t
 
@@ -126,7 +126,7 @@ Definition P4 =
 TypeCheck P4 : x:N -> not (I N (N.succ x) N.0)
 
 Definition P5 = N.rec
-TypeCheck P5 : P:(N -> U) -> P N.0 -> 
+TypeCheck P5 : P:(N -> U1) -> P N.0 -> 
     (x:N -> P x -> P (N.succ x)) -> x:N -> P x
 
 ;; I(A,-,-) is an equivalence relation

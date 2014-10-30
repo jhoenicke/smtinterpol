@@ -37,7 +37,7 @@ public class InductiveType extends Term {
 			params.addLast(pi.mDomain.evaluate());
 			type = pi.mRange.evaluateHead();
 		}
-		if (type != Term.U)
+		if (type != Term.universe(0))
 			throw new IllegalArgumentException("Typecheck: Illegal Inductive Type");
 		return params.toArray(new Term[params.size()]);
 	}

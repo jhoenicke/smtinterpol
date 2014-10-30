@@ -27,7 +27,7 @@ public class LambdaTerm extends Term {
 
 	public LambdaTerm(Term argType, Term subTerm, Term type) {
 		super(type);
-		assert type.equals(typecheck(argType, subTerm));
+		assert typecheck(argType, subTerm).isSubType(type);
 		mArgType = argType;
 		mSubTerm = subTerm;
 		mNumFreeVariables = Math.max(mArgType.numFreeVariables(), 

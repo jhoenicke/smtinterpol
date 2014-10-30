@@ -1,5 +1,7 @@
 package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
 
+import java.util.Arrays;
+
 /**
  * Everything is a term.  Every term has a type, which is again a term.  By
  * abuse of notation the term U representing the universe also has type U.
@@ -51,19 +53,17 @@ public abstract class Term {
 	 */
 	String mName;
 	
-	public final static Term U = new Term(null) {
-		public String toString(int offset, int prec) { return "U"; }
-	};
+	private static Term[] universes = new Term[2];
 
 	public Term(Term type) {
-		mType = type == null ? this : type;
+		mType = type;
 	}
 	
 	@SuppressWarnings("unused")
 	private Term() {}
 	
 	public Term getType() {
-		return mType == null ? null : mType;
+		return mType;
 	}
 	
 	/**
@@ -89,6 +89,27 @@ public abstract class Term {
 		return this == t;
 	}
 	
+	public boolean isSubTypeHead(Term t) {
+		return this.equalsHead(t);
+	}
+	
+	public boolean isSubType(Term t) {
+		if (this == t)
+			return true;
+		Term me = evaluateHead();
+		if (me == t)
+			return true;
+		Term other = t.evaluateHead();
+		if (me == other)
+			return true;
+		boolean result = me.isSubTypeHead(other);
+		if (!result) {
+			System.err.println("Not Subtype: " + me.evaluate());
+			System.err.println(" is !=   " + other.evaluate());
+		}
+		return result;
+	}
+	
 	public final boolean equals(Object o) {
 		if (this == o)
 			return true;
@@ -108,34 +129,76 @@ public abstract class Term {
 		return result;
 	}
 	
+	public static Term universe(int level) {
+		if (level >= universes.length) {
+			universes = Arrays.copyOf(universes, level + 1);
+		}
+		if (universes[level] == null) {
+			universes[level] = new UniverseTerm(level);
+		}
+		return universes[level];
+	}
+
+	/**
+	 * Create an application term.
+	 * @param func the function.
+	 * @param arg  the argument.
+	 * @param type the type of the appliation term.  This is 
+	 *   computed if it is null.
+	 * @return the application term
+	 */
 	public static Term application(Term func, Term arg, Term type) {
 		if (type == null) {
 			type = ((PiTerm) func.getType().evaluateHead()).mRange;
 			if (type.numFreeVariables() > 0) {
 				Substitution subst = new Substitution(new Term[] { arg }, 0);
-				type = Term.substitute(type, subst, Term.U);
+				type = Term.substitute(type, subst, type.getType());
 			}
 		}
-		assert type.equals(AppTerm.typecheck(func, arg));
+		assert AppTerm.typecheck(func, arg).isSubType(type);
 		return new AppTerm(func, arg, type);
 	}
 
+	/**
+	 * Create a lambda term.
+	 * @param domain The type of the bounded variable.
+	 * @param value The subexpression of the lambda term.
+	 * @param type The type of the lambda expression.  If this is null
+	 * it is computed and checked.
+	 * @return the labmda term.
+	 */
 	public static Term lambda(Term domain, Term value, Term type) {
-		assert type == null || type.equals(LambdaTerm.typecheck(domain, value));
+		assert type == null || LambdaTerm.typecheck(domain, value).isSubType(type);
 		if (type == null)
 			type = LambdaTerm.typecheck(domain, value);
 		return new LambdaTerm(domain, value, type);
 	}
 
+	/**
+	 * Create a pi term.
+	 * @param domain The domain (the type of the bounded variable).
+	 * @param value The range (containing the variable).
+	 * @param type The type of the pi expression.  If this is null
+	 * it is computed and checked.
+	 * @return the labmda term.
+	 */
 	public static Term pi(Term domain, Term range, Term type) {
-		assert type == null || type.equals(PiTerm.typecheck(domain, range));
+		assert type == null || PiTerm.typecheck(domain, range).isSubType(type);
 		if (type == null)
 			type = PiTerm.typecheck(domain, range);
 		return new PiTerm(domain, range, type);
 	}
 
+	/**
+	 * Create a substituted term.
+	 * @param domain The domain (the type of the bounded variable).
+	 * @param value The range (containing the variable).
+	 * @param type The type of the pi expression.  If this is null
+	 * it is computed and checked.
+	 * @return the labmda term.
+	 */
 	public static Term substitute(Term term, Substitution subst, Term type) {
-		assert type == null || type.equals(SubstTerm.typecheck(term, subst));
+		assert type == null || SubstTerm.typecheck(term, subst).isSubType(type);
 		if (term.numFreeVariables() == 0)
 			return term;
 		if (subst.mShiftOffset == 0 && subst.mSubstTerms.length == 0
@@ -146,8 +209,20 @@ public abstract class Term {
 		return new SubstTerm(term, subst, type);
 	}
 
+	/**
+	 * Create a variable.  A variable is always represented by a 
+	 * substituted term where the subterm is a Variable and the 
+	 * substitution is a simple shift by offset.
+	 * @param offset the de-Bruijn offset of the variable.
+	 * @param type the type of the variable.
+	 * @return a term representing the variable.
+	 */
 	public static Term variable(int offset, Term type) {
-		return substitute(new Variable(substitute(type, Substitution.shift(1), null)), Substitution.shift(offset), null);
+		// We need to shift the type, because the deBruijn index 0 would now
+		// reference the variable itself.  We only shift it by 1, the offset
+		// shift is implicit in substitute.
+		type = substitute(type, Substitution.shift(1), null);
+		return substitute(new Variable(type), Substitution.shift(offset), null);
 	}
 
 	public Term evaluate() {
