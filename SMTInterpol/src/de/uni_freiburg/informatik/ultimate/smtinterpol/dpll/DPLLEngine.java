@@ -415,7 +415,7 @@ public class DPLLEngine {
 			mLogger.debug("S " + literal);
 		DPLLAtom atom = literal.getAtom();
 		assert (atom.mDecideStatus == null);
-		assert mAtoms.contains(atom);
+		assert mAtoms.contains(atom) || atom.isDerived;
 		atom.mStackPosition = mDecideStack.size();
 		mDecideStack.add(literal);
 		atom.mDecideLevel = mCurrentDecideLevel;
@@ -914,13 +914,19 @@ public class DPLLEngine {
 			return lit;
 		DPLLAtom atom;
 		int ran = mRandom.nextInt(Config.RANDOM_SPLIT_BASE);
-		if (!mAtoms.isEmpty() && ran <= Config.RANDOM_SPLIT_FREQ) {
-			atom = mAtoms.mAtoms[mRandom.nextInt(mAtoms.size())];
-			++mNumRandomSplits;
-		} else
-			atom = mAtoms.peek();
-		if (atom == null)
-			return null;
+		do {
+			if (!mAtoms.isEmpty() && ran <= Config.RANDOM_SPLIT_FREQ) {
+				atom = mAtoms.mAtoms[mRandom.nextInt(mAtoms.size())];
+				++mNumRandomSplits;
+			} else
+				atom = mAtoms.peek();
+			if (atom == null)
+				return null;
+			if (!atom.isDerived)
+				break;
+			
+			mAtoms.remove(atom);
+		} while (true);
 		assert atom.mDecideStatus == null;
 		//logger.debug("Choose literal: "+atom+" Weight "
 		//		+ (atom.activity/factor) +" - last: " + atom.lastStatus);
@@ -1040,7 +1046,7 @@ public class DPLLEngine {
 						if (conflict == null) {
 							Literal lit;
 							boolean suggested = false;
-							while (conflict != null
+							while (conflict == null
 									&& (lit = suggestions()) != null) { // NOPMD
 								if (lit.getAtom().mExplanation == null) {
 									increaseDecideLevel();

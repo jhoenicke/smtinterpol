@@ -678,6 +678,8 @@ public class CutCreator {
 		assert mURows[row].mIndices[0].mIsInt;
 
 		Literal cut = mURows[row].createConstraint();
+		cut.getAtom().isDerived = true;
+		assert cut.getAtom().getDecideStatus() == null;
 		if (mSolver.mEngine.getLogger().isDebugEnabled()) {
 			mSolver.mEngine.getLogger().debug(
 					(isTight ? "cut on " : "branch on ") + cut);

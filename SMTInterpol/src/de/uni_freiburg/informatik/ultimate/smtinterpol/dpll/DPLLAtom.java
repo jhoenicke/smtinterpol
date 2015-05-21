@@ -66,6 +66,7 @@ public abstract class DPLLAtom extends Literal {
 	Clause.WatchList mBacktrackWatchers = new Clause.WatchList();
 	int mAtomQueueIndex = -1;
 	final int mAssertionstacklevel;
+	public boolean isDerived;
 	
 	public DPLLAtom(int hash, int assertionstacklevel) {
 		super(hash);

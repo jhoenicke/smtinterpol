@@ -1954,9 +1954,11 @@ public class LinArSolve implements ITheory {
 		if (lbc != null && lbc.getDecideStatus() == null)
 				return lbc;
 		// Here, we have neither inequality. Create one...	
-		return usegt
+		Literal lit = usegt
 				? generateConstraint(eq.getVar(),eq.getBound(), false, false).negate()
 				: generateConstraint(eq.getVar(),eq.getBound(),false,true);
+		lit.getAtom().isDerived = true;
+		return lit;
 	}
     /**
      * Choose a value from a given interval respecting certain prohibitions.
@@ -2321,7 +2323,6 @@ public class LinArSolve implements ITheory {
 				comp.isUpper() ? bc.getBound() : bc.getInverseBound();
 		if (!comp.getExactBound().equals(litBound))
 			insertReasonOfNewComposite(var, lit);
-		
 		return lit;
 	}
 
