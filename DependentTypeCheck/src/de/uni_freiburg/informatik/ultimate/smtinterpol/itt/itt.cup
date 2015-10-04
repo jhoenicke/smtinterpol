@@ -210,9 +210,12 @@ constrdecls ::=
 constrdecl ::=
 	ID:i COLON expr:e
 	{: 
-		if (!(e.getType().evaluateHead() instanceof UniverseTerm))
-			parser.report_error("Type of constructor malformed", e$);
-		RESULT = new Constructor(i, inductiveIndex++, inductiveType, e);
+		try {
+			RESULT = new Constructor(i, inductiveIndex++, inductiveType, e);
+		} catch (IllegalArgumentException ex) {
+			parser.report_error(ex.getMessage());
+			RESULT = null;
+		}
 	:} 
 	;
 

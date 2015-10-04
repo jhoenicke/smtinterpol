@@ -47,8 +47,9 @@ public class Constructor extends Term {
 		int offset = 0;
 		while (type instanceof PiTerm) {
 			PiTerm pi = (PiTerm) type;
-			if (!checkClean(indType, pi.mDomain, offset, true))
-				throw new IllegalArgumentException("Constructor malformed");
+			if (!checkClean(indType, pi.mDomain, offset, true)) {
+				throw new IllegalArgumentException("Constructor malformed: "+pi.mDomain);
+			}
 			type = pi.mRange;
 			offset++;
 		}
@@ -152,6 +153,9 @@ public class Constructor extends Term {
 		type = type.evaluateHead();
 		if (type == indType)
 			return false;
+		if (type instanceof UniverseTerm) {
+			return false;
+		}
 		if (type instanceof AppTerm) {
 			AppTerm app = (AppTerm) type;
 			return checkClean(indType, app.mFunc, offset, false)
@@ -173,7 +177,7 @@ public class Constructor extends Term {
 		}
 		if (type instanceof LambdaTerm) {
 			LambdaTerm lam = (LambdaTerm) type;
-			return checkClean(indType, lam.mType, offset, false)
+			return checkClean(indType, lam.mArgType, offset, false)
 				&& checkClean(indType, lam.mSubTerm, offset + 1, false);
 		}
 		return true;

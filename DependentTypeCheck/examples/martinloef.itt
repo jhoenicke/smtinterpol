@@ -64,5 +64,6 @@ Definition wellordlemma =
     (\a:B (pi1 A (\x:A -> not (B x)) pre) -> 
        N0.rec (\_:N0 -> W A B) (pi2 A (\x:A -> not (B x)) pre a))
 
+; ALL A:U ALL B: Prop A . (EX x:A . ~ (B x)) -> W A B
 TypeCheck wellordlemma : A:U -> B:(A->U) -> 
    Sigma A (\x:A -> not (B x)) -> W A B

@@ -1,0 +1,61 @@
+Inductive bool : U =
+   c : U -> bool
+Definition p2b = bool.c
+Definition b2p = bool.rec (\_:bool -> U) (\u:U -> u)
+Definition p2p1 = \A:U \a:A -> a
+Definition p2p2 = \A:U \a:A -> a
+TypeCheck p2p1 : A:U -> b2p (p2b A) -> A
+TypeCheck p2p2 : A:U -> A -> b2p (p2b A)
+Inductive False : U = 
+
+Definition V = A:U -> ((A -> bool) -> A -> bool) -> A -> bool
+Inductive UU : U =
+   c : (V -> bool) -> UU
+Definition UU.d = UU.rec (\_:UU -> (V -> bool)) (\x:(V->bool) -> x)
+Definition sb = \z:V \A:U \r:((A -> bool) -> A -> bool) \a:A ->
+   r (z A r) a
+TypeCheck sb : V -> V
+
+Definition le = \i:(UU -> bool) \x:UU ->
+   (UU.d x) (\A:U \r:((A->bool) -> A -> bool) \a:A -> i (UU.c (\v:V -> sb v A r a)))
+TypeCheck le : (UU -> bool) -> UU -> bool
+
+Definition induct = \i:(UU -> bool) ->
+  x:UU -> b2p (le i x) -> b2p (i x)
+TypeCheck induct : (UU->bool) -> U
+
+Definition WF = \z:V -> p2b (induct (z UU le))
+TypeCheck WF : V -> bool
+
+Definition I = \x:UU ->
+  (i:(UU -> bool) -> b2p (le i x) -> b2p (i (UU.c (\v:V -> sb v UU le x)))) -> False
+TypeCheck I : UU -> U
+
+Definition Omega = \i:(UU->bool) \y:(x:UU -> b2p (le i x) -> b2p (i x)) ->
+  y (UU.c WF)
+     (\x:UU ->
+      \H0:b2p (le (\a : UU -> i (UU.c (\v : V -> sb v UU le a))) x)
+        -> (y (UU.c (\v : V -> sb v UU le x)) H0))
+
+TypeCheck Omega : i:(UU->bool) -> induct i -> b2p (i (UU.c WF))
+
+Definition lemma1 = 
+  \x : UU \p : b2p (le (\u : UU -> p2b (I u)) x) ->
+  \q : (i:(UU -> bool) ->
+         b2p (le i x) -> b2p (i (UU.c (\v : V -> sb v UU le x)))) ->
+   (q (\u : UU -> p2b (I u)) p
+   (\i : (UU -> bool) ->
+     q (\y : UU -> i (UU.c (\v : V -> sb v UU le y)))))
+
+TypeCheck lemma1 : induct (\u:UU -> p2b (I u))
+
+Definition lemma2 = 
+  \x : (i : (UU -> bool) -> induct i -> b2p (i (UU.c WF))) ->
+  x (\u : UU -> p2b (I u)) lemma1
+  (\i : (UU -> bool) \H0 : b2p (le i (UU.c WF)) ->
+   x (\y : UU -> i (UU.c (\v : V -> sb v UU le y))) H0)
+TypeCheck lemma2 : (i:(UU -> bool) -> induct i -> b2p (i (UU.c WF))) -> False
+
+Definition paradox = lemma2 Omega
+TypeCheck paradox : False
+

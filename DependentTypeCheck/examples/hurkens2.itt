@@ -1,0 +1,41 @@
+Definition Prop = U
+Inductive False:U =
+
+Definition pow = S:U -> (S -> Prop)
+Inductive pow : A:U -> U =
+   c : (A -> U) -> pow A
+Definition pow.d = \A:U -> pow.rec A (\_:pow A -> (A->U)) (\x:(A->U) -> x)
+
+Definition V = X:U -> ((pow (pow X)) -> X) -> (pow (pow X))
+Inductive UU:U =
+   c : V -> UU
+Definition UU.d = UU.rec (\_:UU -> V) (\x:V -> x)
+
+Definition tau = \t:(pow (pow UU)) ->
+   (UU.c (\X:U \f:(pow (pow X) -> X) ->
+         pow.c (pow X) (\p : pow X ->
+         (pow.d (pow UU) t) (pow.c UU (\x:UU -> (pow.d X p) (f ((UU.d x) X f)))))))
+TypeCheck tau : (pow (pow UU)) -> UU
+
+Definition sigma = \s:UU ->
+   (UU.d s) UU tau
+TypeCheck sigma : UU -> (pow (pow UU))
+
+
+Definition Delta =
+   pow.c UU (\y: UU -> (p: pow UU -> (pow.d (pow UU) (sigma y)) p -> (pow.d UU p) (tau (sigma y))) -> False)
+TypeCheck Delta : pow UU
+
+Definition Omega =
+   tau (pow.c (pow UU) (\p: pow UU -> x:UU -> (pow.d (pow UU) (sigma x)) p -> (pow.d UU p) x))
+TypeCheck Omega : UU
+
+Definition paradox =
+   (\0:(p: pow UU -> (x:UU -> pow.d (pow UU) (sigma x) p -> pow.d UU p x) -> pow.d UU p Omega) ->
+   0 Delta (\x:UU \2: pow.d (pow UU) (sigma x) Delta
+           \3: (p: pow UU -> pow.d (pow UU) (sigma x) p -> pow.d UU p (tau (sigma x))) ->
+	   3 Delta 2 (\p: pow UU -> 3 (pow.c UU (\y:UU -> pow.d UU p (tau (sigma y)))))) (\p:pow UU -> 0 (pow.c UU (\y:UU -> pow.d UU p (tau (sigma y))))))
+   (\p: pow UU \1: (x:UU -> pow.d (pow UU) (sigma x) p -> pow.d UU p x) ->
+      1 Omega (\x:UU -> 1 (tau (sigma x))))
+
+TypeCheck paradox:False
