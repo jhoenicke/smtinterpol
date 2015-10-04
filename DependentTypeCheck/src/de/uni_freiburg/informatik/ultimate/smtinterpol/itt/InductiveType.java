@@ -21,7 +21,7 @@ public class InductiveType extends Term {
 	public void setConstructors(ArrayList<Constructor> constrs) {
 		if (constrs == null) {
 			mConstrs = new Constructor[0];
-			mNumShared = 0;
+			mNumShared = mParams.length;
 		} else {
 			assert mNumShared >= 0 && mNumShared <= mParams.length;
 			mConstrs = constrs.toArray(new Constructor[constrs.size()]);

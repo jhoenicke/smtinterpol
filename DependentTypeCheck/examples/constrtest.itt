@@ -88,3 +88,27 @@ Check \A:U \B:(A->U) \C:(a:A -> v:B a -> W1 A B a v -> U1)
            v:B a -> C a v (W1.sup A B a b v))
       \a:A \b:(v:B a -> W1 A B a v) \v:B a ->
       e a b (\v:B a -> W1.rec A B C e a v (b v)) v
+
+Inductive W2 : A:U -> B:(A->U) -> a:A -> B a -> A -> U =
+  sup : b:(v:B a -> w: A -> W2 A B a v w) -> v:B a -> W2 A B a v a
+TypeCheck W2.rec : A:U -> B:(A->U) -> a:A ->
+   C:(v:B a -> w:A -> W2 A B a v w -> U1) ->
+   (b:(v:B a -> w:A -> W2 A B a v w) ->
+    rec:(v:B a -> w:A -> C v w (b v w)) -> v:B a ->
+        C v a (W2.sup A B a b v)) ->
+   v:B a -> w:A -> t:W2 A B a v w -> C v w t
+
+Check \A:U \B:(A->U) \a:A
+      \b:(v:B a -> w: A -> W2 A B a v w) \v:B a
+      \C:(v:B a -> w:A -> W2 A B a v w -> U1)
+      \e:(b:(v:B a -> w:A -> W2 A B a v w) ->
+          rec:(v:B a -> w:A -> C v w (b v w)) -> v:B a ->
+          C v a (W2.sup A B a b v)) ->
+      W2.rec A B a C e v a (W2.sup A B a b v) =
+      \A:U \B:(A->U) \a:A
+      \b:(v:B a -> w: A -> W2 A B a v w) \v:B a
+      \C:(v:B a -> w:A -> W2 A B a v w -> U1)
+      \e:(b:(v:B a -> w:A -> W2 A B a v w) ->
+          rec:(v:B a -> w:A -> C v w (b v w)) -> v:B a ->
+          C v a (W2.sup A B a b v)) ->
+      e b (\v:B a \w:A -> W2.rec A B a C e v w (b v w)) v

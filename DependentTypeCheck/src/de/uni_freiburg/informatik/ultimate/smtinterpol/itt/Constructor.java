@@ -11,8 +11,18 @@ import java.util.ArrayDeque;
  * @author hoenicke
  */
 public class Constructor extends Term {
+	/**
+	 * The inductive type T : U of which this is a constructor.
+	 */
 	InductiveType mInductiveType;
+	/**
+	 * The name of the constructor.
+	 */
 	String mName;
+	/**
+	 * The index of this constructor.  This determines where it gets
+	 * placed in the rec function.
+	 */
 	int    mIndex;
 	
 	/**
@@ -73,7 +83,7 @@ public class Constructor extends Term {
 	}
 
 	/**
-	 * Computes the number of shared and private arguments of a inductive 
+	 * Computes the number of shared and private arguments of an inductive
 	 * type by looking at the return type of the current constructor.
 	 * @param type the declared type of the constructor.
 	 * @return the number of private arguments.
@@ -188,60 +198,98 @@ public class Constructor extends Term {
 	}
 
 	public Term computeRecType(Term cType) {
-		ArrayDeque<Term> constrParams = new ArrayDeque<Term>();
+		ArrayDeque<Term> constrArgs = new ArrayDeque<Term>();
+		ArrayDeque<Term> caseParams = new ArrayDeque<Term>();
+		/* t is the type of constructor including sharedargs:
+		 *    sharedargs -> constructortype */
 		Term t = getType().evaluateHead();
 		Substitution shiftOne = Substitution.shift(1);
-		Term me = this;
+		/* Collect the shared args without adding them to the case,
+		 * since they are shared with the other cases.
+		 */
 		for (int j = 0; j < mInductiveType.mNumShared; j++) {
 			Term param = ((PiTerm) t).mDomain;
-			me = Term.application(Term.substitute(me, shiftOne, null), 
-					Term.variable(1 + mIndex, param), null);
+			constrArgs.add(param);
 			t = ((PiTerm) t).mRange;
 		}
+
+		/* offset is the number of args we added already, thus it
+		 * is the amount by which we need to shift the type me
+		 *
+		 * reorderVars is the substitution that reorders the variables
+		 * from the order in the constructor to the order in the rec
+		 * function.
+		 */
 		int offset = 0;
 		Substitution reorderVars = Substitution.shift(1 + mIndex);
 		while (t instanceof PiTerm) {
 			PiTerm pi = (PiTerm) t;
 			Term param = Term.substitute(pi.mDomain, reorderVars, null);
-			constrParams.add(param);
 			t = pi.mRange.evaluateHead();
-			me = Term.application(Term.substitute(me, shiftOne, null), 
-					Term.variable(0, param), null);
+
+			// in constrArgs we do reordering at the end, but in
+			// caseParams we already need to reference reordered paarameters.
+			constrArgs.add(pi.mDomain);
+			caseParams.add(param);
+
+			// update reorder substitution to handle the parameter.
 			reorderVars = Substitution.consShifted(Term.variable(0, param),
 					reorderVars, Integer.MAX_VALUE);
 			offset++;
 			if (isTC(param)) {
-				// adapt term to cope for the extra param before the recursive param.
+				/* The current constructor parameter has the type
+				 *    funcargs -> T shared privs
+				 * We need to build the recursive argument:
+				 *    v: funcArgs -> C privs (t v)
+				 * where t : funcArgs -> T shared privs was the
+				 * parameter added before the if.
+				 */
+
+				// shift variables in term type to skip the "t" parameter
 				Term q = Term.substitute(param, shiftOne, null);
 				q = q.evaluateHead();
+				// collect the funcargs
 				ArrayDeque<Term> funcArgs = new ArrayDeque<Term>();
 				while (q instanceof PiTerm) {
 					PiTerm pi2 = (PiTerm) q;
 					funcArgs.addLast(pi2.mDomain);
 					q = pi2.mRange.evaluateHead();
 				}
+				// build the C term "C privs"
 				Term c = buildCTerm(q, offset + funcArgs.size(), cType);
-				// The parameter for which this is the recursive copy.
+				// Build (t v).  paramNr is the number of variables in v.
 				int paramNr = funcArgs.size();
 				Term termParam = Term.variable(paramNr, param);
 				for (Term arg : funcArgs) {
 					termParam = Term.application(termParam, Term.variable(--paramNr, arg), null);
 				}
+				// build "C privs (t v)"
 				c = Term.application(c, termParam, null);
+				// add funcArgs
 				while (!funcArgs.isEmpty()) {
 					c = new PiTerm(funcArgs.removeLast(), c);
 				}
-				constrParams.add(c);
+				caseParams.add(c);
 				offset++;
-				me = Term.substitute(me, shiftOne, null);
+				// adapt the reorder substitution
 				reorderVars = Substitution.compose(reorderVars, shiftOne, Integer.MAX_VALUE);
 			}
 		}
 		t = Term.substitute(t, reorderVars, null);
 		Term result = buildCTerm(t, offset, cType);
+		/* Build (T.cons args) */
+		Term me = this;
+		{
+			int paramNr = constrArgs.size();
+			for (Term type : constrArgs) {
+				Term var = Term.variable(--paramNr, type);
+				me = Term.application
+					(me, Term.substitute(var, reorderVars, null), null);
+			}
+		}
 		result = Term.application(result, me, null);
-		while (!constrParams.isEmpty()) {
-			result = new PiTerm(constrParams.removeLast(), result);
+		while (!caseParams.isEmpty()) {
+			result = new PiTerm(caseParams.removeLast(), result);
 		}
 		return result;
 	}

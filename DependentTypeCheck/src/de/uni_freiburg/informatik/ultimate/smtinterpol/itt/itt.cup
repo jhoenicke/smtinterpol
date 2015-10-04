@@ -184,17 +184,9 @@ inductivedecl ::= INDUCTIVE ID:i COLON inductivetype:type
 		inductiveType = null;
 	  :};
 
-inductivetype ::= ID:i COLON expr2:exprDom ARROW 
-	  {: pushBruijnVariable(i, exprDom, exprDom$); :}
+inductivetype ::= exprPiFront:exprDom
 	  inductivetype:exprRng
-	  {: RESULT = new PiTerm(exprDom, exprRng); :}
-	| expr2:exprDom ARROW 
-	  {: pushBruijnVariable("", exprDom, exprDom$); :}
-	  inductivetype:exprRng
-	  {: 
-		if (!(exprRng.getType().evaluateHead() instanceof UniverseTerm))
-			parser.report_error("expected set type", exprRng$);
-		RESULT = new PiTerm(exprDom, exprRng); :}
+	  {: 	RESULT = new PiTerm(exprDom, exprRng); :}
 	| ID:u
 	  {:
 		RESULT = lookupName(u);
