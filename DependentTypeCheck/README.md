@@ -78,3 +78,166 @@ functional parameter.  You cannot create mutual recursive types.
 There is a builtin evaluation that is used when type-checking.  It
 does beta-rewriting of lambda expressions and applies recursion
 operators as far as possible.  Definitions are immediately expanded.
+
+Typechecking Rules
+------------------
+
+ITT is based on lambda calculus.  It uses the standard beta-reduction rule
+
+    (\x -> F)y  ~~> F[x <- y]
+
+An application of a lambda term is `(\x -> F)` rewritten by
+substituting all occurrences of `x` in `F` by the argument `y` of the
+application.  Furthermore we have a reduction rule for the induction
+operator `T.rec` for a recursive datatype `T`
+
+    T.rec C rule1 ... rulen (consi arg1 .. argk) ~~>
+        rulei arg1 (T.rec C rule1 ... rulen arg1) ...
+              argk (T.rec C rule1 ... rulen arg1)
+
+where `(T.rec C rule1 ... rulen argi)` is omitted if `argi` is not of
+type `T`.
+
+The rewriting rules are confluent and terminating (how to prove?).  We
+say terms are equal `T1 <~> T2` if they can both be rewritten to the
+same term `T`, i.e. `T1 ~~>* T` and `T2 ~~>* T`.
+
+The typechecking rules are:
+
+     Gamma |- T : Ui
+    -------------------
+    Gamma, a:T |- a : T
+
+    Gamma |- T : Ui   Gamma |- b : T2
+    ---------------------------------
+    Gamma, a:T |- b : T2
+
+    Gamma |- T1 : Ui   Gamma, x:T1 |- T2 : Uj
+    -----------------------------------------
+      Gamma |- (x:T1 -> T2) : U{max(i,j)}
+
+    Gamma |- T1 : Ui   Gamma, x:T1 |- y : T2
+    ---------------------------------------
+      Gamma |- (\x:T1 -> y) : (x:T1 -> T2)
+
+    Gamma |- a : (x:T1 -> T2)   Gamma |- b : T1
+    -------------------------------------------
+          Gamma |- a b : (\x:T1 -> T2) b
+
+    Gamma |- Ui : U{i+1}
+
+    Gamma |- T : Ui
+    -------------------
+    Gamma |- T : U{i+1}
+
+
+
+Inductive Definition
+--------------------
+
+An inductive definition has the form:
+
+    Inductive Type : typeargs... -> U =
+        cons1 : cons1args... -> Type typeparams...
+        ...
+	consm : consmargs... -> Type consparams...
+
+where `typeargs...` are the parameters of the type constructor `Type` and
+each must be of type `U1`, i.e., not contain U1 or higher.  The `consiargs`
+must be of type `U`.  A `consiarg` either doesn't contain the type
+constructor `Type` or if it does (we call this recursive), it is of the form
+
+    args... -> Type typeparams...
+
+where args do not contain the type constructor `Type`.  Also
+`typeparams...` must not contain the constructor `Type`.  Also the
+number of `typeparams...` must always match.  The variables declared
+in `typeargs...` are still visible in the constructor declarations but
+if the variable is used, it and all previous variables must occur in
+every application of `Type` at the corresponding position.  We call these
+variables that are reused *shared* between the constructors.  We call the
+other variables *private*.
+
+The inductive definition defines the new functions
+
+    Type : shared:typeargs... -> priv:typeargs... -> U
+    Type.cons1 : shared:typeargs... -> cons1args... -> Type shared typeparams...
+    ...
+    Type.consm : shared:typeargs... -> consmargs... -> Type shared typeparams...
+
+and a special function
+
+    Type.rec : shared:typeargs... ->
+        C : (priv:typeargs... -> t: Type shared priv -> U1) ->
+        case1 : (case1args... -> C typeparams1... (Type.cons1 shared cons1params)) ->
+	...
+        casem : (casemargs... -> C typeparamsm... (Type.consm shared consmparams)) ->
+	priv:typeargs... -> t : (Type shared priv)) ->
+	C priv t
+
+where case1args... is build from cons1args... by adding a new parameter after
+each recursive parameter.  After a recursive parameter of the form
+
+    v:(recparam:recargs... -> Type shared rectypeparams...)
+
+we add
+
+    (recparam:recargs... -> C rectypeparams... (v recparam))
+
+
+Examples for Inductive Type
+---------------------------
+
+The type declaration:
+
+    Inductive Nat : U =
+       0 : Nat,
+       succ : Nat -> Nat
+
+implicitly declares the functions
+
+    Nat : U
+    Nat.0 : Nat
+    Nat.succ : Nat -> Nat
+    Nat.rec : C:(Nat -> U1) ->
+              case0 : C Nat.0 ->
+	      caseSucc : (n:Nat -> C n -> C (Nat.succ n)) ->
+	      n : Nat -> C n
+
+and the rewrite rules
+
+    Nat.rec C c0 cS Nat.0 ---> c0
+    Nat.rec C c0 cS (Nat.succ n) ---> cS n (Nat.rec C c0 cS n)
+
+An example for a polymorphic type is `List`:
+
+    Inductive List : X:U -> U =
+       nil  : List X,
+       cons : X -> List X -> List X
+    TypeCheck List : X:U -> U
+    TypeCheck List.nil : X:U -> List X
+    TypeCheck List.cons : X:U -> X -> List X -> List X
+    TypeCheck List.rec : X:U -> C:(List X -> U1) -> caseNil : C (List.nil X) ->
+          caseCons : (hd:X -> tl:List X -> C tl -> C (List.cons hd tl) ->
+	  t : List X -> C t
+
+In the above example `X` was shared.  An example for a mixture of shared
+and private is (here `A`, `a` are shared):
+
+    Inductive Id : A:U -> a:A -> b:A -> U =
+       refl : Id A a a
+    TypeCheck Id : A:U -> a:A -> b:A -> U
+    TypeCheck Id.refl : A:U -> a:A -> Id A a a
+    TypeCheck Id.rec : A:U -> a:A -> C:(b:A -> Id A a b -> U1) ->
+          caseRefl : C a (C.refl A a) ->
+	  b : A -> t : Id A a b -> C b t
+
+An example where the recursive argument is a function:
+
+    Inductive W : A:U -> B:(A->U) -> U =
+       sup : a:A -> b:(B a -> W A B) -> W A B
+    TypeCheck W : A:U -> B:(A->U) -> U
+    TypeCheck W.sup : A:U -> B:(A->U) -> a:A -> b:(B a -> W A B) -> W A B
+    TypeCheck W.rec : A:U -> B:(A->U) -> C:(W A B -> U1) ->
+       caseSub : (a:A -> b:(B a -> W A B) -> (v:B a -> C (b v)) -> C (W.sup A B a b)) ->
+       t : W A B -> C t
