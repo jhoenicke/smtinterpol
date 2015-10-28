@@ -18,7 +18,6 @@ public class LambdaTerm extends Term {
 	Term mArgType;
 	Term mSubTerm;
 	
-	LambdaTerm mEvaluated;
 	int mNumFreeVariables;
 
 	public LambdaTerm(Term argType, Term subTerm) {
@@ -50,7 +49,7 @@ public class LambdaTerm extends Term {
 
 	public String toString(int offset, int prec) {
 		if (mName != null)
-			return mName;
+			return mName.toString(offset, prec);
 		StringBuilder sb = new StringBuilder();
 		if (prec >= 1)
 			sb.append('(');

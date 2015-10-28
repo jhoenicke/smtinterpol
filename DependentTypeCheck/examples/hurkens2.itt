@@ -1,7 +1,6 @@
 Definition Prop = U
 Inductive False:U =
 
-Definition pow = S:U -> (S -> Prop)
 Inductive pow : A:U -> U =
    c : (A -> U) -> pow A
 Definition pow.d = \A:U -> pow.rec A (\_:pow A -> (A->U)) (\x:(A->U) -> x)

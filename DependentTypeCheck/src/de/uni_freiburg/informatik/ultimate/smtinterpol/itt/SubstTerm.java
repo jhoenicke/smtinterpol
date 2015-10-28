@@ -47,26 +47,26 @@ public class SubstTerm extends Term {
 	public Term evaluateHead() {
 		if (mEvaluated != null)
 			return mEvaluated;
+		Term evaluated;
 		if (mSubTerm instanceof SubstTerm) {
 			SubstTerm subsubst = (SubstTerm) mSubTerm;
-			mEvaluated = Term.substitute(subsubst.mSubTerm,
+			evaluated = Term.substitute(subsubst.mSubTerm,
 					Substitution.compose(subsubst.mSubstitution, mSubstitution,
 							subsubst.mSubTerm.numFreeVariables()),
-					getType()).
-					evaluateHead();
+							getType());
 		} else if (mSubTerm instanceof AppTerm) {
 			AppTerm app = (AppTerm) mSubTerm;
-			mEvaluated = Term.application(
+			evaluated = Term.application(
 					Term.substitute(app.mFunc, mSubstitution, null),
 					Term.substitute(app.mArg, mSubstitution, null), 
-					getType()).evaluateHead();
+					getType());
 		} else if (mSubTerm instanceof LambdaTerm) {
 			LambdaTerm lam = (LambdaTerm) mSubTerm;
 			Term substArg = Term.substitute(lam.mArgType, mSubstitution, null);
 			Substitution shifted = Substitution.consShifted(
 					Term.variable(0, substArg), mSubstitution,
 					lam.mSubTerm.numFreeVariables());
-			mEvaluated = new LambdaTerm(
+			evaluated = new LambdaTerm(
 					substArg,
 					Term.substitute(lam.mSubTerm, shifted, null), 
 					getType());
@@ -76,15 +76,15 @@ public class SubstTerm extends Term {
 			Substitution shifted = Substitution.consShifted(
 					Term.variable(0, substArg), mSubstitution,
 					pi.mRange.numFreeVariables());
-			mEvaluated = new PiTerm(
+			evaluated = new PiTerm(
 					substArg,
 					Term.substitute(pi.mRange, shifted, null), 
-					getType()).evaluateHead();
+					getType());
 		} else if (mSubTerm instanceof Variable) {
 			if (mSubstitution.mSubstTerms.length == 0)
-				mEvaluated = this;
+				return (mEvaluated = this);
 			else
-				mEvaluated = mSubstitution.mSubstTerms[0].evaluateHead();
+				evaluated = mSubstitution.mSubstTerms[0];
 		} else {
 			/* term is Universe, Constructor, RecOp, or InductiveType, 
 			 * or assumption */
@@ -93,8 +93,11 @@ public class SubstTerm extends Term {
 					|| mSubTerm instanceof InductiveType
 					|| mSubTerm instanceof RecOperator
 					|| mSubTerm instanceof Assumption;
-			mEvaluated = mSubTerm;
+			evaluated = mSubTerm;
 		}
+		if (evaluated.mName == null && mName != null)
+			evaluated.mName = mName;
+		mEvaluated = evaluated.evaluateHead();
 		assert !(mEvaluated instanceof SubstTerm) ||
 			(((SubstTerm) mEvaluated).mSubTerm instanceof Variable);
 		//System.err.println("EvaluateHead: "+this + " gives "+mEvaluated);

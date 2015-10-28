@@ -51,7 +51,7 @@ public abstract class Term {
 	/**
 	 * The name of the term.  This is set for defined terms.
 	 */
-	String mName;
+	PrettyTerm mName;
 	
 	private static Term[] universes = new Term[2];
 
@@ -206,7 +206,10 @@ public abstract class Term {
 			return term;
 		if (type == null)
 			type = SubstTerm.typecheck(term, subst);
-		return new SubstTerm(term, subst, type);
+		Term substterm = new SubstTerm(term, subst, type);
+		if (term.mName != null)
+			substterm.mName = term.mName.substitute(subst);
+		return substterm;
 	}
 
 	/**
@@ -227,27 +230,28 @@ public abstract class Term {
 
 	public Term evaluate() {
 		Term t = evaluateHead();
+		PrettyTerm name = t.mName;
 		if (t instanceof AppTerm) {
 			AppTerm app = (AppTerm) t;
-			return Term.application(
+			t = Term.application(
 					app.mFunc.evaluate(),
 					app.mArg.evaluate(), t.getType());
 		} else if (t instanceof PiTerm) {
 			PiTerm pi = (PiTerm) t;
-			return Term.pi(
+			t = Term.pi(
 					pi.mDomain.evaluate(),
 					pi.mRange.evaluate(), t.getType());
 		} else if (t instanceof LambdaTerm) {
 			LambdaTerm lam = (LambdaTerm) t;
-			return Term.lambda(
+			t = Term.lambda(
 					lam.mArgType.evaluate(),
 					lam.mSubTerm.evaluate(), t.getType());
-		} else {
-			return t;
 		}
+		t.mName = name;
+		return t;
 	}
 	
 	public void setName(String name) {
-		mName = name;
+		mName = PrettyTerm.name(name);
 	}
 }

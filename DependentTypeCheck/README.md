@@ -117,7 +117,7 @@ The typechecking rules are:
       Gamma |- (x:T1 -> T2) : U{max(i,j)}
 
     Gamma |- T1 : Ui   Gamma, x:T1 |- y : T2
-    ---------------------------------------
+    ----------------------------------------
       Gamma |- (\x:T1 -> y) : (x:T1 -> T2)
 
     Gamma |- a : (x:T1 -> T2)   Gamma |- b : T1

@@ -8,6 +8,6 @@ public class Assumption extends Term {
 
 	@Override
 	protected String toString(int offset, int prec) {
-		return mName;
+		return mName.toString(offset, prec);
 	}
 }

@@ -236,7 +236,7 @@ exprApp ::= expr2:exprFunc expr3:exprArg
 		Term exprFuncType = exprFunc.getType();
 		exprFuncType = exprFuncType.evaluateHead();
 		if (!(exprFuncType instanceof PiTerm))
-			parser.report_error("Applying to a non-function", exprFunc$);
+			parser.report_error("Applying to a non-function", exprArg$);
 		else if (!exprArg.getType().isSubType(((PiTerm)exprFuncType).mDomain))
 			parser.report_error("Argument has wrong type "+exprArg.getType().evaluate() +
 				" expected: " + ((PiTerm)exprFuncType).mDomain.evaluate(), exprArg$);

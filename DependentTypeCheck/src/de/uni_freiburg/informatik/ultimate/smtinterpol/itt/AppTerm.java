@@ -57,11 +57,19 @@ public class AppTerm extends Term {
 	}
 	
 	public Term myEvaluate(Term f, Term a, Term type) {
+		PrettyTerm name = null;
+		if (mName != null) {
+			name = mName;
+		} else if (f.mName != null) {
+			name = PrettyTerm.application(f.mName, a);
+		}
 		if (f instanceof LambdaTerm) {
-			return Term.substitute(((LambdaTerm) f).mSubTerm, 
+			Term head = Term.substitute(((LambdaTerm) f).mSubTerm, 
 					Substitution.cons(a, Substitution.shift(0), 
 							((LambdaTerm) f).mSubTerm.numFreeVariables()),
-					getType()).evaluateHead();
+										getType());
+			head.mName = name;
+			return head.evaluateHead();
 		}
 		AppTerm result = f == mFunc && a == mArg ? this 
 				: new AppTerm(f, a, type);
@@ -78,13 +86,15 @@ public class AppTerm extends Term {
 			}
 		}
 		/* evaluation fix point reached */
+		if (name != null)
+			result.mName = name;
 		result.mEvaluated = result;
 		return result;
 	}
 
 	public String toString(int offset, int prec) {
 		if (mName != null)
-			return mName;
+			return mName.toString(offset, prec);
 		String str = mFunc.toString(offset, 2) + " " 
 				+ mArg.toString(offset, 3);
 		return prec >= 3 ? "(" + str + ")" : str;
