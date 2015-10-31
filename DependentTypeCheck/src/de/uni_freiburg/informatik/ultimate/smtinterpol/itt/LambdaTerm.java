@@ -20,13 +20,13 @@ public class LambdaTerm extends Term {
 	
 	int mNumFreeVariables;
 
-	public LambdaTerm(Term argType, Term subTerm) {
-		this(argType, subTerm, typecheck(argType, subTerm));
+	public LambdaTerm(Term argType, Term subTerm, boolean isHidden) {
+		this(argType, subTerm, typecheck(argType, subTerm, isHidden));
 	}
 
 	public LambdaTerm(Term argType, Term subTerm, Term type) {
 		super(type);
-		assert typecheck(argType, subTerm).isSubType(type);
+		assert typecheck(argType, subTerm, ((PiTerm) type).mIsHidden).isSubType(type);
 		mArgType = argType;
 		mSubTerm = subTerm;
 		mNumFreeVariables = Math.max(mArgType.numFreeVariables(), 
@@ -38,8 +38,8 @@ public class LambdaTerm extends Term {
 		return mNumFreeVariables;
 	}
 	
-	public static Term typecheck(Term argType, Term subTerm) {
-		return new PiTerm(argType, subTerm.getType());
+	public static Term typecheck(Term argType, Term subTerm, boolean isHidden) {
+		return new PiTerm(argType, subTerm.getType(), isHidden);
 	}
 
 	@Override

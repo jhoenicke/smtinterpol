@@ -79,7 +79,7 @@ public class SubstTerm extends Term {
 			evaluated = new PiTerm(
 					substArg,
 					Term.substitute(pi.mRange, shifted, null), 
-					getType());
+					getType(), pi.mIsHidden);
 		} else if (mSubTerm instanceof Variable) {
 			if (mSubstitution.mSubstTerms.length == 0)
 				return (mEvaluated = this);

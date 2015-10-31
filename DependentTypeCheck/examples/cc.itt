@@ -20,38 +20,38 @@ Definition Sigma.1 = \A:U \B:(A->U) ->
 Definition Sigma.2 = \A:U \B:(A->U) ->
   Sigma.rec A B (\p:Sigma A B -> B (Sigma.1 A B p)) (\a:A \b:B a -> b)
 
-Inductive I : A:U -> a:A -> b:A -> U =
-  r : I A a a
+Inductive I : {A:U} -> a:A -> b:A -> U =
+  r : I a a
 
-Definition I.symm = \A:U \a:A \b:A ->
-  I.rec A a (\x:A \_: I A a x -> I A x a) (I.r A a) b
-Definition I.subst = \A:U \a:A \b:A \eq:I A a b \C:(A -> U) ->
-    I.rec A a (\x:A \_:I A a x -> C a -> C x)
+Definition I.symm = {\A:U} {\a:A} {\b:A} ->
+  I.rec a (\x:A \_: I a x -> I x a) (I.r a) b
+Definition I.subst = {\A:U} {\a:A} {\b:A} \eq:I a b \C:(A -> U) ->
+    I.rec a (\x:A \_:I a x -> C a -> C x)
       (\z:C a -> z) b eq
 TypeCheck I.subst :
-  A:U -> a:A -> b:A -> I A a b -> C:(A -> U) -> C a -> C b
-Definition I.subst2 = \A:U \a1:A \a2:A \eq1:I A a1 a2
-	              \B:U \b1:B \b2:B \eq2:I B b1 b2
+  {A:U} -> {a:A} -> {b:A} -> I a b -> C:(A -> U) -> C a -> C b
+EvaluateType I.subst
+Definition I.subst2 = {\A:U} {\a1:A} {\a2:A} \eq1:I a1 a2
+	              {\B:U} {\b1:B} {\b2:B} \eq2:I b1 b2
 		      \C:(A -> B -> U) ->
-  I.subst B b1 b2 eq2 (\b:B -> C a1 b1 -> C a2 b)
-    (I.subst A a1 a2 eq1 (\a:A -> C a b1))
+  I.subst eq2 (\b:B -> C a1 b1 -> C a2 b)
+    (I.subst eq1 (\a:A -> C a b1))
 TypeCheck I.subst2 :
-  A:U -> a1:A -> a2:A -> I A a1 a2 ->
-  B:U -> b1:B -> b2:B -> I B b1 b2 -> C:(A -> B -> U) -> C a1 b1 -> C a2 b2
-Definition I.rsubst = \A:U \b:A \a:A \eq:I A a b \C:(A -> U) ->
-    I.subst A b a (I.symm A a b eq) C
-Definition I.cong = \A:U \B:U
-  \c:(A -> B) \a:A \b:A \eq: I A a b ->
-    I.subst A a b eq (\x:A -> I B (c a) (c x)) (I.r B (c a))
+  {A:U} -> {a1:A} -> {a2:A} -> I a1 a2 ->
+  {B:U} -> {b1:B} -> {b2:B} -> I b1 b2 -> C:(A -> B -> U) -> C a1 b1 -> C a2 b2
+Definition I.rsubst = {\A:U} {\b:A} {\a:A} \eq:I a b \C:(A -> U) ->
+    I.subst (I.symm eq) C
+Definition I.cong = {\A:U} {\B:U}
+  \c:(A -> B) {\a:A} {\b:A} \eq: I a b ->
+    I.subst eq (\x:A -> I (c a) (c x)) (I.r (c a))
 TypeCheck I.cong :
-  A:U -> B:U -> c:(A -> B) -> a:A -> b:A -> I A a b -> I B (c a) (c b)
-Definition I.cong2 = \A:U \B:U \C:U \f:(A->B->C)
-  \a1:A \a2:A \eq1: I A a1 a2 \b1:B\b2:B \eq2: I B b1 b2 ->
-  I.subst A a1 a2 eq1 (\x:A -> I C (f a1 b1) (f x b2))
-    (I.cong B C (f a1) b1 b2 eq2)
+  A:U -> B:U -> c:(A -> B) -> {a:A} -> {b:A} -> I a b -> I (c a) (c b)
+Definition I.cong2 = {\A:U} {\B:U} {\C:U} \f:(A->B->C)
+  {\a1:A} {\a2:A} \eq1: I a1 a2 {\b1:B}{\b2:B} \eq2: I b1 b2 ->
+  I.subst eq1 (\x:A -> I (f a1 b1) (f x b2)) (I.cong (f a1) eq2)
 TypeCheck I.cong2 :
-  A:U -> B:U -> C:U -> f:(A -> B -> C) -> a1:A -> a2:A -> I A a1 a2 ->
-  b1:B -> b2:B -> I B b1 b2 -> I C (f a1 b1) (f a2 b2)
+  {A:U} -> {B:U} -> {C:U} -> f:(A -> B -> C) -> {a1:A} -> {a2:A} -> I a1 a2 ->
+  {b1:B} -> {b2:B} -> I b1 b2 -> I (f a1 b1) (f a2 b2)
 
 Inductive Bool : U = tt:Bool, ff:Bool
 Inductive Nat : U =
@@ -63,52 +63,51 @@ Definition Nat.plus = Nat.rec (\_:Nat -> Nat -> Nat)
     (\b:Nat -> b) (\a:Nat \rec:(Nat->Nat) \b:Nat -> Nat.s (rec b))
 
 Definition Nat.plus.zero =
-    Nat.rec (\a:Nat -> I Nat (Nat.plus a Nat.0) a)
-       (I.r Nat Nat.0)
-       (\a:Nat -> I.cong Nat Nat Nat.s (Nat.plus a Nat.0) a)
+    Nat.rec (\a:Nat -> I (Nat.plus a Nat.0) a)
+       (I.r Nat.0)
+       (\a:Nat \Hyp:I (Nat.plus a Nat.0) a -> I.cong Nat.s Hyp)
 Definition Nat.s.plus.commutes = \a:Nat \b:Nat ->
-    Nat.rec (\a:Nat -> I Nat (Nat.s (Nat.plus a b)) (Nat.plus a (Nat.s b)))
-       (I.r Nat (Nat.s b))
-       (\a:Nat \Hyp: I Nat (Nat.s (Nat.plus a b)) (Nat.plus a (Nat.s b)) ->
-        I.subst Nat (Nat.s (Nat.plus a b)) (Nat.plus a (Nat.s b)) Hyp
-	   (\x:Nat -> I Nat (Nat.s (Nat.s (Nat.plus a b))) (Nat.s x))
-	   (I.r Nat (Nat.s (Nat.s (Nat.plus a b)))))
+    Nat.rec (\a:Nat -> I (Nat.s (Nat.plus a b)) (Nat.plus a (Nat.s b)))
+       (I.r (Nat.s b))
+       (\a:Nat \Hyp: I (Nat.s (Nat.plus a b)) (Nat.plus a (Nat.s b)) ->
+        I.subst Hyp
+	   (\x:Nat -> I (Nat.s (Nat.s (Nat.plus a b))) (Nat.s x))
+	   (I.r (Nat.s (Nat.s (Nat.plus a b)))))
        a
 
 Definition Nat.plus.commutes = \a:Nat ->
-    Nat.rec (\b:Nat -> I Nat (Nat.plus a b) (Nat.plus b a))
+    Nat.rec (\b:Nat -> I (Nat.plus a b) (Nat.plus b a))
        (Nat.plus.zero a)
-       (\b:Nat \Hyp:I Nat (Nat.plus a b) (Nat.plus b a) ->
-        I.subst Nat (Nat.plus a b) (Nat.plus b a) Hyp
-	        (\x:Nat -> I Nat (Nat.plus a (Nat.s b)) (Nat.s x))
-		(I.symm Nat (Nat.s (Nat.plus a b)) (Nat.plus a (Nat.s b))
-		        (Nat.s.plus.commutes a b)))
+       (\b:Nat \Hyp:I (Nat.plus a b) (Nat.plus b a) ->
+        I.subst Hyp
+	        (\x:Nat -> I (Nat.plus a (Nat.s b)) (Nat.s x))
+		(I.symm (Nat.s.plus.commutes a b)))
 
-Definition Nat.iter = \A:U \f:(A->A) ->
+Definition Nat.iter = {\A:U} \f:(A->A) ->
   Nat.rec (\n:Nat -> A -> A) (\a:A -> a) (\_:Nat \rec:(A->A) \a:A -> f (rec a))
-Definition Nat.iter.associative = \A:U \f:(A->A) \n:Nat \a:A ->
-  Nat.rec (\n:Nat -> I A (Nat.iter A f (Nat.s n) a) (Nat.iter A f n (f a)))
-    (I.r A (f a))
-    (\n:Nat \Hyp:I A (Nat.iter A f (Nat.s n) a) (Nat.iter A f n (f a)) ->
-     I.cong A A f (Nat.iter A f (Nat.s n) a) (Nat.iter A f n (f a)) Hyp)
+Definition Nat.iter.associative = {\A:U} \f:(A->A) \n:Nat \a:A ->
+  Nat.rec (\n:Nat -> I (Nat.iter f (Nat.s n) a) (Nat.iter f n (f a)))
+    (I.r (f a))
+    (\n:Nat \Hyp:I (Nat.iter f (Nat.s n) a) (Nat.iter f n (f a)) ->
+     I.cong f Hyp)
     n
-Definition Nat.iter.plus = \A:U \f:(A->A) \m:Nat \n:Nat \a:A ->
-  Nat.rec (\m:Nat -> I A (Nat.iter A f m (Nat.iter A f n a))
-                         (Nat.iter A f (Nat.plus m n) a))
-    (I.r A (Nat.iter A f n a))
-    (\m:Nat -> I.cong A A f (Nat.iter A f m (Nat.iter A f n a))
-                            (Nat.iter A f (Nat.plus m n) a))
+Definition Nat.iter.plus = {\A:U} \f:(A->A) \m:Nat \n:Nat \a:A ->
+  Nat.rec (\m:Nat -> I (Nat.iter f m (Nat.iter f n a))
+                       (Nat.iter f (Nat.plus m n) a))
+    (I.r (Nat.iter f n a))
+    (\m:Nat
+     \eq:I (Nat.iter f m (Nat.iter f n a)) (Nat.iter f (Nat.plus m n) a) ->
+     I.cong f eq)
     m
 
 Definition Nat.iter.g.commutes = \A:U \f:(A->A) \g:(A->A)
-  \fgcommutes:(a:A -> I A (f (g a)) (g (f a))) \a:A ->
-  Nat.rec (\n:Nat -> I A (Nat.iter A f n (g a)) (g (Nat.iter A f n a)))
-    (I.r A (g a))
-    (\n:Nat\Hyp:I A (Nat.iter A f n (g a)) (g (Nat.iter A f n a)) ->
-     I.subst A (f (g (Nat.iter A f n a))) (g (Nat.iter A f (Nat.s n) a))
-        (fgcommutes (Nat.iter A f n a))
-        (\x:A -> I A (Nat.iter A f (Nat.s n) (g a)) x)
-        (I.cong A A f (Nat.iter A f n (g a)) (g (Nat.iter A f n a)) Hyp))
+  \fgcommutes:(a:A -> I (f (g a)) (g (f a))) \a:A ->
+  Nat.rec (\n:Nat -> I (Nat.iter f n (g a)) (g (Nat.iter f n a)))
+    (I.r (g a))
+    (\n:Nat\Hyp:I (Nat.iter f n (g a)) (g (Nat.iter f n a)) ->
+     I.subst (fgcommutes (Nat.iter f n a))
+        (\x:A -> I (Nat.iter f (Nat.s n) (g a)) x)
+        (I.cong f Hyp))
 
 Inductive Test : b:Bool -> U =
   tt : Test Bool.tt
@@ -137,51 +136,44 @@ Definition Nat.shiftn =
 	  (\m1:Nat \_:Nat -> Nat.s (shiftn1 m1)))
 
 Definition Nat.shiftn.commutes.Thesis = \i:Nat -> \n:Nat -> \m:Nat ->
-    I Nat (Nat.shiftn n (Nat.shiftn (Nat.plus m n) i))
+    I (Nat.shiftn n (Nat.shiftn (Nat.plus m n) i))
           (Nat.shiftn (Nat.s (Nat.plus m n)) (Nat.shiftn n i))
  
 Definition Nat.shiftn.commutes =
    Nat.rec (\n:Nat -> m:Nat -> i:Nat -> Nat.shiftn.commutes.Thesis i n m)
      (Nat.rec (\m:Nat -> i:Nat -> Nat.shiftn.commutes.Thesis i Nat.0 m)
-        (\i:Nat -> I.r Nat (Nat.s (Nat.s i)))
+        (\i:Nat -> I.r (Nat.s (Nat.s i)))
 	(\m:Nat \HypM: (i:Nat -> Nat.shiftn.commutes.Thesis i Nat.0 m) ->
 	 Nat.rec (\i:Nat -> Nat.shiftn.commutes.Thesis i Nat.0 (Nat.s m))
-	   (I.r Nat (Nat.s Nat.0))
+	   (I.r (Nat.s Nat.0))
 	   (\i:Nat \HypI: Nat.shiftn.commutes.Thesis i Nat.0 (Nat.s m) ->
-	    I.r Nat (Nat.s (Nat.s (Nat.shiftn (Nat.plus m Nat.0) i))))))
+	    I.r (Nat.s (Nat.s (Nat.shiftn (Nat.plus m Nat.0) i))))))
      (\n:Nat \HypN: (m:Nat ->i:Nat -> Nat.shiftn.commutes.Thesis i n m) ->
       Nat.rec (\m:Nat -> i:Nat -> Nat.shiftn.commutes.Thesis i (Nat.s n) m)
         (Nat.rec (\i:Nat -> Nat.shiftn.commutes.Thesis i (Nat.s n) Nat.0)
-	   (I.r Nat Nat.0)
+	   (I.r Nat.0)
 	   (\i:Nat \HypI: Nat.shiftn.commutes.Thesis i (Nat.s n) Nat.0 ->
-	    I.cong Nat Nat Nat.s (Nat.shiftn n (Nat.shiftn n i))
-	           (Nat.shiftn (Nat.s n) (Nat.shiftn n i)) (HypN Nat.0 i)))
+	    I.cong Nat.s (HypN Nat.0 i)))
         (\m:Nat \HypM: (i:Nat -> Nat.shiftn.commutes.Thesis i (Nat.s n) m) ->
 	 Nat.rec (\i:Nat -> Nat.shiftn.commutes.Thesis i (Nat.s n) (Nat.s m))
-	   (I.r Nat Nat.0)
+	   (I.r Nat.0)
 	   (\i:Nat \HypI: Nat.shiftn.commutes.Thesis i (Nat.s n) (Nat.s m) ->
-	    I.subst Nat (Nat.s (Nat.plus m n)) (Nat.plus m (Nat.s n))
-	            (Nat.s.plus.commutes m n)
-		    (\x:Nat -> I Nat (Nat.s (Nat.shiftn n (Nat.shiftn x i)))
+	    I.subst (Nat.s.plus.commutes m n)
+		    (\x:Nat -> I (Nat.s (Nat.shiftn n (Nat.shiftn x i)))
 		               (Nat.s (Nat.shiftn (Nat.s x) (Nat.shiftn n i))))
-	    (I.cong Nat Nat Nat.s
-	    	   (Nat.shiftn n (Nat.shiftn (Nat.plus (Nat.s m) n) i))
-		   (Nat.shiftn (Nat.s (Nat.plus (Nat.s m) n)) (Nat.shiftn n i))
-		   (HypN (Nat.s m) i)))))
+	    (I.cong Nat.s (HypN (Nat.s m) i)))))
 
 Definition Nat.plus.shiftn.lemma = \i:Nat \n:Nat ->
-  I.subst Nat (Nat.plus n i) (Nat.plus i n) (Nat.plus.commutes n i)
-          (\x:Nat -> I Nat (Nat.shiftn n x) (Nat.plus (Nat.shiftn Nat.0 i) n))
-  (I.subst Nat (Nat.plus n (Nat.shiftn Nat.0 i))
-               (Nat.plus (Nat.shiftn Nat.0 i) n)
-	       (Nat.plus.commutes n (Nat.shiftn Nat.0 i))
-          (\x:Nat -> I Nat (Nat.shiftn n (Nat.plus n i)) x)
-    (Nat.rec (\n:Nat -> I Nat (Nat.shiftn n (Nat.plus n i))
+  I.subst (Nat.plus.commutes n i)
+          (\x:Nat -> I (Nat.shiftn n x) (Nat.plus (Nat.shiftn Nat.0 i) n))
+  (I.subst (Nat.plus.commutes n (Nat.shiftn Nat.0 i))
+           (\x:Nat -> I (Nat.shiftn n (Nat.plus n i)) x)
+    (Nat.rec (\n:Nat -> I (Nat.shiftn n (Nat.plus n i))
                               (Nat.plus n (Nat.shiftn Nat.0 i)))
-	  (I.r Nat (Nat.s i))
-	  (\n:Nat -> I.cong Nat Nat Nat.s
-	                    (Nat.shiftn n (Nat.plus n i))
-			    (Nat.plus n (Nat.shiftn Nat.0 i)))
+	  (I.r (Nat.s i))
+	  (\n:Nat \Hyp:I (Nat.shiftn n (Nat.plus n i))
+			 (Nat.plus n (Nat.shiftn Nat.0 i)) ->
+	   I.cong Nat.s Hyp)
 	  n))
 
 ; Increment all variables >= n by one.
@@ -199,8 +191,8 @@ Definition Term.shiftvar = \term:Term ->
     Term.shiftn term Nat.0
 
 Definition Term.shiftn.commutes.Thesis = \T:Term -> n:Nat -> m:Nat ->
-    I Term (Term.shiftn (Term.shiftn T (Nat.plus m n)) n)
-           (Term.shiftn (Term.shiftn T n) (Nat.s (Nat.plus m n)))
+    I (Term.shiftn (Term.shiftn T (Nat.plus m n)) n)
+      (Term.shiftn (Term.shiftn T n) (Nat.s (Nat.plus m n)))
 
 Definition Term.shiftn.commutes =
    Term.rec (\T:Term -> Term.shiftn.commutes.Thesis T)
@@ -208,16 +200,10 @@ Definition Term.shiftn.commutes =
        \S:Term \HypS:Term.shiftn.commutes.Thesis S
        \M:Term \HypM:Term.shiftn.commutes.Thesis M
        \n:Nat \m:Nat ->
-       I.cong2 Term Term Term (\x:Term \y:Term -> Term.lam vt x y)
-           (Term.shiftn (Term.shiftn S (Nat.plus m n)) n)
-	   (Term.shiftn (Term.shiftn S n) (Nat.s (Nat.plus m n)))
+       I.cong2 (\x:Term \y:Term -> Term.lam vt x y)
 	   (HypS n m)
-           (Term.shiftn (Term.shiftn M (Nat.s (Nat.plus m n))) (Nat.s n))
-	   (Term.shiftn (Term.shiftn M (Nat.s n))
-	                                   (Nat.s (Nat.s (Nat.plus m n))))
-	   (I.rsubst Nat (Nat.plus m (Nat.s n)) (Nat.s (Nat.plus m n))
-	                (Nat.s.plus.commutes m n)
-		(\x:Nat -> I Term
+	   (I.rsubst (Nat.s.plus.commutes m n)
+		(\x:Nat -> I
                  (Term.shiftn (Term.shiftn M x) (Nat.s n))
 	         (Term.shiftn (Term.shiftn M (Nat.s n)) (Nat.s x)))
 	        (HypM (Nat.s n) m)))
@@ -225,68 +211,61 @@ Definition Term.shiftn.commutes =
        \S:Term \HypS:Term.shiftn.commutes.Thesis S
        \M:Term \HypM:Term.shiftn.commutes.Thesis M
        \n:Nat \m:Nat ->
-       I.cong2 Term Term Term (\x:Term \y:Term -> Term.pi vt x y)
-           (Term.shiftn (Term.shiftn S (Nat.plus m n)) n)
-	   (Term.shiftn (Term.shiftn S n) (Nat.s (Nat.plus m n)))
+       I.cong2 (\x:Term \y:Term -> Term.pi vt x y)
 	   (HypS n m)
-           (Term.shiftn (Term.shiftn M (Nat.s (Nat.plus m n))) (Nat.s n))
-	   (Term.shiftn (Term.shiftn M (Nat.s n))
-	                                   (Nat.s (Nat.s (Nat.plus m n))))
-	   (I.rsubst Nat (Nat.plus m (Nat.s n)) (Nat.s (Nat.plus m n))
-	                (Nat.s.plus.commutes m n)
-		(\x:Nat -> I Term
+	   (I.rsubst (Nat.s.plus.commutes m n)
+		(\x:Nat -> I
                  (Term.shiftn (Term.shiftn M x) (Nat.s n))
 	         (Term.shiftn (Term.shiftn M (Nat.s n)) (Nat.s x)))
 	        (HypM (Nat.s n) m)))
       (\S:Term \HypS:Term.shiftn.commutes.Thesis S
        \M:Term \HypM:Term.shiftn.commutes.Thesis M
        \n:Nat \m:Nat ->
-       I.cong2 Term Term Term (\x:Term \y:Term -> Term.app x y)
-           (Term.shiftn (Term.shiftn S (Nat.plus m n)) n)
-	   (Term.shiftn (Term.shiftn S n) (Nat.s (Nat.plus m n)))
-	   (HypS n m)
-           (Term.shiftn (Term.shiftn M (Nat.plus m n)) n)
-	   (Term.shiftn (Term.shiftn M n) (Nat.s (Nat.plus m n)))
-	   (HypM n m))
+       I.cong2 (\x:Term \y:Term -> Term.app x y) (HypS n m) (HypM n m))
      (\vt:VarType \i:Nat \n:Nat \m:Nat ->
-      I.cong Nat Term (\i:Nat -> Term.var vt i)
-             (Nat.shiftn n (Nat.shiftn (Nat.plus m n) i))
-	     (Nat.shiftn (Nat.s (Nat.plus m n)) (Nat.shiftn n i))
+      I.cong (\i:Nat -> Term.var vt i)
              (Nat.shiftn.commutes n m i))
-     (\vt:VarType \n:Nat \m:Nat -> I.r Term (Term.univ vt))
+     (\vt:VarType \n:Nat \m:Nat -> I.r (Term.univ vt))
 TypeCheck Term.shiftn.commutes : T:Term -> Term.shiftn.commutes.Thesis T
 Definition Term.shiftvarn.commutes  = \T:Term \n:Nat ->
-     I.subst Nat (Nat.plus n Nat.0) n (Nat.plus.zero n)
-	      (\x:Nat -> I Term (Term.shiftvar (Term.shiftn T x))
-	                        (Term.shiftn (Term.shiftvar T) (Nat.s x)))
+     I.subst  (Nat.plus.zero n)
+	      (\x:Nat -> I (Term.shiftvar (Term.shiftn T x))
+	                   (Term.shiftn (Term.shiftvar T) (Nat.s x)))
 	      (Term.shiftn.commutes T Nat.0 n)
 TypeCheck Term.shiftvarn.commutes : T:Term -> n:Nat ->
-     I Term (Term.shiftvar (Term.shiftn T n))
-            (Term.shiftn (Term.shiftvar T) (Nat.s n))
+     I (Term.shiftvar (Term.shiftn T n))
+       (Term.shiftn (Term.shiftvar T) (Nat.s n))
 
 Inductive Subst : U =
    offset : Nat -> Subst,
-   cons   : Term -> Subst -> Subst
+   cons   : Term -> Subst -> Subst,
+   consn  : Nat -> Subst -> Subst
 
 Definition Subst.shift =
   Subst.rec (\sigma:Subst -> Subst)
     (\i:Nat -> Subst.offset (Nat.s i))
     (\t:Term \_:Subst \sigmashift:Subst ->
      Subst.cons (Term.shiftvar t) sigmashift)
-Definition Subst.consshift = \vt:VarType \sigma:Subst ->
-  Subst.cons (Term.var vt Nat.0) (Subst.shift sigma)
+    (\i:Nat \_:Subst \sigmashift:Subst ->
+     Subst.consn (Nat.s i) sigmashift)
+Definition Subst.consshift = \sigma:Subst ->
+  Subst.consn Nat.0 (Subst.shift sigma)
 Definition Subst.len =
   Subst.rec (\_:Subst -> Nat)
-    (\i:Nat -> Nat.0) (\_:Term \_:Subst \r:Nat -> Nat.s r)
+    (\i:Nat -> Nat.0)
+    (\_:Term \_:Subst \r:Nat -> Nat.s r)
+    (\_:Nat \_:Subst \r:Nat -> Nat.s r)
 Definition Subst.drop1 =
   Subst.rec (\sigma:Subst -> Subst)
     (\i:Nat -> Subst.offset (Nat.s i))
     (\t:Term \sigma:Subst \_:Subst -> sigma)
-Definition Subst.drop = Nat.iter Subst Subst.drop1
+    (\n:Nat \sigma:Subst \_:Subst -> sigma)
+Definition Subst.drop = Nat.iter Subst.drop1
 Definition Subst.evalhead = \vt:VarType ->
   Subst.rec (\tau:Subst -> Term)
     (\i:Nat -> Term.var vt i)
     (\t:Term \_:Subst \_:Term -> t)
+    (\n:Nat \_:Subst \_:Term -> Term.var vt n)
 Definition Subst.eval = \sigma:Subst \vt:VarType \n:Nat ->
   Subst.evalhead vt (Subst.drop n sigma)
 
@@ -295,11 +274,11 @@ Definition Term.substapp =
     (\vt:VarType \_: Term \r1:(Subst->Term)
      \_:Term \r2:(Subst -> Term)
      \subst:Subst ->
-     Term.lam vt (r1 subst) (r2 (Subst.consshift vt subst)))
+     Term.lam vt (r1 subst) (r2 (Subst.consshift subst)))
     (\vt:VarType \_: Term \r1:(Subst->Term)
      \_:Term \r2:(Subst->Term)
      \subst:Subst ->
-     Term.pi vt (r1 subst) (r2 (Subst.consshift vt subst)))
+     Term.pi vt (r1 subst) (r2 (Subst.consshift subst)))
     (\_: Term \r1:(Subst->Term)
      \_:Term \r2:(Subst->Term)
      \subst:Subst -> Term.app (r1 subst) (r2 subst))
@@ -311,216 +290,205 @@ Definition Term.subst = \term:Term \subst:Term ->
     Term.substapp term (Subst.unit subst)
 
 Definition Subst.isEmpty =
-  Subst.rec (\_:Subst -> U) (\_:Nat -> T) (\_:Term\_:Subst\_:U -> F)
+  Subst.rec (\_:Subst -> U)
+     (\_:Nat -> T) (\_:Term\_:Subst\_:U -> F) (\_:Nat\_:Subst\_:U -> F)
 
 Definition Subst.substshiftn = \n:Nat ->
   Subst.rec (\sigma:Subst -> Subst)
     (\i:Nat -> Subst.offset i)
     (\t:Term \sigma:Subst \recurse:Subst ->
      Subst.cons (Term.shiftn t n) recurse)
+    (\i:Nat \sigma:Subst \recurse:Subst ->
+     Subst.consn (Nat.shiftn n i) recurse)
 
 Definition Subst.shift.substshiftn.commutes = \n:Nat ->
   Subst.rec (\sigma:Subst ->
-     I Subst (Subst.shift (Subst.substshiftn n sigma))
-             (Subst.substshiftn (Nat.s n) (Subst.shift sigma)))
-    (\i:Nat -> I.r Subst (Subst.offset (Nat.s i)))
+     I (Subst.shift (Subst.substshiftn n sigma))
+       (Subst.substshiftn (Nat.s n) (Subst.shift sigma)))
+    (\i:Nat -> I.r (Subst.offset (Nat.s i)))
     (\t:Term \sigma:Subst
-     \Hyp: I Subst (Subst.shift (Subst.substshiftn n sigma))
+     \Hyp: I (Subst.shift (Subst.substshiftn n sigma))
              (Subst.substshiftn (Nat.s n) (Subst.shift sigma)) ->
-     I.cong2 Term Subst Subst (\t:Term \sigma:Subst -> Subst.cons t sigma)
-        (Term.shiftvar (Term.shiftn t n))
-	(Term.shiftn (Term.shiftvar t) (Nat.s n))
-	(Term.shiftvarn.commutes t n)
-	(Subst.shift (Subst.substshiftn n sigma))
-	(Subst.substshiftn (Nat.s n) (Subst.shift sigma))
-	Hyp)
+     I.cong2 (\t:Term \sigma:Subst -> Subst.cons t sigma)
+	(Term.shiftvarn.commutes t n) Hyp)
+    (\i:Nat \sigma:Subst
+     \Hyp: I (Subst.shift (Subst.substshiftn n sigma))
+             (Subst.substshiftn (Nat.s n) (Subst.shift sigma)) ->
+     I.cong (\sigma:Subst -> Subst.consn (Nat.s (Nat.shiftn n i)) sigma)
+	    Hyp)
 	
 Definition Subst.drop1.substshiftn.commutes = \n:Nat ->
   Subst.rec (\sigma:Subst ->
-             I Subst (Subst.drop1 (Subst.substshiftn n sigma))
-	             (Subst.substshiftn n (Subst.drop1 sigma)))
-    (\i:Nat -> I.r Subst (Subst.offset (Nat.s i)))
+             I (Subst.drop1 (Subst.substshiftn n sigma))
+	       (Subst.substshiftn n (Subst.drop1 sigma)))
+    (\i:Nat -> I.r (Subst.offset (Nat.s i)))
     (\t:Term \sigma:Subst
-     \_:     I Subst (Subst.drop1 (Subst.substshiftn n sigma))
-	             (Subst.substshiftn n (Subst.drop1 sigma)) ->
-     I.r Subst (Subst.substshiftn n sigma))
+     \_:     I (Subst.drop1 (Subst.substshiftn n sigma))
+	       (Subst.substshiftn n (Subst.drop1 sigma)) ->
+     I.r (Subst.substshiftn n sigma))
+    (\i:Nat \sigma:Subst
+     \_:     I (Subst.drop1 (Subst.substshiftn n sigma))
+	       (Subst.substshiftn n (Subst.drop1 sigma)) ->
+     I.r (Subst.substshiftn n sigma))
 		     
 Definition Subst.substshift.consshift.Claim = 
-  \subst:Subst -> n:Nat -> vt:VarType ->
-     I Subst (Subst.consshift vt (Subst.substshiftn n subst))
-             (Subst.substshiftn (Nat.s n) (Subst.consshift vt subst))
+  \subst:Subst -> n:Nat ->
+     I (Subst.consshift (Subst.substshiftn n subst))
+       (Subst.substshiftn (Nat.s n) (Subst.consshift subst))
 Definition Subst.substshift.consshift.Lemma = \subst:Subst ->
-  \n:Nat \vt:VarType ->
-  I.cong Subst Subst (\sigma:Subst -> Subst.cons (Term.var vt Nat.0) sigma)
-     (Subst.shift (Subst.substshiftn n subst))
-     (Subst.substshiftn (Nat.s n) (Subst.shift subst))
+  \n:Nat ->
+  I.cong (\sigma:Subst -> Subst.consn Nat.0 sigma)
      (Subst.shift.substshiftn.commutes n subst)
 
 TypeCheck Subst.substshift.consshift.Lemma :
   sigma:Subst -> Subst.substshift.consshift.Claim sigma
 
 Definition Subst.drop.offset = \n:Nat ->
-  Nat.rec (\i:Nat -> I Subst (Subst.drop i (Subst.offset n))
-                             (Subst.offset (Nat.plus i n)))
-    (I.r Subst (Subst.offset n))
-    (\i:Nat ->
-     I.cong Subst Subst Subst.drop1
-            (Subst.drop i (Subst.offset n))
-	    (Subst.offset (Nat.plus i n)))
+  Nat.rec (\i:Nat -> I (Subst.drop i (Subst.offset n))
+                       (Subst.offset (Nat.plus i n)))
+    (I.r (Subst.offset n))
+    (\i:Nat \Hyp:I (Subst.drop i (Subst.offset n))
+	           (Subst.offset (Nat.plus i n)) ->
+     I.cong Subst.drop1 Hyp)
+            
 
 Definition Subst.evalshift.offsetcomp = \m:Nat \offset:Nat \n:Nat ->
-   I.rsubst Subst
-           (Subst.offset (Nat.plus m offset))
-           (Subst.drop m (Subst.offset offset))
-	   (Subst.drop.offset offset m)
-	   (\x: Subst -> I Subst x (Subst.offset n) ->
-	                 I Nat (Nat.plus m offset) n)
-    (I.cong Subst Nat
-            (Subst.rec (\_:Subst -> Nat) (\x:Nat -> x)
-	               (\_:Term \_:Subst\_:Nat -> Nat.0))
-	    (Subst.offset (Nat.plus m offset))
-            (Subst.offset n))
+   I.rsubst (Subst.drop.offset offset m)
+	   (\x: Subst -> I x (Subst.offset n) ->
+	                 I (Nat.plus m offset) n)
+    (\Hyp: I (Subst.offset (Nat.plus m offset))
+             (Subst.offset n)  ->
+     I.cong (Subst.rec (\_:Subst -> Nat) (\x:Nat -> x)
+	               (\_:Term \_:Subst\_:Nat -> Nat.0)
+	               (\_:Nat \_:Subst\_:Nat -> Nat.0)) Hyp)
+	    
 
 Definition Subst.evalshift.help = \m:Nat \n:Nat ->
-   I.subst Nat (Nat.plus m (Nat.s n)) (Nat.plus (Nat.s n) m)
-           (Nat.plus.commutes m (Nat.s n))
-	   (\x:Nat -> I Nat (Nat.shiftn x m) m)
-	   (Nat.rec (\m:Nat -> I Nat (Nat.shiftn (Nat.plus m (Nat.s n)) m) m)
-	      (I.r Nat Nat.0)
-	      (\m:Nat ->
-	       I.cong Nat Nat Nat.s (Nat.shiftn (Nat.plus m (Nat.s n)) m) m)
+   I.subst (Nat.plus.commutes m (Nat.s n))
+	   (\x:Nat -> I (Nat.shiftn x m) m)
+	   (Nat.rec (\m:Nat -> I (Nat.shiftn (Nat.plus m (Nat.s n)) m) m)
+	      (I.r Nat.0)
+	      (\m:Nat \Hyp:I (Nat.shiftn (Nat.plus m (Nat.s n)) m) m ->
+	       I.cong Nat.s Hyp)
 	      m)
 
 
 
 Definition Subst.evalshift.claim = \n:Nat \vt:VarType ->
   \i:Nat -> \m:Nat -> sigma:Subst ->
-  I Subst (Subst.drop (Nat.s m) sigma) (Subst.offset n) ->
-  I Term (Term.shiftn (Subst.eval sigma vt i) n)
-         (Subst.eval (Subst.substshiftn n sigma) vt (Nat.shiftn (Nat.s m) i))
+  I (Subst.drop (Nat.s m) sigma) (Subst.offset n) ->
+  I (Term.shiftn (Subst.eval sigma vt i) n)
+    (Subst.eval (Subst.substshiftn n sigma) vt (Nat.shiftn (Nat.s m) i))
 
 Definition Subst.evalshift.lemma = \vt:VarType ->
    Nat.rec (\i:Nat -> (m:Nat -> n:Nat -> Subst.evalshift.claim n vt i m))
     (\m:Nat \n:Nat ->
      (Subst.rec (\sigma:Subst ->
-                 eq:I Subst (Subst.drop (Nat.s m) sigma) (Subst.offset n) ->
-     		 I Term (Term.shiftn (Subst.eval sigma vt Nat.0) n)
+                 eq:I (Subst.drop (Nat.s m) sigma) (Subst.offset n) ->
+     		 I (Term.shiftn (Subst.eval sigma vt Nat.0) n)
      		   (Subst.eval (Subst.substshiftn n sigma) vt Nat.0))
         (\offset:Nat
-	 \eq : I Subst (Subst.drop (Nat.s m) (Subst.offset offset))
-	               (Subst.offset n) ->
+	 \eq : I (Subst.drop (Nat.s m) (Subst.offset offset))
+	       (Subst.offset n) ->
 	 ; argue with eq that m+1+offset = n
-         I.cong Nat Term (\x:Nat -> Term.var vt x)
-	    (Nat.shiftn n offset) offset
-  	    (I.subst Nat (Nat.plus (Nat.s m) offset) n
+         I.cong (\x:Nat -> Term.var vt x)
+  	    (I.subst
 	       (Subst.evalshift.offsetcomp (Nat.s m) offset n eq)
-	       (\x:Nat -> I Nat (Nat.shiftn x offset) offset)
+	       (\x:Nat -> I (Nat.shiftn x offset) offset)
 	       (Subst.evalshift.help offset m)))
 	(\t:Term \sigma:Subst
-	 \_:(I Subst (Subst.drop (Nat.s m) sigma) (Subst.offset n) ->
-	     I Term (Term.shiftn (Subst.eval sigma vt Nat.0) n)
-     		    (Subst.eval (Subst.substshiftn n sigma) vt Nat.0))
-	 \_:I Subst (Subst.drop (Nat.s m) (Subst.cons t sigma))
-	            (Subst.offset n) ->
-	 I.r Term (Term.shiftn t n))))
+	 \_:(I (Subst.drop (Nat.s m) sigma) (Subst.offset n) ->
+	     I (Term.shiftn (Subst.eval sigma vt Nat.0) n)
+     	       (Subst.eval (Subst.substshiftn n sigma) vt Nat.0))
+	 \_:I (Subst.drop (Nat.s m) (Subst.cons t sigma))
+	      (Subst.offset n) ->
+	 I.r (Term.shiftn t n))
+	(\i:Nat \sigma:Subst
+	 \_:(I (Subst.drop (Nat.s m) sigma) (Subst.offset n) ->
+	     I (Term.shiftn (Subst.eval sigma vt Nat.0) n)
+     	       (Subst.eval (Subst.substshiftn n sigma) vt Nat.0))
+	 \_:I (Subst.drop (Nat.s m) (Subst.consn i sigma))
+	      (Subst.offset n) ->
+	 I.r (Term.var vt (Nat.shiftn n i)))))
     (\i:Nat \Hyp:(m:Nat -> n:Nat -> Subst.evalshift.claim n vt i m)
      \m:Nat \n:Nat \sigma:Subst
-     \eq:I Subst (Subst.drop (Nat.s m) sigma) (Subst.offset n) ->
-     I.rsubst Subst
-              (Subst.drop (Nat.shiftn m i) (Subst.substshiftn n (Subst.drop1 sigma)))
-              (Subst.drop (Nat.s (Nat.shiftn m i)) (Subst.substshiftn n sigma))
-	      (I.subst Subst
-		       (Subst.drop1 (Subst.substshiftn n sigma))
-	               (Subst.substshiftn n (Subst.drop1 sigma))
-		       (Subst.drop1.substshiftn.commutes n sigma)
-		       (\x: Subst -> I Subst
+     \eq:I (Subst.drop (Nat.s m) sigma) (Subst.offset n) ->
+     I.rsubst (I.subst (Subst.drop1.substshiftn.commutes n sigma)
+		       (\x: Subst -> I
               (Subst.drop (Nat.s (Nat.shiftn m i)) (Subst.substshiftn n sigma))
               (Subst.drop (Nat.shiftn m i) x))
-		       (Nat.iter.associative Subst Subst.drop1
+		       (Nat.iter.associative Subst.drop1
 		       			     (Nat.shiftn m i)
 					     (Subst.substshiftn n sigma)))
 	      (\x:Subst ->
-	       I Term (Term.shiftn (Subst.eval sigma vt (Nat.s i)) n)
-                      (Subst.evalhead vt x))
-     (I.rsubst Subst
-              (Subst.drop i (Subst.drop1 sigma))
-              (Subst.drop (Nat.s i) sigma)
-              (Nat.iter.associative Subst Subst.drop1 i sigma)
-	      (\x:Subst -> I Term (Term.shiftn (Subst.evalhead vt x) n)
+	       I (Term.shiftn (Subst.eval sigma vt (Nat.s i)) n)
+                 (Subst.evalhead vt x))
+     (I.rsubst (Nat.iter.associative Subst.drop1 i sigma)
+	      (\x:Subst -> I (Term.shiftn (Subst.evalhead vt x) n)
       (Subst.eval (Subst.substshiftn n (Subst.drop1 sigma)) vt (Nat.shiftn m i)))
      (Nat.rec (\m:Nat ->
-               eq:I Subst (Subst.drop (Nat.s m) sigma) (Subst.offset n) ->
-               I Term (Term.shiftn (Subst.eval (Subst.drop1 sigma) vt i) n)
-                      (Subst.eval (Subst.substshiftn n (Subst.drop1 sigma)) vt
+               eq:I (Subst.drop (Nat.s m) sigma) (Subst.offset n) ->
+               I (Term.shiftn (Subst.eval (Subst.drop1 sigma) vt i) n)
+                 (Subst.eval (Subst.substshiftn n (Subst.drop1 sigma)) vt
 		      		  (Nat.shiftn m i)))
-       (\eq:I Subst (Subst.drop1 sigma) (Subst.offset n) ->
-	I.rsubst Subst (Subst.offset n) (Subst.drop1 sigma) eq
-	   (\x:Subst -> I Term (Term.shiftn (Subst.eval x vt i) n)
+       (\eq:I (Subst.drop1 sigma) (Subst.offset n) ->
+	I.rsubst eq
+	   (\x:Subst -> I (Term.shiftn (Subst.eval x vt i) n)
                (Subst.eval (Subst.substshiftn n x) vt (Nat.shiftn Nat.0 i)))
-	(I.rsubst Subst (Subst.offset (Nat.plus i n))
-		 (Subst.drop i (Subst.offset n))
-		 (Subst.drop.offset n i)
-		 (\x:Subst -> I Term (Term.shiftn (Subst.evalhead vt x) n)
+	(I.rsubst (Subst.drop.offset n i)
+		 (\x:Subst -> I (Term.shiftn (Subst.evalhead vt x) n)
                (Subst.eval (Subst.offset n) vt (Nat.shiftn (Nat.0) i)))
-	(I.rsubst Subst (Subst.offset (Nat.plus (Nat.shiftn (Nat.0) i) n))
-		 (Subst.drop (Nat.shiftn (Nat.0) i) (Subst.offset n))
-		 (Subst.drop.offset n (Nat.shiftn (Nat.0) i))
-		 (\x:Subst -> I Term (Term.shiftn (Term.var vt (Nat.plus i n)) n)
-                                     (Subst.evalhead vt x))
+	(I.rsubst (Subst.drop.offset n (Nat.shiftn (Nat.0) i))
+		 (\x:Subst -> I (Term.shiftn (Term.var vt (Nat.plus i n)) n)
+                                (Subst.evalhead vt x))
 
-		 (I.cong Nat Term (\x:Nat -> Term.var vt x)
-     	                (Nat.shiftn n (Nat.plus i n))
-                        (Nat.plus (Nat.shiftn Nat.0 i) n)
+		 (I.cong (\x:Nat -> Term.var vt x)
 	                (Nat.plus.shiftn.lemma i n)))))
-       (\m:Nat \_:(I Subst (Subst.drop (Nat.s m) sigma) (Subst.offset n) ->
-               I Term (Term.shiftn (Subst.eval (Subst.drop1 sigma) vt i) n)
-                      (Subst.eval (Subst.substshiftn n (Subst.drop1 sigma)) vt
+       (\m:Nat \_:(I (Subst.drop (Nat.s m) sigma) (Subst.offset n) ->
+               I (Term.shiftn (Subst.eval (Subst.drop1 sigma) vt i) n)
+                 (Subst.eval (Subst.substshiftn n (Subst.drop1 sigma)) vt
 		      		  (Nat.shiftn m i)))
-        \eq:I Subst (Subst.drop (Nat.s (Nat.s m)) sigma) (Subst.offset n) ->
+        \eq:I (Subst.drop (Nat.s (Nat.s m)) sigma) (Subst.offset n) ->
         (Hyp m n (Subst.drop1 sigma)
-	  (I.subst Subst
-	           (Subst.drop (Nat.s (Nat.s m)) sigma)
-		   (Subst.drop (Nat.s m) (Subst.drop1 sigma))
-                   (Nat.iter.associative Subst Subst.drop1 (Nat.s m) sigma)
-		   (\x:Subst -> I Subst x (Subst.offset n))
+	  (I.subst (Nat.iter.associative Subst.drop1 (Nat.s m) sigma)
+		   (\x:Subst -> I x (Subst.offset n))
 		   eq)))
        m eq)))
 
 Definition Term.substshift.shiftn.Thesis =
   \t:Term -> n:Nat -> sigma:Subst ->
-     I Subst (Subst.drop (Nat.s n) sigma) (Subst.offset n) ->
-     I Term (Term.shiftn (Term.substapp t sigma) n)
-  	    (Term.substapp (Term.shiftn t (Nat.s n))
-	    		   (Subst.substshiftn n sigma))
+     I (Subst.drop (Nat.s n) sigma) (Subst.offset n) ->
+     I (Term.shiftn (Term.substapp t sigma) n)
+       (Term.substapp (Term.shiftn t (Nat.s n))
+		      (Subst.substshiftn n sigma))
 
 Definition Subst.drop1.shift.commutes =
   Subst.rec (\sigma:Subst ->
-             I Subst (Subst.drop1 (Subst.shift sigma))
-	             (Subst.shift (Subst.drop1 sigma)))
-    (\i:Nat -> I.r Subst (Subst.offset (Nat.s (Nat.s i))))
+             I (Subst.drop1 (Subst.shift sigma))
+	       (Subst.shift (Subst.drop1 sigma)))
+    (\i:Nat -> I.r (Subst.offset (Nat.s (Nat.s i))))
     (\t:Term \sigma:Subst
-     \_:     I Subst (Subst.drop1 (Subst.shift sigma))
-	             (Subst.shift (Subst.drop1 sigma)) ->
-     I.r Subst (Subst.shift sigma))
+     \_:     I (Subst.drop1 (Subst.shift sigma))
+	       (Subst.shift (Subst.drop1 sigma)) ->
+     I.r (Subst.shift sigma))
+    (\i:Nat \sigma:Subst
+     \_:     I (Subst.drop1 (Subst.shift sigma))
+	       (Subst.shift (Subst.drop1 sigma)) ->
+     I.r (Subst.shift sigma))
 
 Definition Subst.drop.shift.commutes =
   Nat.iter.g.commutes Subst Subst.drop1 Subst.shift Subst.drop1.shift.commutes
 
 Definition Term.substshift.shiftn.shifteq = \n:Nat \vt:VarType \sigma:Subst ->
-  (I.rsubst Subst (Subst.drop (Nat.s n) (Subst.shift sigma))
-	    (Subst.drop (Nat.s (Nat.s n)) (Subst.consshift vt sigma))
-	    (Nat.iter.associative Subst Subst.drop1 (Nat.s n)
-	                          (Subst.consshift vt sigma))
+  (I.rsubst (Nat.iter.associative Subst.drop1 (Nat.s n)
+	                          (Subst.consshift sigma))
    (\x:Subst ->
-      I Subst (Subst.drop (Nat.s n) sigma) (Subst.offset n) ->
-      I Subst x (Subst.offset (Nat.s n)))
-   (\eq:I Subst (Subst.drop (Nat.s n) sigma) (Subst.offset n) ->
-    I.rsubst Subst (Subst.shift (Subst.drop (Nat.s n) sigma))
-             (Subst.drop (Nat.s n) (Subst.shift sigma))
-	     (Subst.drop.shift.commutes sigma (Nat.s n))
-	     (\x:Subst -> I Subst x (Subst.offset (Nat.s n)))
-    (I.cong Subst Subst Subst.shift
-        (Subst.drop (Nat.s n) sigma) (Subst.offset n) eq)))
+      I (Subst.drop (Nat.s n) sigma) (Subst.offset n) ->
+      I x (Subst.offset (Nat.s n)))
+   (\eq:I (Subst.drop (Nat.s n) sigma) (Subst.offset n) ->
+    I.rsubst (Subst.drop.shift.commutes sigma (Nat.s n))
+	     (\x:Subst -> I x (Subst.offset (Nat.s n)))
+    (I.cong Subst.shift eq)))
 
 Definition Term.substshift.shiftn =
   Term.rec (\t:Term -> Term.substshift.shiftn.Thesis t)
@@ -529,126 +497,102 @@ Definition Term.substshift.shiftn =
      \N: Term \HypN:(Term.substshift.shiftn.Thesis N)
      \n: Nat
      \subst:Subst
-     \eq : I Subst (Subst.drop (Nat.s n) subst) (Subst.offset n) ->
-     I.cong2 Term Term Term (\x:Term \y:Term -> Term.lam vt x y)
-           (Term.shiftn (Term.substapp M subst) n)
-           (Term.substapp (Term.shiftn M (Nat.s n)) (Subst.substshiftn n subst))
+     \eq : I (Subst.drop (Nat.s n) subst) (Subst.offset n) ->
+     I.cong2 (\x:Term \y:Term -> Term.lam vt x y)
 	   (HypM n subst eq)
-           (Term.shiftn (Term.substapp N (Subst.consshift vt subst)) (Nat.s n))
-           (Term.substapp (Term.shiftn N (Nat.s (Nat.s n)))
-	   		  (Subst.consshift vt (Subst.substshiftn n subst)))
-	   (I.rsubst Subst
-                    (Subst.substshiftn (Nat.s n) (Subst.consshift vt subst))
-                    (Subst.consshift vt (Subst.substshiftn n subst))
-		    (Subst.substshift.consshift.Lemma subst n vt)
+	   (I.rsubst (Subst.substshift.consshift.Lemma subst n)
 		    (\x: Subst ->
-                      I Term (Term.shiftn (Term.substapp N (Subst.consshift vt subst)) (Nat.s n))
-		      	     (Term.substapp (Term.shiftn N (Nat.s (Nat.s n))) x))
-	      (HypN (Nat.s n) (Subst.consshift vt subst)
+                      I (Term.shiftn (Term.substapp N (Subst.consshift subst)) (Nat.s n))
+		        (Term.substapp (Term.shiftn N (Nat.s (Nat.s n))) x))
+	      (HypN (Nat.s n) (Subst.consshift subst)
 	            (Term.substshift.shiftn.shifteq n vt subst eq))))
     (\vt:VarType
      \M: Term \HypM:(Term.substshift.shiftn.Thesis M)
      \N: Term \HypN:(Term.substshift.shiftn.Thesis N)
      \n: Nat \subst:Subst
-     \eq : I Subst (Subst.drop (Nat.s n) subst) (Subst.offset n) ->
-     I.cong2 Term Term Term (\x:Term \y:Term -> Term.pi vt x y)
-           (Term.shiftn (Term.substapp M subst) n)
-           (Term.substapp (Term.shiftn M (Nat.s n)) (Subst.substshiftn n subst))
+     \eq : I (Subst.drop (Nat.s n) subst) (Subst.offset n) ->
+     I.cong2 (\x:Term \y:Term -> Term.pi vt x y)
 	   (HypM n subst eq)
-           (Term.shiftn (Term.substapp N (Subst.consshift vt subst)) (Nat.s n))
-           (Term.substapp (Term.shiftn N (Nat.s (Nat.s n)))
-	   		  (Subst.consshift vt (Subst.substshiftn n subst)))
-	   (I.rsubst Subst
-                    (Subst.substshiftn (Nat.s n) (Subst.consshift vt subst))
-                    (Subst.consshift vt (Subst.substshiftn n subst))
-		    (Subst.substshift.consshift.Lemma subst n vt)
+	   (I.rsubst (Subst.substshift.consshift.Lemma subst n)
 		    (\x: Subst ->
-                      I Term (Term.shiftn (Term.substapp N (Subst.consshift vt subst)) (Nat.s n))
-		      	     (Term.substapp (Term.shiftn N (Nat.s (Nat.s n))) x))
-	      (HypN (Nat.s n) (Subst.consshift vt subst)
+                      I (Term.shiftn (Term.substapp N (Subst.consshift subst)) (Nat.s n))
+		        (Term.substapp (Term.shiftn N (Nat.s (Nat.s n))) x))
+	      (HypN (Nat.s n) (Subst.consshift subst)
 	            (Term.substshift.shiftn.shifteq n vt subst eq))))
     (\M: Term \HypM:(Term.substshift.shiftn.Thesis M)
      \N: Term \HypN:(Term.substshift.shiftn.Thesis N)
      \n: Nat \subst:Subst
-     \eq : I Subst (Subst.drop (Nat.s n) subst) (Subst.offset n) ->
-     I.cong2 Term Term Term (\x:Term \y:Term -> Term.app x y)
-           (Term.shiftn (Term.substapp M subst) n)
-           (Term.substapp (Term.shiftn M (Nat.s n)) (Subst.substshiftn n subst))
-	   (HypM n subst eq)
-           (Term.shiftn (Term.substapp N subst) n)
-           (Term.substapp (Term.shiftn N (Nat.s n)) (Subst.substshiftn n subst))
-	   (HypN n subst eq))
+     \eq : I (Subst.drop (Nat.s n) subst) (Subst.offset n) ->
+     I.cong2 (\x:Term \y:Term -> Term.app x y)
+	   (HypM n subst eq) (HypN n subst eq))
     (\vt: VarType \i:Nat
      \n:Nat \sigma:Subst ->
      Subst.evalshift.lemma vt i n n sigma)
     (\vt: VarType \n:Nat \sigma:Subst
-     \eq : I Subst (Subst.drop (Nat.s n) sigma) (Subst.offset n) ->
-     I.r Term (Term.univ vt))
+     \eq : I (Subst.drop (Nat.s n) sigma) (Subst.offset n) ->
+     I.r (Term.univ vt))
 
 Definition Term.subst.shift = \t:Term \subst:Term \n:Nat ->
   Term.substshift.shiftn t n (Subst.unit subst)
-     (Nat.rec (\n:Nat -> I Subst (Subst.drop (Nat.s n) (Subst.unit subst))
-      	      	      	   	 (Subst.offset n))
-        (I.r Subst (Subst.offset Nat.0))
-	(\n:Nat -> I.cong Subst Subst Subst.drop1
-	        (Subst.drop (Nat.s n) (Subst.unit subst)) (Subst.offset n))
+     (Nat.rec (\n:Nat -> I (Subst.drop (Nat.s n) (Subst.unit subst))
+      	      	      	   (Subst.offset n))
+        (I.r (Subst.offset Nat.0))
+	(\n:Nat \Hyp:I (Subst.drop (Nat.s n) (Subst.unit subst))
+		       (Subst.offset n) ->
+	 I.cong Subst.drop1 Hyp)
 	n)
     
 TypeCheck Term.subst.shift : t:Term -> subst:Term -> n:Nat ->
-    I Term (Term.shiftn (Term.subst t subst) n)
-           (Term.subst (Term.shiftn t (Nat.s n)) (Term.shiftn subst n))
+    I (Term.shiftn (Term.subst t subst) n)
+      (Term.subst (Term.shiftn t (Nat.s n)) (Term.shiftn subst n))
 
 Inductive ConvStep : Term -> Term -> U =
   beta : vt:VarType -> T:Term -> M:Term -> N:Term ->
          ConvStep (Term.app (Term.lam vt T M) N) (Term.subst M N),
-  lam1 : vt:VarType -> T1:Term -> T2:Term -> ConvStep T1 T2 -> M:Term ->
+  lam1 : vt:VarType -> {T1:Term} -> {T2:Term} -> ConvStep T1 T2 -> M:Term ->
          ConvStep (Term.lam vt T1 M) (Term.lam vt T2 M),
-  lam2 : vt:VarType -> M1:Term -> M2:Term -> ConvStep M1 M2 -> T:Term ->
+  lam2 : vt:VarType -> {M1:Term} -> {M2:Term} -> ConvStep M1 M2 -> T:Term ->
          ConvStep (Term.lam vt T M1) (Term.lam vt T M2),
-  pi1  : vt:VarType -> T1:Term -> T2:Term -> ConvStep T1 T2 -> M:Term ->
+  pi1  : vt:VarType -> {T1:Term} -> {T2:Term} -> ConvStep T1 T2 -> M:Term ->
          ConvStep (Term.pi vt T1 M) (Term.pi vt T2 M),
-  pi2  : vt:VarType -> M1:Term -> M2:Term -> ConvStep M1 M2 -> T:Term ->
+  pi2  : vt:VarType -> {M1:Term} -> {M2:Term} -> ConvStep M1 M2 -> T:Term ->
          ConvStep (Term.pi vt T M1) (Term.pi vt T M2),
-  app1 : M1:Term -> M2:Term -> ConvStep M1 M2 -> N:Term ->
+  app1 : {M1:Term} -> {M2:Term} -> ConvStep M1 M2 -> N:Term ->
          ConvStep (Term.app M1 N) (Term.app M2 N),
-  app2 : N1:Term -> N2:Term -> ConvStep N1 N2 -> M:Term ->
+  app2 : M:Term -> {N1:Term} -> {N2:Term} -> ConvStep N1 N2 ->
          ConvStep (Term.app M N1) (Term.app M N2)
 
 Definition ConvStep.shiftn = 
   ConvStep.rec (\T:Term \S: Term \step : ConvStep T S -> n:Nat ->
                 ConvStep (Term.shiftn T n) (Term.shiftn S n))
     (\vt:VarType \T:Term \M:Term \N:Term \n:Nat ->
-     I.rsubst Term (Term.subst (Term.shiftn M (Nat.s n)) (Term.shiftn N n))
-                   (Term.shiftn (Term.subst M N) n)
-	      (Term.subst.shift M N n)
+     I.rsubst (Term.subst.shift M N n)
 	      (\x: Term -> ConvStep (Term.shiftn (Term.app (Term.lam vt T M) N) n) x)
      (ConvStep.beta vt (Term.shiftn T n) (Term.shiftn M (Nat.s n)) (Term.shiftn N n)))
     (\vt:VarType \T1:Term \T2:Term
      \step:ConvStep T1 T2 \hyp:(n:Nat -> ConvStep (Term.shiftn T1 n) (Term.shiftn T2 n))
      \M:Term \n:Nat ->
-     ConvStep.lam1 vt (Term.shiftn T1 n) (Term.shiftn T2 n) (hyp n) (Term.shiftn M (Nat.s n)))
+     ConvStep.lam1 vt (hyp n) (Term.shiftn M (Nat.s n)))
     (\vt:VarType \M1:Term \M2:Term
      \step:ConvStep M1 M2 \hyp:(n:Nat -> ConvStep (Term.shiftn M1 n) (Term.shiftn M2 n))
      \T:Term \n:Nat ->
-     ConvStep.lam2 vt (Term.shiftn M1 (Nat.s n)) (Term.shiftn M2 (Nat.s n)) (hyp (Nat.s n))
-     		   (Term.shiftn T n))
+     ConvStep.lam2 vt (hyp (Nat.s n)) (Term.shiftn T n))
     (\vt:VarType \T1:Term \T2:Term
      \step:ConvStep T1 T2 \hyp:(n:Nat -> ConvStep (Term.shiftn T1 n) (Term.shiftn T2 n))
      \M:Term \n:Nat ->
-     ConvStep.pi1 vt (Term.shiftn T1 n) (Term.shiftn T2 n) (hyp n) (Term.shiftn M (Nat.s n)))
+     ConvStep.pi1 vt (hyp n) (Term.shiftn M (Nat.s n)))
     (\vt:VarType \M1:Term \M2:Term
      \step:ConvStep M1 M2 \hyp:(n:Nat -> ConvStep (Term.shiftn M1 n) (Term.shiftn M2 n))
      \T:Term \n:Nat ->
-     ConvStep.pi2 vt (Term.shiftn M1 (Nat.s n)) (Term.shiftn M2 (Nat.s n)) (hyp (Nat.s n))
-     		   (Term.shiftn T n))
+     ConvStep.pi2 vt (hyp (Nat.s n)) (Term.shiftn T n))
     (\T1:Term \T2:Term
      \step:ConvStep T1 T2 \hyp:(n:Nat -> ConvStep (Term.shiftn T1 n) (Term.shiftn T2 n))
      \M:Term \n:Nat ->
-     ConvStep.app1 (Term.shiftn T1 n) (Term.shiftn T2 n) (hyp n) (Term.shiftn M n))
-    (\M1:Term \M2:Term
+     ConvStep.app1 (hyp n) (Term.shiftn M n))
+    (\T:Term \M1:Term \M2:Term
      \step:ConvStep M1 M2 \hyp:(n:Nat -> ConvStep (Term.shiftn M1 n) (Term.shiftn M2 n))
-     \T:Term \n:Nat ->
-     ConvStep.app2 (Term.shiftn M1 n) (Term.shiftn M2 n) (hyp n) (Term.shiftn T n))
+     \n:Nat ->
+     ConvStep.app2 (Term.shiftn T n) (hyp n))
 
 Inductive ConvSymmStep : M:Term -> N:Term -> U =
   forw : ConvStep M N -> ConvSymmStep M N,
@@ -672,36 +616,38 @@ Inductive VarList : U =
 
 Inductive CCTypeCheck : VarList -> Term -> Term -> Prop =
   ax   : CCTypeCheck VarList.nil Term.* Term.[],
-  var  : Gamma:VarList -> vt:VarType -> T : Term ->
+  var  : {Gamma:VarList} -> {vt:VarType} -> {T : Term} ->
          CCTypeCheck Gamma T (Term.univ vt) ->
          CCTypeCheck (VarList.cons vt T Gamma)
 	 	     (Term.var vt Nat.0) (Term.shiftvar T),
-  weak : Gamma:VarList -> vt:VarType -> T : Term ->
+  weak : {Gamma:VarList} -> {vt:VarType} -> {T : Term} ->
          CCTypeCheck Gamma T (Term.univ vt) ->
-         M : Term -> S:Term -> CCTypeCheck Gamma M S ->
+         {M : Term} -> {S:Term} -> CCTypeCheck Gamma M S ->
          CCTypeCheck (VarList.cons vt T Gamma)
 	 	     (Term.shiftvar M) (Term.shiftvar S),
-  pi   : Gamma:VarList -> vt:VarType -> T : Term ->
+  pi   : {Gamma:VarList} -> {vt:VarType} -> {T : Term} ->
          CCTypeCheck Gamma T (Term.univ vt) ->
-	 vt2 : VarType -> S : Term ->
+	 {vt2 : VarType} -> {S : Term} ->
 	 CCTypeCheck (VarList.cons vt T Gamma) S (Term.univ vt2) ->
 	 CCTypeCheck Gamma (Term.pi vt T S) (Term.univ vt2),
-  lam  : Gamma:VarList -> vt:VarType -> T : Term -> M:Term -> S:Term ->
+  lam  : {Gamma:VarList} -> {vt:VarType} -> {T : Term} ->
+         {M:Term} -> {S:Term} ->
          CCTypeCheck (VarList.cons vt T Gamma) M S ->
-	 vt2: VarType -> CCTypeCheck Gamma (Term.pi vt T S) (Term.univ vt2) ->
+	 {vt2: VarType} -> CCTypeCheck Gamma (Term.pi vt T S) (Term.univ vt2) ->
 	 CCTypeCheck Gamma (Term.lam vt T M) (Term.pi vt T S),
-  app  : Gamma:VarList -> M:Term -> vt: VarType -> T : Term -> S:Term ->
+  app  : {Gamma:VarList} -> {M:Term} -> {vt: VarType} -> {T : Term} -> {S:Term} ->
          CCTypeCheck Gamma M (Term.pi vt T S) ->
-	 N : Term -> CCTypeCheck Gamma N T ->
+	 {N : Term} -> CCTypeCheck Gamma N T ->
 	 CCTypeCheck Gamma (Term.app M N) (Term.subst S N),
-  conv : Gamma:VarList -> M:Term -> T:Term -> CCTypeCheck Gamma M T ->
-	 S : Term -> ConvSymmStep T S ->
+  conv : {Gamma:VarList} -> {M:Term} -> {T:Term} -> CCTypeCheck Gamma M T ->
+	 {S : Term} -> ConvSymmStep T S ->
 	 CCTypeCheck Gamma M S
 
 Inductive VarListTypeCheck : VarList -> U =
   nil  : VarListTypeCheck VarList.nil,
-  cons : vt:VarType -> T:Term -> Gamma:VarList ->
- 	 VarListTypeCheck Gamma -> CCTypeCheck Gamma T (Term.univ vt) ->
+  cons : {vt:VarType} -> {T:Term} -> {Gamma:VarList} ->
+         CCTypeCheck Gamma T (Term.univ vt) ->
+ 	 VarListTypeCheck Gamma -> 
          VarListTypeCheck (VarList.cons vt T Gamma)
 
 Definition CCTypeCheck.case =
@@ -764,13 +710,14 @@ Definition CCTypeCheck.case =
      caseconv Gamma M T prf S step)
 
 Definition CCTypeCheck.ax2 = 
-  VarListTypeCheck.rec (\Gamma:VarList \_:VarListTypeCheck Gamma ->
-                         CCTypeCheck Gamma Term.* Term.[])
+  VarListTypeCheck.rec ({\Gamma:VarList} \_:VarListTypeCheck Gamma ->
+                        CCTypeCheck Gamma Term.* Term.[])
      CCTypeCheck.ax
-     (\vt:VarType \T:Term \Gamma:VarList \_:VarListTypeCheck Gamma
-      \r:CCTypeCheck Gamma Term.* Term.[]
-      \tc:CCTypeCheck Gamma T (Term.univ vt) ->
-        CCTypeCheck.weak Gamma vt T tc Term.* Term.[] r)
+     (\vt:VarType \T:Term \Gamma:VarList
+      \tc:CCTypeCheck Gamma T (Term.univ vt)
+      \_:VarListTypeCheck Gamma
+      \r:CCTypeCheck Gamma Term.* Term.[] ->
+        CCTypeCheck.weak tc r)
 
 Definition CCTypeCheck.gammatc =
   CCTypeCheck.rec (\Gamma:VarList \M:Term \T:Term \_:CCTypeCheck Gamma M T ->
@@ -780,13 +727,13 @@ Definition CCTypeCheck.gammatc =
     (\Gamma:VarList \vt:VarType \T:Term
      \prf: CCTypeCheck Gamma T (Term.univ vt)
      \rec: VarListTypeCheck Gamma ->
-     VarListTypeCheck.cons vt T Gamma rec prf)
+     VarListTypeCheck.cons prf rec)
     ;weak
     (\Gamma:VarList \vt:VarType \T:Term
      \prf: CCTypeCheck Gamma T (Term.univ vt)
      \rec: VarListTypeCheck Gamma
      \M : Term \S:Term \_: CCTypeCheck Gamma M S \_:VarListTypeCheck Gamma ->
-     VarListTypeCheck.cons vt T Gamma rec prf)
+     VarListTypeCheck.cons prf rec)
     ;pi
     (\Gamma:VarList \vt:VarType \T:Term 
      \_:CCTypeCheck Gamma T (Term.univ vt) \rec:VarListTypeCheck Gamma
@@ -830,14 +777,15 @@ Definition VarList.insertn =
 	 VarList.cons vt1 (Term.shiftn T1 n) (insertrec vt T0 Gamma)))
 	 
 Definition deletenil =
-  Nat.rec (\n:Nat -> I VarList (VarList.deleten n VarList.nil) VarList.nil)
-     (I.r VarList VarList.nil)
-     (\n:Nat \_:I VarList (VarList.deleten n VarList.nil) VarList.nil ->
-      I.r VarList VarList.nil)
+  Nat.rec (\n:Nat -> I (VarList.deleten n VarList.nil) VarList.nil)
+     (I.r VarList.nil)
+     (\n:Nat \_:I (VarList.deleten n VarList.nil) VarList.nil ->
+      I.r VarList.nil)
 
 Definition CCTypeCheck.weakn =
   \vt:VarType \T0:Term ->
-  CCTypeCheck.rec (\Gamma:VarList \M:Term \N:Term \_:CCTypeCheck Gamma M N ->
+  CCTypeCheck.rec ({\Gamma:VarList} {\M:Term} {\N:Term}
+  		   \_:CCTypeCheck Gamma M N ->
                    n:Nat ->
 		   CCTypeCheck (VarList.deleten n Gamma)
 		       		T0 (Term.univ vt) ->
@@ -851,16 +799,14 @@ Definition CCTypeCheck.weakn =
 		                    (Term.shiftn Term.* n)
 				    (Term.shiftn Term.[] n))
        (\prfT0:CCTypeCheck VarList.nil T0 (Term.univ vt) ->
-        CCTypeCheck.weak VarList.nil vt T0 prfT0
-	                 Term.* Term.[] CCTypeCheck.ax)
+        CCTypeCheck.weak prfT0 CCTypeCheck.ax)
        (\n:Nat
         \rec:(CCTypeCheck (VarList.deleten n VarList.nil) T0 (Term.univ vt) ->
               CCTypeCheck (VarList.insertn n vt T0 VarList.nil)
 		                 (Term.shiftn Term.* n)
 				 (Term.shiftn Term.[] n))
 	\prfT0:CCTypeCheck VarList.nil T0 (Term.univ vt) ->
-	rec (I.rsubst VarList VarList.nil (VarList.deleten n VarList.nil)
-	              (deletenil n)
+	rec (I.rsubst (deletenil n)
 		      (\x:VarList -> CCTypeCheck x T0 (Term.univ vt))
 		      prfT0)))
     ;var
@@ -875,9 +821,7 @@ Definition CCTypeCheck.weakn =
 		          (Term.shiftn (Term.var vt1 Nat.0) n)
 			  (Term.shiftn (Term.shiftvar T1) n))
        (\prfT0:CCTypeCheck (VarList.cons vt1 T1 Gamma) T0 (Term.univ vt) ->
-        CCTypeCheck.weak (VarList.cons vt1 T1 Gamma) vt T0 prfT0
-	                 (Term.var vt1 Nat.0) (Term.shiftvar T1)
-                         (CCTypeCheck.var Gamma vt1 T1 prf1))
+        CCTypeCheck.weak prfT0 (CCTypeCheck.var prf1))
        (\n:Nat
 	\_: (CCTypeCheck (VarList.deleten n (VarList.cons vt1 T1 Gamma))
 	                 T0 (Term.univ vt) ->
@@ -885,16 +829,12 @@ Definition CCTypeCheck.weakn =
 		         (Term.shiftn (Term.var vt1 Nat.0) n)
 			 (Term.shiftn (Term.shiftvar T1) n))
 	\prfT0:CCTypeCheck (VarList.deleten n Gamma) T0 (Term.univ vt) ->
-        I.subst Term (Term.shiftvar (Term.shiftn T1 n))
-	        (Term.shiftn (Term.shiftvar T1) (Nat.s n))
-		(Term.shiftvarn.commutes T1 n)
+        I.subst (Term.shiftvarn.commutes T1 n)
 	        (\x:Term ->
 	       	   CCTypeCheck (VarList.insertn (Nat.s n) vt T0
 		   	             (VarList.cons vt1 T1 Gamma))
 			       (Term.var vt1 Nat.0)  x)
-	 (CCTypeCheck.var (VarList.insertn n vt T0 Gamma)
-	                  vt1 (Term.shiftn T1 n)
-	                  (Hyp n prfT0))))
+	 (CCTypeCheck.var (Hyp n prfT0))))
     ;weak
     (\Gamma:VarList \vt1:VarType \T1:Term
      \prf1: CCTypeCheck Gamma T1 (Term.univ vt1)
@@ -912,9 +852,7 @@ Definition CCTypeCheck.weakn =
 		          (Term.shiftn (Term.shiftvar M) n)
 			  (Term.shiftn (Term.shiftvar S) n))
        (\prfT0:CCTypeCheck (VarList.cons vt1 T1 Gamma) T0 (Term.univ vt) ->
-        CCTypeCheck.weak (VarList.cons vt1 T1 Gamma) vt T0 prfT0
-	                 (Term.shiftvar M) (Term.shiftvar S)
-			 (CCTypeCheck.weak Gamma vt1 T1 prf1 M S prf2))
+        CCTypeCheck.weak prfT0 (CCTypeCheck.weak prf1 prf2))
        (\n:Nat
 	\_: (CCTypeCheck (VarList.deleten n (VarList.cons vt1 T1 Gamma))
 	                 T0 (Term.univ vt) ->
@@ -922,21 +860,13 @@ Definition CCTypeCheck.weakn =
 		         (Term.shiftn (Term.shiftvar M) n)
 			 (Term.shiftn (Term.shiftvar S) n))
 	\prfT0:CCTypeCheck (VarList.deleten n Gamma) T0 (Term.univ vt) ->
-        I.subst2 Term (Term.shiftvar (Term.shiftn M n))
-	         (Term.shiftn (Term.shiftvar M) (Nat.s n))
-		 (Term.shiftvarn.commutes M n)
-		 Term (Term.shiftvar (Term.shiftn S n))
-	         (Term.shiftn (Term.shiftvar S) (Nat.s n))
+        I.subst2 (Term.shiftvarn.commutes M n)
 		 (Term.shiftvarn.commutes S n)
 	         (\x:Term \y:Term ->
 	       	   CCTypeCheck (VarList.insertn (Nat.s n) vt T0
 		   	             (VarList.cons vt1 T1 Gamma))
 			       x y)
-	 (CCTypeCheck.weak
-	      (VarList.insertn n vt T0 Gamma) vt1 (Term.shiftn T1 n)
-	      (Hyp1 n prfT0)
-	      (Term.shiftn M n) (Term.shiftn S n)
-	      (Hyp2 n prfT0))))
+	 (CCTypeCheck.weak (Hyp1 n prfT0) (Hyp2 n prfT0))))
     ;pi
     (\Gamma:VarList \vt1:VarType \T1:Term
      \prf1: CCTypeCheck Gamma T1 (Term.univ vt1)
@@ -952,10 +882,7 @@ Definition CCTypeCheck.weakn =
 	                 (Term.shiftn S n) (Term.univ vt2))
      \n:Nat
      \prfT0: CCTypeCheck (VarList.deleten n Gamma) T0 (Term.univ vt) ->
-     CCTypeCheck.pi (VarList.insertn n vt T0 Gamma) vt1 (Term.shiftn T1 n)
-        (Hyp1 n prfT0)
-	vt2 (Term.shiftn S (Nat.s n))
-	(Hyp2 (Nat.s n) prfT0))
+     CCTypeCheck.pi (Hyp1 n prfT0) (Hyp2 (Nat.s n) prfT0))
     ;lam
     (\Gamma:VarList \vt1:VarType \T1:Term \M:Term \S:Term
      \prf1: CCTypeCheck (VarList.cons vt1 T1 Gamma) M S
@@ -972,10 +899,7 @@ Definition CCTypeCheck.weakn =
 	                 (Term.shiftn (Term.pi vt1 T1 S) n) (Term.univ vt2))
      \n:Nat
      \prfT0: CCTypeCheck (VarList.deleten n Gamma) T0 (Term.univ vt) ->
-     CCTypeCheck.lam (VarList.insertn n vt T0 Gamma) vt1
-        (Term.shiftn T1 n) (Term.shiftn M (Nat.s n)) (Term.shiftn S (Nat.s n))
-        (Hyp1 (Nat.s n) prfT0)
-	vt2 (Hyp2 n prfT0))
+     CCTypeCheck.lam (Hyp1 (Nat.s n) prfT0) (Hyp2 n prfT0))
     ;app
     (\Gamma:VarList \M:Term \vt1:VarType \T1:Term \S:Term
      \prf1: CCTypeCheck Gamma M (Term.pi vt1 T1 S)
@@ -991,15 +915,10 @@ Definition CCTypeCheck.weakn =
 	                 (Term.shiftn N n) (Term.shiftn T1 n))
      \n:Nat
      \prfT0: CCTypeCheck (VarList.deleten n Gamma) T0 (Term.univ vt) ->
-     I.rsubst Term (Term.subst (Term.shiftn S (Nat.s n)) (Term.shiftn N n))
-                   (Term.shiftn (Term.subst S N) n)
-	      (Term.subst.shift S N n)
+     I.rsubst (Term.subst.shift S N n)
 	      (\x: Term -> CCTypeCheck (VarList.insertn n vt T0 Gamma)
 	      	                       (Term.shiftn (Term.app M N) n) x)
-     (CCTypeCheck.app (VarList.insertn n vt T0 Gamma) 
-        (Term.shiftn M n) vt1 (Term.shiftn T1 n) (Term.shiftn S (Nat.s n))
-        (Hyp1 n prfT0)
-	(Term.shiftn N n) (Hyp2 n prfT0)))
+     (CCTypeCheck.app (Hyp1 n prfT0) (Hyp2 n prfT0)))
     ;conv
     (\Gamma:VarList \M:Term \T:Term
      \prf1: CCTypeCheck Gamma M T
@@ -1010,9 +929,16 @@ Definition CCTypeCheck.weakn =
      \S:Term \step:ConvSymmStep T S
      \n:Nat 
      \prfT0: CCTypeCheck (VarList.deleten n Gamma) T0 (Term.univ vt) ->
-     (CCTypeCheck.conv (VarList.insertn n vt T0 Gamma)
-         (Term.shiftn M n) (Term.shiftn T n) (Hyp1 n prfT0)
-	 (Term.shiftn S n) (ConvSymmStep.shiftn T S step n)))
+     (CCTypeCheck.conv (Hyp1 n prfT0) (ConvSymmStep.shiftn T S step n)))
+
+Definition Subst.consshifti = Nat.iter Subst.consshift
+
+Definition Subst.consshifti.shifti.Thesis = \sigma:Subst \t: Term ->
+  n:Nat -> I (Term.substapp (Term.shiftn t n)
+  	     	  	    (Subst.consshifti n sigma))
+  	     (Term.shiftn (Term.substapp t (Subst.consshifti n sigma)) n)
+
+
 
 Inductive CCSubstCheck : Subst -> VarList -> VarList -> U =
   start  : Gamma:VarList ->
@@ -1029,29 +955,334 @@ Inductive CCSubstCheck : Subst -> VarList -> VarList -> U =
 	   CCSubstCheck sigma Gamma Gamma' ->
            CCSubstCheck (Subst.cons t sigma) Gamma (VarList.cons vt S Gamma')
 
+
+Definition Subst.consshifti.shifti = \sigma:Subst ->
+  Term.rec (\t:Term -> Subst.consshifti.shifti.Thesis sigma t)
+     (\vt:VarType
+      \M:Term \HypM:Subst.consshifti.shifti.Thesis sigma M
+      \N:Term \HypN:Subst.consshifti.shifti.Thesis sigma N
+      \n:Nat ->
+      I.cong2 (\M:Term\N:Term -> Term.lam vt M N)
+        (HypM n) (HypN (Nat.s n)))
+     (\vt:VarType
+      \M:Term \HypM:Subst.consshifti.shifti.Thesis sigma M
+      \N:Term \HypN:Subst.consshifti.shifti.Thesis sigma N
+      \n:Nat ->
+      I.cong2 (\M:Term\N:Term -> Term.pi vt M N)
+        (HypM n) (HypN (Nat.s n)))
+     (\M:Term \HypM:Subst.consshifti.shifti.Thesis sigma M
+      \N:Term \HypN:Subst.consshifti.shifti.Thesis sigma N
+      \n:Nat ->
+      I.cong2 (\M:Term\N:Term -> Term.app M N) (HypM n) (HypN n))
+;     (\vt:VarType \i:Nat \n:Nat ->
+;      I.r (Subst.eval (Subst.consshifti n sigma) vt (Nat.shiftn n i)))
+;     (\vt:VarType \n:Nat -> I.r (Term.univ vt))
+
+Definition CCTypeCheck.subst.Thesis = \vt:VarType \T0:Term \N:Term
+  \Gamma:VarList \M:Term \S:Term ->
+  n:Nat -> Gamma':VarList -> I Gamma (VarList.insertn n vt T0 Gamma') ->
+  CCTypeCheck (VarList.deleten n Gamma') N T0 ->
+  CCTypeCheck Gamma' (Term.substapp M (Subst.consshifti n (Subst.unit N)))
+                     (Term.substapp S (Subst.consshifti n (Subst.unit N)))
+
+Definition VarList.isEmpty =
+  VarList.rec (\_:VarList -> U) T (\_:VarType\_:Term\_:VarList\_:U -> F)
+
+Definition VarList.notEmpty.insert =
+  Nat.rec (\n:Nat -> vt:VarType -> T0:Term -> Gamma:VarList ->
+  	   VarList.isEmpty (VarList.insertn n vt T0 Gamma) -> F)
+    (\vt:VarType \T0:Term \Gamma:VarList \x:F -> x)
+    (\n:Nat \Hyp:(vt:VarType -> T0:Term -> Gamma:VarList ->
+  	   VarList.isEmpty (VarList.insertn n vt T0 Gamma) -> F)
+     \vt:VarType \T0:Term ->
+     VarList.rec (\Gamma:VarList ->
+                  VarList.isEmpty (VarList.insertn (Nat.s n) vt T0 Gamma) -> F)
+       (Hyp vt T0 VarList.nil)
+       (\vt1:VarType \T1:Term \Gamma:VarList
+        \_:(VarList.isEmpty (VarList.insertn (Nat.s n) vt T0 Gamma) -> F)
+	\x:F -> x))
+
+Definition CCTypeCheck.subst = \vt:VarType \T0:Term \N:Term ->
+  Let Thesis = (\Gamma:VarList \M:Term \S:Term ->
+     n:Nat -> Gamma': VarList ->
+     I Gamma (VarList.insertn n vt T0 Gamma') ->
+     CCTypeCheck (VarList.deleten n Gamma') N T0 ->
+     CCTypeCheck Gamma' (Term.substapp M (Subst.consshifti n (Subst.unit N)))
+                        (Term.substapp S (Subst.consshifti n (Subst.unit N))))
+  ->
+  CCTypeCheck.rec (\Gamma:VarList \M:Term \S:Term
+                   \_:CCTypeCheck Gamma M S -> Thesis Gamma M S)
+     ;ax
+     (\n:Nat \Gamma':VarList
+      \eq:I VarList.nil (VarList.insertn n vt T0 Gamma')
+      \_:CCTypeCheck (VarList.deleten n Gamma') N T0 ->
+      F.rec (\_:F -> CCTypeCheck Gamma' Term.* Term.[])
+        (VarList.notEmpty.insert n vt T0 Gamma'
+           (I.subst eq VarList.isEmpty T.tt)))
+     ; var
+     (\vt1:VarType \T1:Term \prf:CCTypeCheck Gamma T1 (Term.univ vt1)
+      \Hyp:Thesis Gamma T1 (Term.univ vt1)
+      Nat.rec (\n:Nat -> Gamma': VarList ->
+     I VarList Gamma (VarList.insertn n vt T0 Gamma') ->
+     CCTypeCheck (VarList.deleten n Gamma') N T0 ->
+     CCTypeCheck Gamma' (Term.substapp (Term.var vt1 Nat.0) (Subst.consshifti n (Subst.unit N)))
+                        (Term.substapp T1 (Subst.consshifti n (Subst.unit N))))
+	  (\Gamma':VarList \_:I VarList Gamma (VarList.cons vt T0 Gamma') ->
+	   \x:CCTypeCheck Gamma' N T0 ->
+	   x)
+	  (\n:Nat\_:(Gamma': VarList ->
+     I VarList Gamma (VarList.insertn n vt T0 Gamma') ->
+     CCTypeCheck (VarList.deleten n Gamma') N T0 ->
+     CCTypeCheck Gamma' (Term.substapp (Term.var vt1 Nat.0) (Subst.consshifti n (Subst.unit N))))
+	   \Gamma':VarList \_:I VarList Gamma (VarList.insertn (Nat.s n) vt T0 Gamma') ->
+	   \x:CCTypeCheck (VarList.deleten (Nat.s n) Gamma') N T0 ->
+	   Hyp
+            
+	   
+      \n:Nat \Gamma':VarList
+      \eq:I VarList VarList.nil (VarList.insertn n vt T0 Gamma')
+      \_:CCTypeCheck (VarList.deleten n Gamma') N T0 ->
+      F.rec (\_:F -> CCTypeCheck Gamma' Term.* Term.[])
+        (VarList.notEmpty.insert n vt T0 Gamma'
+           (I.subst eq
+	     VarList.isEmpty
+	     T.tt)))
+
+
+  Subst.rec (\_:Subst -> U)
+    (\Nat:n -> CCTypeCheck Gamma M S)
+    (\vt0:VarType -> T0:Term -> sigma:Subst ->
+       CCTypeCheck Gamma (Term.substapp (M 
+      
+                   (Term.substapp M (Subst.offset 0))
+                   (Term.substapp S (Subst.offset n)))
+    (
+    VarList.rec (\_:VarList -> U) T
+  	      (\vt:VarType \T0:Term \Gamma':VarList \_:U ->
+	       N:Term ->
+	       CCTypeCheck Gamma' N T0 ->
+	       CCTypeCheck Gamma' (Term.subst M N) (Term.subst S N))
+	      Gamma
+
+
 Definition CCTypeCheck.substapp =
+  CCSubstCheck.rec (\sigma:Subst \Gamma:VarList \Gamma':VarList
+  		    \_:CCSubstCheck sigma Gamma Gamma' ->
+                    M:Term -> S:Term -> CCTypeCheck Gamma' M S ->
+	    CCTypeCheck Gamma (Term.substapp M sigma) (Term.substapp S sigma))
+     (\Gamma:VarList \M:Term \S:Term \prf:CCTypeCheck Gamma M S ->
+      prf)
+     (\Gamma:VarList \vt0:VarType \S0:Term
+      \prf0:CCTypeCheck Gamma S0 (Term.univ vt0) \i:Nat \Gamma':VarList
+      \chk:CCSubstCheck (Subst.offset i) Gamma Gamma'
+      \Hyp:(M:Term -> S:Term -> CCTypeCheck Gamma' M S ->
+	    CCTypeCheck Gamma (Term.substapp M (Subst.offset i))
+	                      (Term.substapp S (Subst.offset i)))
+      \M:Term \S:Term \prf:CCTypeCheck Gamma' M S ->
+      CCTypeCheck.weak prf0 (Hyp M S prf))
+
+Definition Term.substapp.offset.0.Thesis = \t:Term -> i:Nat -> 
+  I Term (Term.substapp t (Subst.consshifti i (Subst.offset Nat.0))) t
+Definition Term.substapp.offset.0 =
+  Term.rec (\t:Term -> Term.substapp.offset.0.Thesis t)
+     (\vt:VarType
+      \M:Term \HypM:Term.substapp.offset.0.Thesis M
+      \N:Term \HypN:Term.substapp.offset.0.Thesis N
+      \i:Nat ->
+      I.cong2 Term Term Term (\M:Term\N:Term -> Term.lam vt M N)
+        (Term.substapp M (Subst.consshifti i (Subst.offset Nat.0))) M
+        (HypM i)
+        (Term.substapp N (Subst.consshifti (Nat.s i) (Subst.offset Nat.0))) N
+	(HypN (Nat.s i)))
+     (\vt:VarType
+      \M:Term \HypM:Term.substapp.offset.0.Thesis M
+      \N:Term \HypN:Term.substapp.offset.0.Thesis N
+      \i:Nat ->
+      I.cong2 Term Term Term (\M:Term\N:Term -> Term.pi vt M N)
+        (Term.substapp M (Subst.consshifti i (Subst.offset Nat.0))) M
+        (HypM i)
+        (Term.substapp N (Subst.consshifti (Nat.s i) (Subst.offset Nat.0))) N
+	(HypN (Nat.s i)))
+     (\M:Term \HypM:Term.substapp.offset.0.Thesis M
+      \N:Term \HypN:Term.substapp.offset.0.Thesis N
+      \i:Nat ->
+      I.cong2 Term Term Term (\M:Term\N:Term -> Term.app M N)
+        (Term.substapp M (Subst.consshifti i (Subst.offset Nat.0))) M
+        (HypM i)
+        (Term.substapp N (Subst.consshifti i (Subst.offset Nat.0))) N
+	(HypN i))
+     (\vt:VarType \n:Nat \i:Nat ->
+      Nat.rec (\i:Nat -> n:Nat ->
+               I Term
+	       	 (Subst.eval (Subst.consshifti i (Subst.offset Nat.0)) vt n)
+	         (Term.var vt n))
+	(\n:Nat ->
+	 I.cong Subst Term (\x:Subst -> Subst.evalhead vt x)
+	   (Subst.drop n (Subst.offset Nat.0)) (Subst.offset n)
+	   (I.subst (Nat.plus.zero n)
+	      (\x:Nat -> I Subst (Subst.drop n (Subst.offset Nat.0))
+	      	           (Subst.offset x))
+              (Subst.drop.offset Nat.0 n)))
+	(\i:Nat
+	 \Hyp:(n:Nat -> I Term (Subst.eval (Subst.consshifti i
+	 	     	  	      	     (Subst.offset Nat.0)) vt n)
+	        	  (Term.var vt n)) ->
+	 Nat.rec (\n:Nat -> m:Nat
+	    I Term (Subst.eval (Nat.iter Subst Subst.shift m
+	                       (Subst.consshifti (Nat.s i)
+	 	     	       (Subst.offset Nat.0)) vt n))
+	        	    (Term.var vt (Nat.plus m n)))
+	    (\m:Nat -> I Term
+	               (Subst.evalhead vt (Nat.iter Subst Subst.shift m
+	                       (Subst.consshifti (Nat.s i)
+	 	     	       (Subst.offset Nat.0))))
+	    	       (Term.var vt (Nat.plus m Nat.0)))
+	       (I.r Term (Term.var vt Nat.0))
+	       (\m:Nat
+	        \Hyp:I Term (Subst.evalhead vt (Nat.iter Subst Subst.shift m
+	                        (Subst.consshifti (Nat.s i)
+	 	     	        (Subst.offset Nat.0))))
+	    	       (Term.var vt (Nat.plus m Nat.0))
+	    (\n:Nat \_:I Term (Subst.eval (Subst.consshifti (Nat.s i)
+	 	     	  	      	     (Subst.offset Nat.0)) vt n)
+			      (Term.var vt n) ->
+	     I.subst (Nat.iter.associative Subst.drop1 n
+                         (Subst.consshifti (Nat.s i) (Subst.offset Nat.0)))
+		 (\x: Subst -> I Term (Subst.evalhead vt x) (Term.var vt n))
+	     (Hyp (Nat.s n)))))
+     (\vt:VarType -> I.r Term (Term.univ vt))
+
+      
+      
+Definition Term.subst.offes
+Definition Term.substshift.shiftn.Thesis =
+  \t:Term -> n:Nat -> sigma:Subst ->
+     I Subst (Subst.drop (Nat.s n) sigma) (Subst.offset n) ->
+     I Term (Term.shiftn (Term.substapp t sigma) n)
+  	    (Term.substapp (Term.shiftn t (Nat.s n))
+	    		   (Subst.substshiftn n sigma))
+
+
+Definition CCTypeCheck.subst = \sigma:Subst \Gamma:VarList ->
+  CCTypeCheck.rec (\Gamma:VarList \M:Term \S:Term \_:CCTypeCheck Gamma M S ->
+  		   CCTypeCheck.subst.Thesis Gamma M S)
+    T.tt ;ax
+    ;var
+    (\Gamma:VarList \vt:VarType \T0:Term
+     \prf1: CCTypeCheck Gamma T0 (Term.univ vt)
+     \Hyp: CCTypeCheck.subst.Thesis Gamma T0 (Term.univ vt)
+     \N:Term
+     \prf2: CCTypeCheck Gamma N T0 ->
+     I.subst (Term.subst.shift0 T0 N)
+        (\x:Term -> CCTypeCheck Gamma N x)
+        prf2)
+     
+     \Hyp: (n:Nat -> CCTypeCheck (VarList.deleten n Gamma) T0 (Term.univ vt) ->
+            CCTypeCheck (VarList.insertn n vt T0 Gamma)
+	              (Term.shiftn T1 n) (Term.univ vt1)) ->
+     Nat.rec (\n:Nat ->
+
+     (\M:Term \S:Term
+      \prf: CCTypeCheck Gamma (Term.substapp M sigma) (Term.substapp S sigma) ->
+      prf)      
+     (\vt:VarType \T:Term \vl:VarList
+      \Hyp:(M:Term -> ....)
+      \M:Term \S:Term
+      \prf: CCTypeCheck Gamma
+         (Term.substapp M (Subst.consshift (Subst.consshift.list sigma vl))
+	 (Term.substapp S (Subst.consshift (Subst.consshift.list sigma vl))
+      ->
+      prf)      
+
+
+Definition CCTypeCheck.substapp =
+  CCSubstCheck.rec (\sigma:Subst \Gamma:VarList \Gamma':VarList
+  		    \_:CCSubstCheck sigma Gamma Gamma' ->
+                    M:Term -> S:Term -> CCTypeCheck Gamma' M S ->
+	    CCTypeCheck Gamma (Term.substapp M sigma) (Term.substapp S sigma))
+     (\Gamma:VarList \M:Term \S:Term \prf:CCTypeCheck Gamma M S ->
+      prf)
+     (\Gamma:VarList \vt0:VarType \S0:Term
+      \prf0:CCTypeCheck Gamma S0 (Term.univ vt0) \i:Nat \Gamma':VarList
+      \chk:CCSubstCheck (Subst.offset i) Gamma Gamma'
+      \Hyp:(M:Term -> S:Term -> CCTypeCheck Gamma' M S ->
+	    CCTypeCheck Gamma (Term.substapp M (Subst.offset i))
+	                      (Term.substapp S (Subst.offset i)))
+      \M:Term \S:Term \prf:CCTypeCheck Gamma' M S ->
+      CCTypeCheck.weak prf0 (Hyp M S prf))
+
   CCTypeCheck.rec (\Gamma':VarList \M:Term \S:Term \t:CCTypeCheck Gamma' M S ->
 	           sigma:Subst -> Gamma:VarList -> 
 	           CCSubstCheck sigma Gamma Gamma' ->
 	    CCTypeCheck Gamma (Term.substapp M sigma) (Term.substapp S sigma))
      ; ax
-     (\sigma:Subst \Gamma:VarList \check:CCSubstCheck sigma Gamma Gamma' ->
+     (\sigma:Subst \Gamma:VarList \check:CCSubstCheck sigma Gamma VarList.nil ->
       CCSubstCheck.rec (\sigma:Subst \Gamma:VarList \Gamma':VarList
      		        \_:CCSubstCheck sigma Gamma Gamma' ->
 			I VarList Gamma' VarList.nil ->
 	    		CCTypeCheck Gamma Term.* Term.[])
-       (\Gamma:VarList \eq:I VarList Gamma VarList.nil
-        I.rsubst VarList VarList.nil Gamma eq
+       (\Gamma:VarList \eq:I VarList Gamma VarList.nil ->
+        I.rsubst eq
 	   (\x:VarList -> CCTypeCheck x Term.* Term.[])
            CCTypeCheck.ax)
        (\Gamma:VarList 
 	\vt:VarType \S:Term  \prf:CCTypeCheck Gamma S (Term.univ vt)
-        \i:Nat \chk:CCSubstCheck (Subst.offset i) Gamma Gamma'
+        \i:Nat \Gamma':VarList \chk:CCSubstCheck (Subst.offset i) Gamma Gamma'
 	\Hyp:(I VarList Gamma' VarList.nil -> CCTypeCheck Gamma Term.* Term.[])
 	\eq:I VarList Gamma' VarList.nil ->
-	CCTypeCheck.weak Gamma vt S prf Term.* Term.[] (Hyp eq))
-	)
-     ; weak
+	CCTypeCheck.weak prf (Hyp eq))
+       (\Gamma:VarList 
+	\vt:VarType \t:Term \sigma:Subst \Gamma':VarList \S:Term
+	\prf:CCTypeCheck Gamma t S
+        \chk:CCSubstCheck sigma Gamma Gamma'
+	\Hyp:(I VarList Gamma' VarList.nil -> CCTypeCheck Gamma Term.* Term.[])
+	\eq:I VarList (VarList.cons vt S Gamma') VarList.nil ->
+	I.rsubst eq
+	  (\x:VarList ->
+	   VarList.rec (\_:VarList -> U) T
+	   	       (\vt:VarType\t:Term\tail:VarList\hyp:U ->
+		        CCTypeCheck Gamma Term.* Term.[]) x)
+	  T.tt)
+       sigma Gamma VarList.nil check (I.r VarList VarList.nil))
+
+     ; var
+     (\Gamma':VarList \vt:VarType \T0:Term
+      \prf:CCTypeCheck Gamma' T0 (Term.univ vt)
+      \Hyp:(sigma:Subst -> Gamma:VarList -> 
+	    CCSubstCheck sigma Gamma Gamma' ->
+	    CCTypeCheck Gamma (Term.substapp T0 sigma)
+	                      (Term.substapp (Term.univ vt) sigma))
+
+      \sigma:Subst \Gamma:VarList
+      \check:CCSubstCheck sigma Gamma (VarList.cons vt T0 Gamma') ->
+      CCSubstCheck.rec (\sigma:Subst \Gamma:VarList \Gamma'':VarList
+     		        \_:CCSubstCheck sigma Gamma Gamma'' ->
+			I VarList Gamma'' (VarList.cons vt T0 Gamma') ->
+	    		CCTypeCheck Gamma (Term.var vt Nat.0) T0)
+       (\Gamma:VarList \eq:I VarList Gamma (VarList.cons vt T0 Gamma') ->
+        I.rsubst eq
+	   (\x:VarList -> CCTypeCheck x (Term.var vt Nat.0) T0)
+           (CCTypeCheck.var prf))
+       (\Gamma:VarList 
+	\vt:VarType \S:Term  \prf:CCTypeCheck Gamma S (Term.univ vt)
+        \i:Nat \Gamma'':VarList \chk:CCSubstCheck (Subst.offset i) Gamma Gamma''
+	\Hyp:(I VarList Gamma'' (VarList.cons vt T0 Gamma') ->
+	      CCTypeCheck Gamma (Term.var vt Nat.0 T0))
+	\eq:I VarList Gamma'' (VarList.cons vt T0 Gamma') ->
+	CCTypeCheck.weak prf (Hyp eq))
+       (\Gamma:VarList 
+	\vt:VarType \t:Term \sigma:Subst \Gamma':VarList \S:Term
+	\prf:CCTypeCheck Gamma t S
+        \chk:CCSubstCheck sigma Gamma Gamma'
+	\Hyp:(I VarList Gamma' VarList.nil -> CCTypeCheck Gamma Term.* Term.[])
+	\eq:I VarList (VarList.cons vt S Gamma') VarList.nil ->
+	I.rsubst eq
+	  (\x:VarList ->
+	   VarList.rec (\_:VarList -> U) T
+	   	       (\vt:VarType\t:Term\tail:VarList\hyp:U ->
+		        CCTypeCheck Gamma Term.* Term.[]) x)
+	  T.tt)
+       sigma Gamma VarList.nil check (I.r VarList VarList.nil))
 
 
   Term.rec (\M:Term -> S:Term -> 
@@ -1067,7 +1298,7 @@ Definition CCTypeCheck.substapp =
     \Gamma:VarList \sigma:Subst
     \check:CCSubstCheck sigma Gamma Gamma' ->
     CCTypeCheck.lam Gamma vt (Term.substapp M sigma)
-                    (Term.substapp N (Subst.consshift vt sigma))
+                    (Term.substapp N (Subst.consshift sigma))
 		    
 )
 
@@ -1174,8 +1405,7 @@ Definition Term.classify.type.correct =
      \prf: CCTypeCheck Gamma T0 (Term.univ vt)
      \_: TypedClass Gamma T0 (Term.classify T0) ->
      \M: Term -> \S:Term -> \prf2:CCTypeCheck Gamma M S ->
-     I.rsubst Class (Term.classify M) (Term.classify (Term.shiftvar M))
-         (Term.shiftn.classify M Nat.0)
+     I.rsubst (Term.shiftn.classify M Nat.0)
      	 (\x:Class -> TypedClass Gamma M (Term.classify M) ->
 	 	   TypedClass (VarList.cons vt T0 Gamma) (Term.shiftvar M) x)
      (TypedClass.rec Gamma M
@@ -1211,8 +1441,7 @@ Definition Term.classify.type.correct =
      \vt2: VarType -> \S:Term ->
      \prf2: CCTypeCheck (VarList.cons vt1 T1 Gamma) S (Term.univ vt2)
      \Hyp: TypedClass (VarList.cons vt1 T1 Gamma) S (Term.classify S) ->
-     I.rsubst Class (Class.kindprop vt2) (Class.constr2prop (Term.classify S))
-               (XXX (VarList.cons vt1 T1 Gamma) S vt2 prf2 Hyp)
+     I.rsubst (XXX (VarList.cons vt1 T1 Gamma) S vt2 prf2 Hyp)
 	       (\x:Class -> TypedClass Gamma (Term.pi vt1 T1 S) x)
      (VarType.rec (\vt:VarType ->
      		  Gamma:VarList -> M:Term ->
@@ -1230,8 +1459,7 @@ Definition Term.classify.type.correct =
      \prf2: CCTypeCheck Gamma (Term.pi vt1 T1 S) (Term.univ vt2)
      \Hyp: TypedClass Gamma (Term.pi vt1 T1 S)
      	   	      (Class.constr2prop (Term.classify S)) ->
-     I.rsubst Class (Class.constrobj vt2) (Class.prop2constr (Term.classify M))
-               (XXX2 Gamma S vt2 prf2 Hyp)
+     I.rsubst  (XXX2 Gamma S vt2 prf2 Hyp)
 	       (\x:Class -> TypedClass Gamma (Term.lam vt1 T1 M) x)
      (VarType.rec (\vt:VarType ->
      		  Gamma:VarList -> M:Term -> A:Term 
@@ -1243,8 +1471,7 @@ Definition Term.classify.type.correct =
 	vt2 Gamma (Term.lam vt1 T1 M)
 	    (CCTypeCheck.lam Gamma vt1 T1 M S prf1 vt2 prf2)))
 
-     I.rsubst Class (Term.classify M) (Term.classify (Term.shiftvar M))
-         (Term.shiftn.classify M Nat.0)
+     I.rsubst (Term.shiftn.classify M Nat.0)
      	 (\x:Class -> TypedClass Gamma M (Term.classify M) ->
 	 	   TypedClass (VarList.cons vt T0 Gamma) (Term.shiftvar M) x)
      \
@@ -1332,15 +1559,13 @@ Definition PiRangeCorrect =
 	     KindOrProp.kind (VarList.cons vt1 (Term.shiftvar T1)
 	     		     		   (VarList.cons vt T0 Gamma))
 	     		     (Term.shiftn S1 Nat.1)
-	         	     (CCTypeCheck.weakn vt T0
-		 	         (VarList.cons vt1 T1 Gamma) S1 Term.[] prf2
+	         	     (CCTypeCheck.weakn vt T0 prf2
 		                 Nat.1 prf))
 	    (\prf2:CCTypeCheck (VarList.cons vt1 T1 Gamma) S1 Term.* ->
 	     KindOrProp.prop (VarList.cons vt1 (Term.shiftvar T1)
 	     		     		   (VarList.cons vt T0 Gamma))
 	     		     (Term.shiftn S1 Nat.1)
-	         	     (CCTypeCheck.weakn vt T0
-		 	         (VarList.cons vt1 T1 Gamma) S1 Term.* prf2
+	         	     (CCTypeCheck.weakn vt T0 prf2
 		                 Nat.1 prf)))
 	(\M:Term \S:Term \_:CCTypeCheck Gamma M S
 	 \_:PiRangeCorrectType Gamma M ->
@@ -1441,7 +1666,7 @@ Definition Term.classify =
 	 \_:TermClass (VarList.cons vt T Gamma) S ->
 	 TermClass.constr Gamma (Term.pi vt T S) Term.*
 	 		  (CCTypeCheck.pi Gamma vt T prf1 VarType.* S prf2)
-			  (CCTypeCheck.ax2 Gamma (CCTypeCheck.gammatc Gamma T
+			  (CCTypeCheck.ax2 (CCTypeCheck.gammatc Gamma T
 			  		                 (Term.univ vt) prf1))))
     ;lam
     (\Gamma:VarList \vt:VarType \T:Term \M:Term \S:Term

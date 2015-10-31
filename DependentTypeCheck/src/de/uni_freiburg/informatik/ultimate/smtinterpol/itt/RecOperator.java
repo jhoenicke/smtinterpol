@@ -26,27 +26,29 @@ public class RecOperator extends Term {
 			tcType = Term.application(tcType, tcVars[i], null);
 		}
 		// The type of C: (privateArgs -> TC -> U1)
-		Term cType = new PiTerm(tcType, Term.universe(1));
+		Term cType = new PiTerm(tcType, Term.universe(1), false);
 		for (int i = numPriv - 1; i >= 0; i--) {
-			cType = new PiTerm(type.mParams[numShared + i], cType);
+			cType = new PiTerm(type.mParams[numShared + i], cType, false);
 		}
 
 		// Build C locals t
 		Term result = Term.variable(numConstrs + numPriv + 1, cType);
 		// shift the global variables over the constructor
-		Term[] constrArgTypes = new Term[numPriv+1];
+		LocalInfo[] constrArgTypes = new LocalInfo[numPriv+1];
 		Substitution constrShift = Substitution.shift(1 + numConstrs);
 		for (int i = 0; i < numPriv; i++) {
-			constrArgTypes[i] = Term.substitute(type.mParams[numShared + i], 
+			Term privArgType = Term.substitute(type.mParams[numShared + i], 
 					constrShift, null);
-			Term var = Term.variable(numPriv - i, constrArgTypes[i]);
-			constrShift = Substitution.consShifted(Term.variable(0, constrArgTypes[i]), 
+			constrArgTypes[i] = new LocalInfo("", privArgType, false, type.mHidden[numShared + i]);
+			Term var = Term.variable(numPriv - i, privArgType);
+			constrShift = Substitution.consShifted(Term.variable(0, privArgType), 
 					constrShift, Integer.MAX_VALUE);
 			result = Term.application(result, var, null);
 		}
-		constrArgTypes[numPriv] = Term.substitute(tcType, constrShift, null);
+		constrArgTypes[numPriv] = new LocalInfo("",
+				Term.substitute(tcType, constrShift, null));
 		result = Term.application(result, Term.variable(0, 
-				constrArgTypes[numPriv]), null);
+				constrArgTypes[numPriv].mTerm), null);
 		// locals -> t -> clt
 		for (int i = numPriv; i >= 0; i--) {
 			result = new PiTerm(constrArgTypes[i], result);
@@ -55,13 +57,13 @@ public class RecOperator extends Term {
 		// now come the constructors
 		for (int i = numConstrs - 1; i >= 0; i--) {
 			Term constrType = type.mConstrs[i].computeRecType(cType);
-			result = new PiTerm(constrType, result);
+			result = new PiTerm(constrType, result, false);
 		}
 		// now comes C
-		result = new PiTerm(cType, result);
+		result = new PiTerm(cType, result, false);
 		// now come shared args
 		for (int i = numShared - 1; i >= 0; i--) {
-			result = new PiTerm(type.mParams[i], result);
+			result = new PiTerm(type.mParams[i], result, type.mHidden[i]);
 		}
 		return result.evaluate();
 	}

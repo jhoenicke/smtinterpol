@@ -20,6 +20,7 @@
 
 package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.HashMap;
 import java_cup.runtime.Symbol;
 
@@ -61,9 +62,7 @@ action code {:
 	InductiveType inductiveType;
 	int inductiveIndex;
 	
-	ArrayList<String> varNames;
-	ArrayList<Term> varTypes;
-	ArrayList<Integer> lastEntry;
+	ArrayList<LocalInfo> gamma;
 	HashMap<String, Term> globals;
 	HashMap<String, Integer> locals;
 	
@@ -71,16 +70,21 @@ action code {:
 		globals = new HashMap<String,Term>();
 		globals.put("U", Term.universe(0));
 		locals = new HashMap<String, Integer>();
-		varNames = new ArrayList<String>();
-		varTypes = new ArrayList<Term>();
-		lastEntry = new ArrayList<Integer>();
+		gamma = new ArrayList<LocalInfo>();
 	}
 	
 	public Term lookupName(String id) {
 		if (locals.containsKey(id)) {
 			int index = locals.get(id);
-			int debruijn = varTypes.size() - 1 - index;
-			return Term.variable(debruijn, varTypes.get(index));
+			LocalInfo info = gamma.get(index);
+			if (info.mIsLet) {
+				int offset = gamma.size() - index;
+				return Term.substitute(info.mTerm,
+					Substitution.shift(offset), null);
+			} else {
+				int debruijn = gamma.size() - 1 - index;
+				return Term.variable(debruijn, info.mTerm);
+			}
 		}
 		if (globals.containsKey(id)) {
 			return globals.get(id);
@@ -95,25 +99,31 @@ action code {:
 		}
 		return null;
 	}
+
+	public Term buildAppTerm(Term exprFunc, Term exprArg, Symbol symbol) {
+		try {
+			return Term.buildApplication(exprFunc, exprArg);
+		} catch (IllegalArgumentException ex) {
+			parser.report_error(ex.getMessage(), symbol);
+			return null;
+		}
+	}
 	
-	public void pushBruijnVariable(String name, Term type, Symbol type$) {
-		if (!(type.getType().evaluateHead() instanceof UniverseTerm))
+	public void pushBruijnVariable(LocalInfo info, Symbol type$) {
+		if (!info.mIsLet &&
+		    !(info.mTerm.getType().evaluateHead() instanceof UniverseTerm))
 			parser.report_error("expected set type", type$);
-		varNames.add(name);
-		varTypes.add(type);
-		lastEntry.add(locals.get(name));
-		locals.put(name, varNames.size()-1);
+		Integer lastIndex = locals.put(info.mName, gamma.size());
+		info.mLastIndex = lastIndex != null ? (int) lastIndex : -1;
+		gamma.add(info);
 	}
 
 	public void popBruijnVariable() {
-		int index = varNames.size()-1;
-		String name = varNames.remove(index);
-		varTypes.remove(index);
-		Integer last = lastEntry.remove(index);
-		if (last == null)
-			locals.remove(name);
+		LocalInfo info = gamma.remove(gamma.size()-1);
+		if (info.mLastIndex == -1)
+			locals.remove(info.mName);
 		else
-			locals.put(name, last);
+			locals.put(info.mName, info.mLastIndex);
 	}
 
 	public void registerType(InductiveType type) {
@@ -129,15 +139,17 @@ scan with {: return getScanner().next_token(); :}
 
 
 /* Keywords */
-terminal INDUCTIVE, DEFINITION, CHECK, TYPECHECK, EVALUATETYPE, EVALUATE, ASSUME;
+terminal INDUCTIVE, DEFINITION, CHECK, TYPECHECK, EVALUATETYPE, EVALUATE;
+terminal ASSUME, LET;
 /* Symbols */
-terminal ARROW, COLON, LPAR, RPAR, LAMBDA, COMMA, EQUALS;
+terminal ARROW, COLON, LPAR, RPAR, LAMBDA, COMMA, EQUALS, LBRA, RBRA;
 terminal String ID;
 
 non terminal goal, declaration, inductivedecl;
 non terminal Term inductivetype;
 non terminal Term expr, expr2, expr3;
-non terminal Term exprPi, exprPiFront, exprApp, exprLambda, exprInLambda;
+non terminal Term exprPi, exprApp, exprLambda, exprInLambda;
+non terminal LocalInfo exprPiFront, exprLambdaFront;
 non terminal Constructor constrdecl;
 non terminal ArrayList<Constructor> constrdecls;
 
@@ -184,9 +196,9 @@ inductivedecl ::= INDUCTIVE ID:i COLON inductivetype:type
 		inductiveType = null;
 	  :};
 
-inductivetype ::= exprPiFront:exprDom
+inductivetype ::= exprPiFront:varInfo
 	  inductivetype:exprRng
-	  {: 	RESULT = new PiTerm(exprDom, exprRng); :}
+	  {: 	RESULT = new PiTerm(varInfo, exprRng); :}
 	| ID:u
 	  {:
 		RESULT = lookupName(u);
@@ -234,37 +246,59 @@ exprInLambda ::= exprLambda:expr
 exprApp ::= expr2:exprFunc expr3:exprArg
 	{:
 		Term exprFuncType = exprFunc.getType();
-		exprFuncType = exprFuncType.evaluateHead();
-		if (!(exprFuncType instanceof PiTerm))
-			parser.report_error("Applying to a non-function", exprArg$);
-		else if (!exprArg.getType().isSubType(((PiTerm)exprFuncType).mDomain))
-			parser.report_error("Argument has wrong type "+exprArg.getType().evaluate() +
-				" expected: " + ((PiTerm)exprFuncType).mDomain.evaluate(), exprArg$);
-		RESULT = new AppTerm(exprFunc, exprArg);
+		RESULT = buildAppTerm(exprFunc, exprArg, exprArg$);
 	:}
 	;
-exprLambda ::= LAMBDA ID:i COLON expr2:exprArg
-	{:
-		pushBruijnVariable(i, exprArg, exprArg$);
-	:}
-	exprInLambda:exprSub
+exprLambda ::= 
+	exprLambdaFront:varInfo exprInLambda:exprSub
 	{:
 		popBruijnVariable();
-		RESULT = new LambdaTerm(exprArg, exprSub);
+		try {
+			if (varInfo.mIsLet) {
+				RESULT = exprSub;
+			} else {
+				RESULT = new LambdaTerm(varInfo.mTerm, exprSub, varInfo.mIsHidden);
+			}
+		} catch (IllegalArgumentException ex) {
+			parser.report_error(ex.getMessage(), varInfo$);
+			RESULT = null;
+		}
 	:}
 	;
-exprPi ::= exprPiFront:exprDom expr:exprRng
+exprLambdaFront ::= LAMBDA ID:i COLON expr2:exprArg
+	{:
+		RESULT = new LocalInfo(i, exprArg);
+		pushBruijnVariable(RESULT, exprArg$);
+	:}
+	| LBRA LAMBDA ID:i COLON expr2:exprArg RBRA
+	{:
+		RESULT = new LocalInfo(i, exprArg, false, true);
+		pushBruijnVariable(RESULT, exprArg$);
+	:}
+	| LET ID:i EQUALS expr2:exprArg
+	{:
+		RESULT = new LocalInfo(i, exprArg, true, false);
+		pushBruijnVariable(RESULT, exprArg$);
+	:}
+	;
+
+exprPi ::= exprPiFront:varInfo expr:exprRng
 	{:
 		popBruijnVariable();
 		if (!(exprRng.getType().evaluateHead() instanceof UniverseTerm))
 			parser.report_error("expected set type", exprRng$);
-		RESULT = new PiTerm(exprDom, exprRng);
+		RESULT = new PiTerm(varInfo, exprRng);
 	:}
 	;
 
 exprPiFront ::=
 	ID:i COLON expr2:exprDom ARROW
-	{: pushBruijnVariable(i, exprDom, exprDom$); RESULT = exprDom; :}
+	{: RESULT = new LocalInfo(i, exprDom);
+	   pushBruijnVariable(RESULT, exprDom$); :}
+	| LBRA ID:i COLON expr2:exprDom RBRA ARROW
+	{: RESULT = new LocalInfo(i, exprDom, false, true);
+	   pushBruijnVariable(RESULT, exprDom$); :}
 	| expr2:exprDom ARROW
-	{: pushBruijnVariable("", exprDom, exprDom$); RESULT = exprDom; :}
+	{: RESULT = new LocalInfo("", exprDom);
+	   pushBruijnVariable(RESULT, exprDom$); :}
 	;

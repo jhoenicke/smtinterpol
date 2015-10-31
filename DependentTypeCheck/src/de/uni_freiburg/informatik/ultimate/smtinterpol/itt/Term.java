@@ -160,6 +160,40 @@ public abstract class Term {
 	}
 
 	/**
+	 * Create an application term introducing possibly hidden arguments.
+	 * @param func the function.
+	 * @param arg  the argument.
+	 * @return the application term
+	 */
+	public static Term buildApplication(Term func, Term arg) {
+		int numHidden = 0;
+		Term funcType = func.getType().evaluateHead();
+		Term argType = arg.getType().evaluateHead();
+		if (!(funcType instanceof PiTerm))
+			throw new IllegalArgumentException("Applying to a non-function");
+		PiTerm pi = (PiTerm) funcType;
+		while (pi.mIsHidden) {
+			numHidden++;
+			pi = (PiTerm) pi.mRange.evaluateHead();
+		}
+		if (numHidden > 0) {
+			Term[] hiddenArgs = new Term[numHidden];
+			System.err.println("Build hidden: Pi=("+pi.evaluate()+") Arg=("+argType.evaluate()+")");
+			PiTerm.substituteHidden(argType, pi.mDomain, hiddenArgs, 0);
+			for (int i = 0; i < numHidden; i++) {
+				System.err.println("hidden "+i+": "+hiddenArgs[i].evaluate());
+				func = Term.application(func, hiddenArgs[i], null);
+			}
+			pi = (PiTerm) func.getType().evaluateHead();
+		}
+		if (!argType.isSubType(pi.mDomain))
+			throw new IllegalArgumentException(
+					"Argument has wrong type " + argType.evaluate() + 
+					" expected: " + pi.mDomain.evaluate());
+		return Term.application(func, arg, null);	
+	}
+
+	/**
 	 * Create a lambda term.
 	 * @param domain The type of the bounded variable.
 	 * @param value The subexpression of the lambda term.
@@ -168,9 +202,9 @@ public abstract class Term {
 	 * @return the labmda term.
 	 */
 	public static Term lambda(Term domain, Term value, Term type) {
-		assert type == null || LambdaTerm.typecheck(domain, value).isSubType(type);
+		assert type == null || LambdaTerm.typecheck(domain, value, ((PiTerm) type).mIsHidden).isSubType(type);
 		if (type == null)
-			type = LambdaTerm.typecheck(domain, value);
+			type = LambdaTerm.typecheck(domain, value, false);
 		return new LambdaTerm(domain, value, type);
 	}
 
@@ -182,11 +216,11 @@ public abstract class Term {
 	 * it is computed and checked.
 	 * @return the labmda term.
 	 */
-	public static Term pi(Term domain, Term range, Term type) {
+	public static Term pi(Term domain, Term range, Term type, boolean isHidden) {
 		assert type == null || PiTerm.typecheck(domain, range).isSubType(type);
 		if (type == null)
 			type = PiTerm.typecheck(domain, range);
-		return new PiTerm(domain, range, type);
+		return new PiTerm(domain, range, type, isHidden);
 	}
 
 	/**
@@ -233,19 +267,25 @@ public abstract class Term {
 		PrettyTerm name = t.mName;
 		if (t instanceof AppTerm) {
 			AppTerm app = (AppTerm) t;
-			t = Term.application(
-					app.mFunc.evaluate(),
-					app.mArg.evaluate(), t.getType());
+			Term func = app.mFunc.evaluate();
+			Term arg = app.mArg.evaluate();
+			if (func != app.mFunc || arg != app.mArg) {
+				t = Term.application(func, arg, t.getType());
+			}
 		} else if (t instanceof PiTerm) {
 			PiTerm pi = (PiTerm) t;
-			t = Term.pi(
-					pi.mDomain.evaluate(),
-					pi.mRange.evaluate(), t.getType());
+			Term dom = pi.mDomain.evaluate();
+			Term rng = pi.mRange.evaluate();
+			if (dom != pi.mDomain || rng != pi.mRange) {
+				t = Term.pi(dom, rng, t.getType(), pi.mIsHidden);
+			}
 		} else if (t instanceof LambdaTerm) {
 			LambdaTerm lam = (LambdaTerm) t;
-			t = Term.lambda(
-					lam.mArgType.evaluate(),
-					lam.mSubTerm.evaluate(), t.getType());
+			Term arg = lam.mArgType.evaluate();
+			Term sub = lam.mSubTerm.evaluate();
+			if (arg != lam.mArgType || sub != lam.mSubTerm) {
+				t = Term.lambda(arg, sub, t.getType());
+			}
 		}
 		t.mName = name;
 		return t;

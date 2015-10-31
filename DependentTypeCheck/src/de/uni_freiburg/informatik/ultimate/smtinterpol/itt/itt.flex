@@ -61,7 +61,7 @@ EndOfLineComment     = ";" {InputCharacter}* {LineTerminator}?
 /* We basically allow everything except ( ) = > : ; , \  The symbol - is only
  * allowed if not followed immediately by >
  */
-Letter1 = [^()=:,>\\;\ \r\n\t\f\-]
+Letter1 = [^{}()=:,>\\;\ \r\n\t\f\-]
 Letter = {Letter1} | ("-"* {Letter1})
 Symbol = {Letter}+
 
@@ -75,6 +75,8 @@ Symbol = {Letter}+
   ","                    { return symbol(LexerSymbols.COMMA); }
   "->"                   { return symbol(LexerSymbols.ARROW); }
   "\\"                   { return symbol(LexerSymbols.LAMBDA); }
+  "{"                    { return symbol(LexerSymbols.LBRA); }
+  "}"                    { return symbol(LexerSymbols.RBRA); }
 
   /* Predefined Symbols */
   "Assume"               { return symbol(LexerSymbols.ASSUME, yytext()); }
@@ -84,6 +86,7 @@ Symbol = {Letter}+
   "TypeCheck"            { return symbol(LexerSymbols.TYPECHECK, yytext()); }
   "EvaluateType"         { return symbol(LexerSymbols.EVALUATETYPE, yytext()); }
   "Evaluate"             { return symbol(LexerSymbols.EVALUATE, yytext()); }
+  "Let"                  { return symbol(LexerSymbols.LET, yytext()); }
 
   /* Other Symbols and Keywords */
   {Symbol}               { return symbol(LexerSymbols.ID, yytext()); }
