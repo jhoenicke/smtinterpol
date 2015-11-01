@@ -138,10 +138,8 @@ public class PiTerm extends Term {
 				for (int i = 0; i < offset; i++) {
 					skipped[i] = Term.universe(0);
 				}
-				System.err.println("Unshift "+offset+","+argType);
 				argType = Term.substitute
 					(argType, new Substitution(skipped, 0), null);
-				System.err.println(argType);
 			}
 			hiddenArgs[hiddenArgs.length - 1 - index] = argType;
 		}

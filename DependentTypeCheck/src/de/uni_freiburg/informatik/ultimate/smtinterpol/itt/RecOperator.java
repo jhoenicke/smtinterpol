@@ -28,7 +28,7 @@ public class RecOperator extends Term {
 		// The type of C: (privateArgs -> TC -> U1)
 		Term cType = new PiTerm(tcType, Term.universe(1), false);
 		for (int i = numPriv - 1; i >= 0; i--) {
-			cType = new PiTerm(type.mParams[numShared + i], cType, false);
+			cType = new PiTerm(type.mParams[numShared + i], cType, true);
 		}
 
 		// Build C locals t

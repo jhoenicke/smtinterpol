@@ -26,7 +26,7 @@ public class LambdaTerm extends Term {
 
 	public LambdaTerm(Term argType, Term subTerm, Term type) {
 		super(type);
-		assert typecheck(argType, subTerm, ((PiTerm) type).mIsHidden).isSubType(type);
+		assert typecheck(argType, subTerm, ((PiTerm) type.evaluateHead()).mIsHidden).isSubType(type);
 		mArgType = argType;
 		mSubTerm = subTerm;
 		mNumFreeVariables = Math.max(mArgType.numFreeVariables(), 

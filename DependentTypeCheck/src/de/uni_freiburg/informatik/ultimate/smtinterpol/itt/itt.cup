@@ -225,6 +225,8 @@ constrdecl ::=
 
 expr ::= exprPi
 	| exprLambda
+	| ASSUME expr:e
+	{: RESULT = new Assumption("", e); :}
 	| expr2
 	;
 expr2 ::= exprApp
@@ -255,7 +257,9 @@ exprLambda ::=
 		popBruijnVariable();
 		try {
 			if (varInfo.mIsLet) {
-				RESULT = exprSub;
+				RESULT = Term.substitute(exprSub, 
+					Substitution.cons(varInfo.mTerm, Substitution.shift(0), 
+							exprSub.numFreeVariables()), null);
 			} else {
 				RESULT = new LambdaTerm(varInfo.mTerm, exprSub, varInfo.mIsHidden);
 			}

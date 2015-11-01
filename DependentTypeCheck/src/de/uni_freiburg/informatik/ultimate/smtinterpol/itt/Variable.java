@@ -15,7 +15,6 @@ public class Variable extends Term {
 	}
 	
 	public Term evaluateHead() {
-		System.err.println("Evaluating Variable???");
-		return Term.substitute(this, Substitution.shift(0), null);
+		throw new AssertionError("Evaluating Variable???");
 	}
 }

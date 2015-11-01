@@ -178,10 +178,8 @@ public abstract class Term {
 		}
 		if (numHidden > 0) {
 			Term[] hiddenArgs = new Term[numHidden];
-			System.err.println("Build hidden: Pi=("+pi.evaluate()+") Arg=("+argType.evaluate()+")");
 			PiTerm.substituteHidden(argType, pi.mDomain, hiddenArgs, 0);
 			for (int i = 0; i < numHidden; i++) {
-				System.err.println("hidden "+i+": "+hiddenArgs[i].evaluate());
 				func = Term.application(func, hiddenArgs[i], null);
 			}
 			pi = (PiTerm) func.getType().evaluateHead();
@@ -202,7 +200,7 @@ public abstract class Term {
 	 * @return the labmda term.
 	 */
 	public static Term lambda(Term domain, Term value, Term type) {
-		assert type == null || LambdaTerm.typecheck(domain, value, ((PiTerm) type).mIsHidden).isSubType(type);
+		assert type == null || LambdaTerm.typecheck(domain, value, ((PiTerm) type.evaluateHead()).mIsHidden).isSubType(type);
 		if (type == null)
 			type = LambdaTerm.typecheck(domain, value, false);
 		return new LambdaTerm(domain, value, type);
