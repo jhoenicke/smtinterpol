@@ -270,7 +270,7 @@ Definition Term.shiftvar.subst.id = \M:Term \N:Term ->
 	     
 ;; Lemma 2: Arbitrary Substitution on M.shift
 ;; I (Term.substn (Term.shiftvar M) (Nat.s i) N)
-;;   (Term.shiftvar (Term.substn M i N)
+;;   (Term.shiftvar (Term.substn M i N))
 Definition Term.substn.shiftvar.commutes = \i:Nat \N:Term ->
   Let Thesis = (\M:Term -> n:Nat ->
       I (Term.substn (Term.shiftn M n) (Nat.s (Nat.plus n i)) N)
@@ -457,36 +457,37 @@ Definition ConvStep.shiftn =
      \n:Nat ->
      ConvStep.app2 (Term.shiftn T n) (hyp n))
 
-Definition ConvStep.substn = 
-  ConvStep.rec ({\T:Term} {\S: Term} \step : ConvStep T S -> n2:Nat -> N2:Term ->
-                ConvStep (Term.substn T n2 N2) (Term.substn S n2 N2))
+Definition ConvStep.substn =
+  Let Thesis = (\T:Term \S:Term -> n2:Nat -> N2:Term ->
+      ConvStep (Term.substn T n2 N2) (Term.substn S n2 N2)) ->
+  ConvStep.rec ({\T:Term} {\S: Term} \step : ConvStep T S -> Thesis T S)
     (\vt:VarType \T:Term \M:Term \N:Term \n2:Nat \N2:Term ->
      I.subst (Term.subst.substn.commutes M N n2 N2)
 	      (\x: Term -> ConvStep (Term.substn (Term.app (Term.lam vt T M) N) n2 N2) x)
      (ConvStep.beta vt (Term.substn T n2 N2)
      		    (Term.substn M (Nat.s n2) N2) (Term.substn N n2 N2)))
     (\vt:VarType \T1:Term \T2:Term
-     \step:ConvStep T1 T2 \hyp:(n2:Nat -> N2:Term -> ConvStep (Term.substn T1 n2 N2) (Term.substn T2 n2 N2))
+     \step:ConvStep T1 T2 \hyp:Thesis T1 T2
      \M:Term \n2:Nat \N2:Term ->
      ConvStep.lam1 vt (hyp n2 N2) (Term.substn M (Nat.s n2) N2))
     (\vt:VarType \M1:Term \M2:Term
-     \step:ConvStep M1 M2 \hyp:(n2:Nat -> N2:Term -> ConvStep (Term.substn M1 n2 N2) (Term.substn M2 n2 N2))
+     \step:ConvStep M1 M2 \hyp:Thesis M1 M2
      \T:Term \n2:Nat \N2:Term ->
      ConvStep.lam2 vt (hyp (Nat.s n2) N2) (Term.substn T n2 N2))
     (\vt:VarType \T1:Term \T2:Term
-     \step:ConvStep T1 T2 \hyp:(n2:Nat -> N2:Term -> ConvStep (Term.substn T1 n2 N2) (Term.substn T2 n2 N2))
+     \step:ConvStep T1 T2 \hyp:Thesis T1 T2
      \M:Term \n2:Nat \N2:Term ->
      ConvStep.pi1 vt (hyp n2 N2) (Term.substn M (Nat.s n2) N2))
     (\vt:VarType \M1:Term \M2:Term
-     \step:ConvStep M1 M2 \hyp:(n2:Nat -> N2:Term -> ConvStep (Term.substn M1 n2 N2) (Term.substn M2 n2 N2))
+     \step:ConvStep M1 M2 \hyp:Thesis M1 M2
      \T:Term \n2:Nat \N2:Term ->
      ConvStep.pi2 vt (hyp (Nat.s n2) N2) (Term.substn T n2 N2))
     (\T1:Term \T2:Term
-     \step:ConvStep T1 T2 \hyp:(n2:Nat -> N2:Term -> ConvStep (Term.substn T1 n2 N2) (Term.substn T2 n2 N2))
+     \step:ConvStep T1 T2 \hyp:Thesis T1 T2
      \M:Term \n2:Nat \N2:Term ->
      ConvStep.app1 (hyp n2 N2) (Term.substn M n2 N2))
     (\T:Term \M1:Term \M2:Term
-     \step:ConvStep M1 M2 \hyp:(n2:Nat -> N2:Term -> ConvStep (Term.substn M1 n2 N2) (Term.substn M2 n2 N2))
+     \step:ConvStep M1 M2 \hyp:Thesis M1 M2
      \n2:Nat \N2:Term ->
      ConvStep.app2 (Term.substn T n2 N2) (hyp n2 N2))
 
@@ -497,17 +498,22 @@ Inductive ConvSymmStep : M:Term -> N:Term -> U =
 Definition ConvSymmStep.shiftn = {\T:Term} {\S: Term} ->
    ConvSymmStep.rec T S (\step : ConvSymmStep T S -> n:Nat -> 
                          ConvSymmStep (Term.shiftn T n) (Term.shiftn S n))
-	(\fstep:ConvStep T S \n:Nat -> ConvSymmStep.forw (Term.shiftn T n) (Term.shiftn S n)
-			     	       			 (ConvStep.shiftn T S fstep n))
-	(\bstep:ConvStep S T \n:Nat -> ConvSymmStep.back (Term.shiftn T n) (Term.shiftn S n)
-			     	       			 (ConvStep.shiftn S T bstep n))
+	(\fstep:ConvStep T S \n:Nat ->
+	 ConvSymmStep.forw (Term.shiftn T n) (Term.shiftn S n)
+	 		   (ConvStep.shiftn T S fstep n))
+	(\bstep:ConvStep S T \n:Nat ->
+	 ConvSymmStep.back (Term.shiftn T n) (Term.shiftn S n)
+	 		   (ConvStep.shiftn S T bstep n))
+
 Definition ConvSymmStep.substn = {\T:Term} {\S: Term} ->
    ConvSymmStep.rec T S (\step : ConvSymmStep T S -> n2:Nat -> N2:Term -> 
                          ConvSymmStep (Term.substn T n2 N2) (Term.substn S n2 N2))
-	(\fstep:ConvStep T S \n2:Nat \N2:Term -> ConvSymmStep.forw (Term.substn T n2 N2) (Term.substn S n2 N2)
-			     	       			 (ConvStep.substn T S fstep n2 N2))
-	(\bstep:ConvStep S T \n2:Nat \N2:Term -> ConvSymmStep.back (Term.substn T n2 N2) (Term.substn S n2 N2)
-			     	       			 (ConvStep.substn S T bstep n2 N2))
+	(\fstep:ConvStep T S \n2:Nat \N2:Term ->
+	 ConvSymmStep.forw (Term.substn T n2 N2) (Term.substn S n2 N2)
+	 		   (ConvStep.substn T S fstep n2 N2))
+	(\bstep:ConvStep S T \n2:Nat \N2:Term ->
+	 ConvSymmStep.back (Term.substn T n2 N2) (Term.substn S n2 N2)
+	 		   (ConvStep.substn S T bstep n2 N2))
 
 Inductive List : A:U -> U =
   nil  : List A,
@@ -560,65 +566,6 @@ Inductive VarListTypeCheck : VarList -> U =
          CCTypeCheck Gamma T (Term.univ vt) ->
  	 VarListTypeCheck Gamma -> 
          VarListTypeCheck (VarList.cons vt T Gamma)
-
-Definition CCTypeCheck.case =
-  \C:(Gamma:VarList -> M:Term -> S:Term -> U1)
-  \caseax: (C VarList.nil Term.* Term.[])
-  \casevar:(Gamma:VarList -> vt:VarType -> T : Term ->
-            CCTypeCheck Gamma T (Term.univ vt) ->
-	    C (VarList.cons vt T Gamma) (Term.var vt Nat.0) (Term.shiftvar T))
-  \caseweak:(Gamma:VarList -> vt:VarType -> T : Term ->
-             CCTypeCheck Gamma T (Term.univ vt) ->
-             M : Term -> S:Term -> CCTypeCheck Gamma M S ->
-             C (VarList.cons vt T Gamma) (Term.shiftvar M) (Term.shiftvar S))
-  \casepi:  (Gamma:VarList -> vt:VarType -> T : Term ->
-             CCTypeCheck Gamma T (Term.univ vt) ->
-	     vt2 : VarType -> S : Term ->
-	     CCTypeCheck (VarList.cons vt T Gamma) S (Term.univ vt2) ->
-	     C Gamma (Term.pi vt T S) (Term.univ vt2))
-  \caselam: (Gamma:VarList -> vt:VarType -> T : Term -> M:Term -> S:Term ->
-             CCTypeCheck (VarList.cons vt T Gamma) M S ->
-	     vt2: VarType ->
-	     CCTypeCheck Gamma (Term.pi vt T S) (Term.univ vt2) ->
-	     C Gamma (Term.lam vt T M) (Term.pi vt T S))
-  \caseapp: (Gamma:VarList -> M:Term -> vt: VarType -> T : Term -> S:Term ->
-             CCTypeCheck Gamma M (Term.pi vt T S) ->
-	     N : Term -> CCTypeCheck Gamma N T ->
-	     C Gamma (Term.app M N) (Term.subst S N))
-  \caseconv:(Gamma:VarList -> M:Term -> T:Term -> CCTypeCheck Gamma M T ->
-	     S : Term -> ConvSymmStep T S ->
-	     C Gamma M S) ->
-  CCTypeCheck.rec (\Gamma:VarList \M:Term \S:Term \_:CCTypeCheck Gamma M S ->
-  		   C Gamma M S)
-    caseax
-    (\Gamma:VarList \vt:VarType \T : Term
-     \prf: CCTypeCheck Gamma T (Term.univ vt) \_: C Gamma T (Term.univ vt) ->
-     casevar Gamma vt T prf)
-    (\Gamma:VarList \vt:VarType \T : Term
-     \prf: CCTypeCheck Gamma T (Term.univ vt) \_: C Gamma T (Term.univ vt)
-     \M : Term \S:Term \prf2: CCTypeCheck Gamma M S \_: C Gamma M S ->
-     caseweak Gamma vt T prf M S prf2)
-    (\Gamma:VarList \vt:VarType \T : Term
-     \prf: CCTypeCheck Gamma T (Term.univ vt) \_: C Gamma T (Term.univ vt)
-     \vt2 : VarType \S:Term
-     \prf2: CCTypeCheck (VarList.cons vt T Gamma) S (Term.univ vt2)
-     \_: C (VarList.cons vt T Gamma) S (Term.univ vt2) ->
-     casepi Gamma vt T prf vt2 S prf2)
-    (\Gamma:VarList \vt:VarType \T : Term \M:Term \S:Term
-     \prf: CCTypeCheck (VarList.cons vt T Gamma) M S
-     \_: C (VarList.cons vt T Gamma) M S
-     \vt2 : VarType 
-     \prf2: CCTypeCheck Gamma (Term.pi vt T S) (Term.univ vt2)
-     \_: C Gamma (Term.pi vt T S) (Term.univ vt2) ->
-     caselam Gamma vt T M S prf vt2 prf2)
-    (\Gamma:VarList \M:Term \vt:VarType \T : Term \S:Term
-     \prf: CCTypeCheck Gamma M (Term.pi vt T S) \_: C Gamma M (Term.pi vt T S)
-     \N:Term \prf2: CCTypeCheck Gamma N T \_: C Gamma N T ->
-     caseapp Gamma M vt T S prf N prf2)
-    (\Gamma:VarList \M:Term \T : Term
-     \prf: CCTypeCheck Gamma M T \_: C Gamma M T
-     \S:Term \step:ConvSymmStep T S ->
-     caseconv Gamma M T prf S step)
 
 Definition CCTypeCheck.ax2 = 
   VarListTypeCheck.rec ({\Gamma:VarList} \_:VarListTypeCheck Gamma ->
@@ -842,56 +789,31 @@ Definition CCTypeCheck.weakn =
      \prfT0: CCTypeCheck (VarList.deleten n Gamma) T0 (Term.univ vt) ->
      (CCTypeCheck.conv (Hyp1 n prfT0) (ConvSymmStep.shiftn step n)))
 
-Definition VarList.isEmpty =
-  VarList.rec (\_:VarList -> U) T (\_:VarType\_:Term\_:VarList\_:U -> F)
+Definition VarList.subst.nth = \N:Term ->
+  VarList.rec (\_:VarList -> Nat -> VarList)
+    (\n:Nat -> VarList.nil)
+    (\vt1:VarType \T1:Term \Gamma:VarList \Hyp:(Nat -> VarList) ->
+    Nat.rec (\i:Nat -> VarList)
+      Gamma
+      (\i:Nat \_:VarList -> VarList.cons vt1 (Term.substn T1 i N) (Hyp i)))
 
-Definition VarList.notEmpty.insert =
-  Nat.rec (\n:Nat -> vt:VarType -> T0:Term -> Gamma:VarList ->
-  	   VarList.isEmpty (VarList.insertn n vt T0 Gamma) -> F)
-    (\vt:VarType \T0:Term \Gamma:VarList \x:F -> x)
-    (\n:Nat \Hyp:(vt:VarType -> T0:Term -> Gamma:VarList ->
-  	   VarList.isEmpty (VarList.insertn n vt T0 Gamma) -> F)
-     \vt:VarType \T0:Term ->
-     VarList.rec (\Gamma:VarList ->
-                  VarList.isEmpty (VarList.insertn (Nat.s n) vt T0 Gamma) -> F)
-       (Hyp vt T0 VarList.nil)
-       (\vt1:VarType \T1:Term \Gamma:VarList
-        \_:(VarList.isEmpty (VarList.insertn (Nat.s n) vt T0 Gamma) -> F)
-	\x:F -> x))
-
-Inductive VarListSplit : U =
-  fail : VarListSplit,
-  mk   : Term -> VarList -> VarList -> VarListSplit
-
-Definition VarListSplit.extend =  \vt1:VarType \T1:Term ->
-  VarListSplit.rec (\_:VarListSplit -> VarListSplit)
-     VarListSplit.fail
-     (\T2:Term \Gamma1:VarList \Gamma2:VarList ->
-         VarListSplit.mk T2 Gamma1 (VarList.cons vt1 T1 Gamma2))
-
-Definition VarList.split = \N:Term ->
-  VarList.rec (\_:VarList -> Nat -> VarListSplit)
-    (\n:Nat -> VarListSplit.fail)
-    (\vt1:VarType \T1:Term \Gamma:VarList
-    \Hyp:(Nat -> VarListSplit) ->
-    Nat.rec (\i:Nat -> VarListSplit)
-      (VarListSplit.mk T1 Gamma Gamma)
-      (\i:Nat \_:VarListSplit ->
-       VarListSplit.extend vt1 (Term.substn T1 i N) (Hyp i)))
+Definition VarList.TypeCheck.nth = \N:Term ->
+  VarList.rec (\_:VarList -> Nat -> U)
+    (\n:Nat -> F)
+    (\vt1:VarType \T1:Term \Gamma:VarList \Hyp:(Nat -> U) ->
+    Nat.rec (\i:Nat -> U)
+      (CCTypeCheck Gamma N T1)
+      (\i:Nat \_:U -> Hyp i))
 
 Definition CCTypeCheck.substn = \vt:VarType \T0:Term \N:Term ->
-  Let Thesis.aux = (\M:Term \S:Term \n:Nat ->
-     VarListSplit.rec (\_:VarListSplit -> U) T
-       (\T1:Term\Gamma1:VarList\Gamma2:VarList ->
-	      CCTypeCheck Gamma1 N T1 ->
-	      CCTypeCheck Gamma2 (Term.substn M n N)
-	                         (Term.substn S n N)))
   Let Thesis = (\Gamma:VarList \M:Term \S:Term \n:Nat ->
-     Thesis.aux M S n (VarList.split N Gamma n)) ->
+     VarList.TypeCheck.nth N Gamma n ->
+     CCTypeCheck (VarList.subst.nth N Gamma n)
+     		 (Term.substn M n N) (Term.substn S n N)) ->
   CCTypeCheck.rec (\Gamma:VarList \M:Term \S:Term
                    \_:CCTypeCheck Gamma M S -> n:Nat -> Thesis Gamma M S n)
      ;ax
-     (\n:Nat -> T.tt)
+     (\n:Nat -> F.rec (\_:F -> CCTypeCheck VarList.nil Term.* Term.[]))
      ; var
      (\Gamma:VarList \vt1:VarType \T1:Term
       \prf:CCTypeCheck Gamma T1 (Term.univ vt1)
@@ -902,24 +824,13 @@ Definition CCTypeCheck.substn = \vt:VarType \T0:Term \N:Term ->
 	   	    (\x:Term -> CCTypeCheck Gamma N x))
 	  (\n:Nat\_:(Thesis (VarList.cons vt1 T1 Gamma)
       	      	      	    (Term.var vt1 Nat.0) (Term.shiftvar T1) n) ->
-	   VarListSplit.rec
-		(\split:VarListSplit ->
-		 Thesis.aux T1 (Term.univ vt1) n split ->
-		 Thesis.aux (Term.var vt1 Nat.0) (Term.shiftvar T1) (Nat.s n)
-		   (VarListSplit.extend vt1 (Term.substn T1 n N) split))
-		(\x:T -> T.tt)
-		(\T2:Term\Gamma1:VarList\Gamma2:VarList
-		 \Hyp1:(CCTypeCheck Gamma1 N T2 ->
-		        CCTypeCheck Gamma2 (Term.substn T1 n N)
-				    	   (Term.univ vt1))
-		 \prf:CCTypeCheck Gamma1 N T2 ->
-		 I.rsubst (Term.subst.shiftvar.commutes T1 n N)
+	   \prfN: VarList.TypeCheck.nth N Gamma n ->
+	   I.rsubst (Term.subst.shiftvar.commutes T1 n N)
 		    (\x:Term -> CCTypeCheck
-		    	 (VarList.cons vt1 (Term.substn T1 n N) Gamma2)
+		    	 (VarList.subst.nth N (VarList.cons vt1 T1 Gamma)
+			 		    (Nat.s n))
 			 (Term.var vt1 Nat.0) x)
-		    (CCTypeCheck.var (Hyp1 prf)))
-		(VarList.split N Gamma n)
-		(Hyp n)))
+		    (CCTypeCheck.var (Hyp n prfN))))
      ; weak
      (\Gamma:VarList \vt1:VarType \T1:Term
       \prf1:CCTypeCheck Gamma T1 (Term.univ vt1)
@@ -936,28 +847,13 @@ Definition CCTypeCheck.substn = \vt:VarType \T0:Term \N:Term ->
 		    prf2)
 	  (\n:Nat\_:(Thesis (VarList.cons vt1 T1 Gamma)
       	      	      	    (Term.shiftvar M1) (Term.shiftvar S1) n) ->
-	   VarListSplit.rec
-		(\split:VarListSplit ->
-		 Thesis.aux T1 (Term.univ vt1) n split ->
-		 Thesis.aux M1 S1 n split ->
-		 Thesis.aux (Term.shiftvar M1) (Term.shiftvar S1) (Nat.s n)
-		   (VarListSplit.extend vt1 (Term.substn T1 n N) split))
-		(\x:T\y:T -> T.tt)
-		(\T2:Term\Gamma1:VarList\Gamma2:VarList
-		 \Hyp3:(CCTypeCheck Gamma1 N T2 ->
-		        CCTypeCheck Gamma2 (Term.substn T1 n N)
-				    	   (Term.univ vt1))
-		 \Hyp4:(CCTypeCheck Gamma1 N T2 ->
-		        CCTypeCheck Gamma2 (Term.substn M1 n N)
-				    	   (Term.substn S1 n N))
-		 \prf:CCTypeCheck Gamma1 N T2 ->
-		 I.subst2 (I.symm (Term.subst.shiftvar.commutes M1 n N))
-		 	  (I.symm (Term.subst.shiftvar.commutes S1 n N))
-		    (\x:Term \y:Term -> CCTypeCheck
-		    	 (VarList.cons vt1 (Term.substn T1 n N) Gamma2) x y)
-		    (CCTypeCheck.weak (Hyp3 prf) (Hyp4 prf)))
-		(VarList.split N Gamma n)
-		(Hyp1 n) (Hyp2 n)))
+	   \prfN: VarList.TypeCheck.nth N Gamma n ->
+	   I.subst2 (I.symm (Term.subst.shiftvar.commutes M1 n N))
+	   	    (I.symm (Term.subst.shiftvar.commutes S1 n N))
+		    (\x:Term \y:Term ->
+		     CCTypeCheck (VarList.subst.nth N
+		    		  (VarList.cons vt1 T1 Gamma) (Nat.s n)) x y)
+		    (CCTypeCheck.weak (Hyp1 n prfN) (Hyp2 n prfN))))
      ; pi
      (\Gamma:VarList \vt1:VarType \T1:Term
       \prf1:CCTypeCheck Gamma T1 (Term.univ vt1)
@@ -965,26 +861,9 @@ Definition CCTypeCheck.substn = \vt:VarType \T0:Term \N:Term ->
       \vt2:VarType \S:Term
       \prf2:CCTypeCheck (VarList.cons vt1 T1 Gamma) S (Term.univ vt2)
       \Hyp2:(n:Nat -> Thesis (VarList.cons vt1 T1 Gamma) S (Term.univ vt2) n)
-      \n:Nat ->
-      VarListSplit.rec
-	 (\split:VarListSplit ->
-	  Thesis.aux T1 (Term.univ vt1) n split ->
-	  Thesis.aux S (Term.univ vt2) (Nat.s n)
-	    (VarListSplit.extend vt1 (Term.substn T1 n N) split) ->
-	  Thesis.aux (Term.pi vt1 T1 S) (Term.univ vt2) n split)
-	 (\x:T\y:T -> T.tt)
-	 (\T2:Term\Gamma1:VarList\Gamma2:VarList
-	  \Hyp1':(CCTypeCheck Gamma1 N T2 ->
-		  CCTypeCheck Gamma2 (Term.substn T1 n N)
-				     (Term.univ vt1))
-	  \Hyp2':(CCTypeCheck Gamma1 N T2 ->
-		  CCTypeCheck (VarList.cons vt1 (Term.substn T1 n N) Gamma2)
-		  	      (Term.substn S (Nat.s n) N)
-			      (Term.univ vt2))
-	  \prf:CCTypeCheck Gamma1 N T2 ->
-          CCTypeCheck.pi (Hyp1' prf) (Hyp2' prf))
-	 (VarList.split N Gamma n)
-	 (Hyp1 n) (Hyp2 (Nat.s n)))
+      \n:Nat
+      \prfN: VarList.TypeCheck.nth N Gamma n ->
+      CCTypeCheck.pi (Hyp1 n prfN) (Hyp2 (Nat.s n) prfN))
      ; lam
      (\Gamma:VarList \vt1:VarType \T1:Term \M:Term \S:Term
       \prf1:CCTypeCheck (VarList.cons vt1 T1 Gamma) M S
@@ -992,26 +871,9 @@ Definition CCTypeCheck.substn = \vt:VarType \T0:Term \N:Term ->
       \vt2:VarType
       \prf2:CCTypeCheck Gamma (Term.pi vt1 T1 S) (Term.univ vt2)
       \Hyp2:(n:Nat -> Thesis Gamma (Term.pi vt1 T1 S) (Term.univ vt2) n)
-      \n:Nat ->
-      VarListSplit.rec
-	 (\split:VarListSplit ->
-	  Thesis.aux M S (Nat.s n)
-	    (VarListSplit.extend vt1 (Term.substn T1 n N) split) ->
-	  Thesis.aux (Term.pi vt1 T1 S) (Term.univ vt2) n split ->
-	  Thesis.aux (Term.lam vt1 T1 M) (Term.pi vt1 T1 S) n split)
-	 (\x:T\y:T -> T.tt)
-	 (\T2:Term\Gamma1:VarList\Gamma2:VarList
-	  \Hyp1':(CCTypeCheck Gamma1 N T2 ->
-		  CCTypeCheck (VarList.cons vt1 (Term.substn T1 n N) Gamma2)
-		  	      (Term.substn M (Nat.s n) N)
-		  	      (Term.substn S (Nat.s n) N))
-	  \Hyp2':(CCTypeCheck Gamma1 N T2 ->
-		  CCTypeCheck Gamma2 (Term.substn (Term.pi vt1 T1 S) n N)
-				     (Term.univ vt2))
-	  \prf:CCTypeCheck Gamma1 N T2 ->
-          CCTypeCheck.lam (Hyp1' prf) (Hyp2' prf))
-	 (VarList.split N Gamma n)
-	 (Hyp1 (Nat.s n)) (Hyp2 n))
+      \n:Nat
+      \prfN: VarList.TypeCheck.nth N Gamma n ->
+      CCTypeCheck.lam (Hyp1 (Nat.s n) prfN) (Hyp2 n prfN))
      ; app
      (\Gamma:VarList \M1:Term \vt1:VarType \T1:Term \S:Term
       \prf1:CCTypeCheck Gamma M1 (Term.pi vt1 T1 S)
@@ -1019,48 +881,22 @@ Definition CCTypeCheck.substn = \vt:VarType \T0:Term \N:Term ->
       \M2:Term
       \prf2:CCTypeCheck Gamma M2 T1
       \Hyp2:(n:Nat -> Thesis Gamma M2 T1 n)
-      \n:Nat ->
-      VarListSplit.rec
-	 (\split:VarListSplit ->
-	  Thesis.aux M1 (Term.pi vt1 T1 S) n split ->
-	  Thesis.aux M2 T1 n split ->
-	  Thesis.aux (Term.app M1 M2) (Term.subst S M2) n split)
-	 (\x:T\y:T -> T.tt)
-	 (\T2:Term\Gamma1:VarList\Gamma2:VarList
-	  \Hyp1':(CCTypeCheck Gamma1 N T2 ->
-		  CCTypeCheck Gamma2 (Term.substn M1 n N)
-		  	      (Term.substn (Term.pi vt1 T1 S) n N))
-	  \Hyp2':(CCTypeCheck Gamma1 N T2 ->
-		  CCTypeCheck Gamma2 (Term.substn M2 n N)
-				     (Term.substn T1 n N))
-	  \prf:CCTypeCheck Gamma1 N T2 ->
-	  I.subst (Term.subst.substn.commutes S M2 n N)
+      \n:Nat
+      \prfN: VarList.TypeCheck.nth N Gamma n ->
+      I.subst (Term.subst.substn.commutes S M2 n N)
 	     (\x:Term ->
-	      CCTypeCheck Gamma2 (Term.substn (Term.app M1 M2) n N) x)
-             (CCTypeCheck.app (Hyp1' prf) (Hyp2' prf)))
-	 (VarList.split N Gamma n)
-	 (Hyp1 n) (Hyp2 n))
+	      CCTypeCheck (VarList.subst.nth N Gamma n)
+	      		  (Term.substn (Term.app M1 M2) n N) x)
+             (CCTypeCheck.app (Hyp1 n prfN) (Hyp2 n prfN)))
      ; conv
      (\Gamma:VarList \M:Term \S1:Term
       \prf1:CCTypeCheck Gamma M S1
       \Hyp1:(n:Nat -> Thesis Gamma M S1 n)
       \S2:Term
       \prf2:ConvSymmStep S1 S2
-      \n:Nat ->
-      VarListSplit.rec
-	 (\split:VarListSplit ->
-	  Thesis.aux M S1 n split ->
-	  Thesis.aux M S2 n split)
-	 (\x:T -> T.tt)
-	 (\T2:Term\Gamma1:VarList\Gamma2:VarList
-	  \Hyp1':(CCTypeCheck Gamma1 N T2 ->
-		  CCTypeCheck Gamma2 (Term.substn M n N)
-		  	      (Term.substn S1 n N))
-	  \prf:CCTypeCheck Gamma1 N T2 ->
-          CCTypeCheck.conv (Hyp1' prf)
-	  		   (ConvSymmStep.substn prf2 n N))
-	 (VarList.split N Gamma n)
-	 (Hyp1 n))
+      \n:Nat
+      \prfN: VarList.TypeCheck.nth N Gamma n ->
+      CCTypeCheck.conv (Hyp1 n prfN) (ConvSymmStep.substn prf2 n N))
 
 Definition CCTypeCheck.subst =
   {\vt0:VarType} {\T0:Term} {\Gamma:VarList} {\M:Term} {\S:Term}
