@@ -426,34 +426,31 @@ Inductive ConvStep : Term -> Term -> U =
          ConvStep (Term.app M N1) (Term.app M N2)
 
 Definition ConvStep.shiftn = 
-  ConvStep.rec (\T:Term \S: Term \step : ConvStep T S -> n:Nat ->
-                ConvStep (Term.shiftn T n) (Term.shiftn S n))
+  Let Thesis = (\T:Term \S:Term -> n:Nat ->
+      ConvStep (Term.shiftn T n) (Term.shiftn S n)) ->
+  ConvStep.rec (\T:Term \S: Term \step : ConvStep T S -> Thesis T S)
     (\vt:VarType \T:Term \M:Term \N:Term \n:Nat ->
      I.rsubst (Term.subst.shift M N n)
-	      (\x: Term -> ConvStep (Term.shiftn (Term.app (Term.lam vt T M) N) n) x)
-     (ConvStep.beta vt (Term.shiftn T n) (Term.shiftn M (Nat.s n)) (Term.shiftn N n)))
-    (\vt:VarType \T1:Term \T2:Term
-     \step:ConvStep T1 T2 \hyp:(n:Nat -> ConvStep (Term.shiftn T1 n) (Term.shiftn T2 n))
+	      (\x: Term ->
+	       ConvStep (Term.shiftn (Term.app (Term.lam vt T M) N) n) x)
+     (ConvStep.beta vt (Term.shiftn T n) (Term.shiftn M (Nat.s n))
+		    (Term.shiftn N n)))
+    (\vt:VarType \T1:Term \T2:Term \step:ConvStep T1 T2 \hyp:Thesis T1 T2
      \M:Term \n:Nat ->
      ConvStep.lam1 vt (hyp n) (Term.shiftn M (Nat.s n)))
-    (\vt:VarType \M1:Term \M2:Term
-     \step:ConvStep M1 M2 \hyp:(n:Nat -> ConvStep (Term.shiftn M1 n) (Term.shiftn M2 n))
+    (\vt:VarType \M1:Term \M2:Term \step:ConvStep M1 M2 \hyp:Thesis M1 M2
      \T:Term \n:Nat ->
      ConvStep.lam2 vt (hyp (Nat.s n)) (Term.shiftn T n))
-    (\vt:VarType \T1:Term \T2:Term
-     \step:ConvStep T1 T2 \hyp:(n:Nat -> ConvStep (Term.shiftn T1 n) (Term.shiftn T2 n))
+    (\vt:VarType \T1:Term \T2:Term \step:ConvStep T1 T2 \hyp:Thesis T1 T2
      \M:Term \n:Nat ->
      ConvStep.pi1 vt (hyp n) (Term.shiftn M (Nat.s n)))
-    (\vt:VarType \M1:Term \M2:Term
-     \step:ConvStep M1 M2 \hyp:(n:Nat -> ConvStep (Term.shiftn M1 n) (Term.shiftn M2 n))
+    (\vt:VarType \M1:Term \M2:Term \step:ConvStep M1 M2 \hyp:Thesis M1 M2
      \T:Term \n:Nat ->
      ConvStep.pi2 vt (hyp (Nat.s n)) (Term.shiftn T n))
-    (\T1:Term \T2:Term
-     \step:ConvStep T1 T2 \hyp:(n:Nat -> ConvStep (Term.shiftn T1 n) (Term.shiftn T2 n))
+    (\T1:Term \T2:Term \step:ConvStep T1 T2 \hyp:Thesis T1 T2
      \M:Term \n:Nat ->
      ConvStep.app1 (hyp n) (Term.shiftn M n))
-    (\T:Term \M1:Term \M2:Term
-     \step:ConvStep M1 M2 \hyp:(n:Nat -> ConvStep (Term.shiftn M1 n) (Term.shiftn M2 n))
+    (\T:Term \M1:Term \M2:Term \step:ConvStep M1 M2 \hyp:Thesis M1 M2
      \n:Nat ->
      ConvStep.app2 (Term.shiftn T n) (hyp n))
 
@@ -463,31 +460,26 @@ Definition ConvStep.substn =
   ConvStep.rec ({\T:Term} {\S: Term} \step : ConvStep T S -> Thesis T S)
     (\vt:VarType \T:Term \M:Term \N:Term \n2:Nat \N2:Term ->
      I.subst (Term.subst.substn.commutes M N n2 N2)
-	      (\x: Term -> ConvStep (Term.substn (Term.app (Term.lam vt T M) N) n2 N2) x)
+	     (\x: Term ->
+	      ConvStep (Term.substn (Term.app (Term.lam vt T M) N) n2 N2) x)
      (ConvStep.beta vt (Term.substn T n2 N2)
      		    (Term.substn M (Nat.s n2) N2) (Term.substn N n2 N2)))
-    (\vt:VarType \T1:Term \T2:Term
-     \step:ConvStep T1 T2 \hyp:Thesis T1 T2
+    (\vt:VarType \T1:Term \T2:Term \step:ConvStep T1 T2 \hyp:Thesis T1 T2
      \M:Term \n2:Nat \N2:Term ->
      ConvStep.lam1 vt (hyp n2 N2) (Term.substn M (Nat.s n2) N2))
-    (\vt:VarType \M1:Term \M2:Term
-     \step:ConvStep M1 M2 \hyp:Thesis M1 M2
+    (\vt:VarType \M1:Term \M2:Term \step:ConvStep M1 M2 \hyp:Thesis M1 M2
      \T:Term \n2:Nat \N2:Term ->
      ConvStep.lam2 vt (hyp (Nat.s n2) N2) (Term.substn T n2 N2))
-    (\vt:VarType \T1:Term \T2:Term
-     \step:ConvStep T1 T2 \hyp:Thesis T1 T2
+    (\vt:VarType \T1:Term \T2:Term \step:ConvStep T1 T2 \hyp:Thesis T1 T2
      \M:Term \n2:Nat \N2:Term ->
      ConvStep.pi1 vt (hyp n2 N2) (Term.substn M (Nat.s n2) N2))
-    (\vt:VarType \M1:Term \M2:Term
-     \step:ConvStep M1 M2 \hyp:Thesis M1 M2
+    (\vt:VarType \M1:Term \M2:Term \step:ConvStep M1 M2 \hyp:Thesis M1 M2
      \T:Term \n2:Nat \N2:Term ->
      ConvStep.pi2 vt (hyp (Nat.s n2) N2) (Term.substn T n2 N2))
-    (\T1:Term \T2:Term
-     \step:ConvStep T1 T2 \hyp:Thesis T1 T2
+    (\T1:Term \T2:Term \step:ConvStep T1 T2 \hyp:Thesis T1 T2
      \M:Term \n2:Nat \N2:Term ->
      ConvStep.app1 (hyp n2 N2) (Term.substn M n2 N2))
-    (\T:Term \M1:Term \M2:Term
-     \step:ConvStep M1 M2 \hyp:Thesis M1 M2
+    (\T:Term \M1:Term \M2:Term \step:ConvStep M1 M2 \hyp:Thesis M1 M2
      \n2:Nat \N2:Term ->
      ConvStep.app2 (Term.substn T n2 N2) (hyp n2 N2))
 
