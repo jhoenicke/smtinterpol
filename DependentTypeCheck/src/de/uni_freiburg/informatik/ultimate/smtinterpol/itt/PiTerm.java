@@ -78,7 +78,7 @@ public class PiTerm extends Term {
 			if (checkVariableUnifiable(pi.mDomain, varNumber))
 				return;
 			throw new IllegalArgumentException
-				("Hidden Variables must occur in type of next non-hidden variables @-1:(" + pi.mRange + ") -> " + pi.mDomain);
+				("Hidden Variables must occur in type of next non-hidden variables @-1:(" + pi.mRange.evaluate() + ") -> " + pi.mDomain.evaluate());
 		}
 		throw new IllegalArgumentException
 			("Hidden Variables must be followed by non-hidden variables: " + range.evaluate());
@@ -166,8 +166,8 @@ public class PiTerm extends Term {
 		Term a = argType;
 		while (t instanceof AppTerm) {
 			if (!(a instanceof AppTerm))
-				throw new IllegalArgumentException("Can't unify " + a +
-												   " and " + t);
+				throw new IllegalArgumentException("Can't unify " + a.evaluate() +
+												   " and " + t.evaluate());
 			Term arg = ((AppTerm) t).mArg;
 			for (int var = 0; var < hiddenArgs.length; var++) {
 				if (hiddenArgs[var] == null

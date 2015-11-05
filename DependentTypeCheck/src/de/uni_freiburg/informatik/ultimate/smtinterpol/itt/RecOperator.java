@@ -51,7 +51,7 @@ public class RecOperator extends Term {
 				constrArgTypes[numPriv].mTerm), null);
 		// locals -> t -> clt
 		for (int i = numPriv; i >= 0; i--) {
-			result = new PiTerm(constrArgTypes[i], result);
+			result = new PiTerm(constrArgTypes[i].mTerm, result, i < numPriv);
 		}
 
 		// now come the constructors
@@ -63,7 +63,7 @@ public class RecOperator extends Term {
 		result = new PiTerm(cType, result, false);
 		// now come shared args
 		for (int i = numShared - 1; i >= 0; i--) {
-			result = new PiTerm(type.mParams[i], result, type.mHidden[i]);
+			result = new PiTerm(type.mParams[i], result, true);
 		}
 		return result.evaluate();
 	}

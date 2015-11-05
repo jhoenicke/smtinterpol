@@ -53,6 +53,9 @@ public class Constructor extends Term {
 				- countPrivateVars(declType);
 		}
 		/* Check the parameter types */
+		if (!(declType.getType().equals(Term.universe(0))))
+			throw new IllegalArgumentException("Universe type not allowed: " +
+											   declType);
 		Term type = declType;
 		int offset = 0;
 		while (type instanceof PiTerm) {
@@ -163,9 +166,6 @@ public class Constructor extends Term {
 		type = type.evaluateHead();
 		if (type == indType)
 			return false;
-		if (type instanceof UniverseTerm) {
-			return false;
-		}
 		if (type instanceof AppTerm) {
 			AppTerm app = (AppTerm) type;
 			return checkClean(indType, app.mFunc, offset, false)
