@@ -198,7 +198,7 @@ inductivedecl ::= INDUCTIVE ID:i COLON inductivetype:type
 
 inductivetype ::= exprPiFront:varInfo
 	  inductivetype:exprRng
-	  {: 	RESULT = new PiTerm(varInfo, exprRng); :}
+	  {: 	RESULT = new PiTerm(varInfo.mTerm, exprRng); :}
 	| ID:u
 	  {:
 		RESULT = lookupName(u);
@@ -261,7 +261,7 @@ exprLambda ::=
 					Substitution.cons(varInfo.mTerm, Substitution.shift(0), 
 							exprSub.numFreeVariables()), null);
 			} else {
-				RESULT = new LambdaTerm(varInfo.mTerm, exprSub, varInfo.mIsHidden);
+				RESULT = new LambdaTerm(varInfo.mTerm, exprSub);
 			}
 		} catch (IllegalArgumentException ex) {
 			parser.report_error(ex.getMessage(), varInfo$);
@@ -276,12 +276,12 @@ exprLambdaFront ::= LAMBDA ID:i COLON expr2:exprArg
 	:}
 	| LBRA LAMBDA ID:i COLON expr2:exprArg RBRA
 	{:
-		RESULT = new LocalInfo(i, exprArg, false, true);
+		RESULT = new LocalInfo(i, exprArg);
 		pushBruijnVariable(RESULT, exprArg$);
 	:}
 	| LET ID:i EQUALS expr2:exprArg
 	{:
-		RESULT = new LocalInfo(i, exprArg, true, false);
+		RESULT = new LocalInfo(i, exprArg, true);
 		pushBruijnVariable(RESULT, exprArg$);
 	:}
 	;
@@ -291,7 +291,7 @@ exprPi ::= exprPiFront:varInfo expr:exprRng
 		popBruijnVariable();
 		if (!(exprRng.getType().evaluateHead() instanceof UniverseTerm))
 			parser.report_error("expected set type", exprRng$);
-		RESULT = new PiTerm(varInfo, exprRng);
+		RESULT = new PiTerm(varInfo.mTerm, exprRng);
 	:}
 	;
 
@@ -300,7 +300,7 @@ exprPiFront ::=
 	{: RESULT = new LocalInfo(i, exprDom);
 	   pushBruijnVariable(RESULT, exprDom$); :}
 	| LBRA ID:i COLON expr2:exprDom RBRA ARROW
-	{: RESULT = new LocalInfo(i, exprDom, false, true);
+	{: RESULT = new LocalInfo(i, exprDom);
 	   pushBruijnVariable(RESULT, exprDom$); :}
 	| expr2:exprDom ARROW
 	{: RESULT = new LocalInfo("", exprDom);

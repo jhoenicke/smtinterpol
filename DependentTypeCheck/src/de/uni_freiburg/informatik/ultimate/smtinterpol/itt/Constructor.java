@@ -80,7 +80,7 @@ public class Constructor extends Term {
 		declType = Term.substitute(declType, backShift, null);
 		/* Now add the shared parameters in front of the type */
 		for (int i = indType.mNumShared - 1; i >= 0; i--) {
-			declType = new PiTerm(indType.mParams[i], declType, indType.mHidden[i]);
+			declType = new PiTerm(indType.mParams[i], declType);
 		}
 		return declType.evaluate();
 	}
@@ -198,8 +198,8 @@ public class Constructor extends Term {
 	}
 
 	public Term computeRecType(Term cType) {
-		ArrayDeque<LocalInfo> constrArgs = new ArrayDeque<LocalInfo>();
-		ArrayDeque<LocalInfo> caseParams = new ArrayDeque<LocalInfo>();
+		ArrayDeque<Term> constrArgs = new ArrayDeque<Term>();
+		ArrayDeque<Term> caseParams = new ArrayDeque<Term>();
 		/* t is the type of constructor including sharedargs:
 		 *    sharedargs -> constructortype */
 		Term t = getType().evaluateHead();
@@ -209,7 +209,7 @@ public class Constructor extends Term {
 		 */
 		for (int j = 0; j < mInductiveType.mNumShared; j++) {
 			PiTerm pi = (PiTerm) t;
-			constrArgs.add(new LocalInfo("", pi.mDomain, false, pi.mIsHidden));
+			constrArgs.add(pi.mDomain);
 			t = pi.mRange;
 		}
 
@@ -228,9 +228,9 @@ public class Constructor extends Term {
 			t = pi.mRange.evaluateHead();
 
 			// in constrArgs we do reordering at the end, but in
-			// caseParams we already need to reference reordered paarameters.
-			constrArgs.add(new LocalInfo("", pi.mDomain, false, pi.mIsHidden));
-			caseParams.add(new LocalInfo("", param, false, pi.mIsHidden));
+			// caseParams we already need to reference reordered parameters.
+			constrArgs.add(pi.mDomain);
+			caseParams.add(param);
 
 			// update reorder substitution to handle the parameter.
 			reorderVars = Substitution.consShifted(Term.variable(0, param),
@@ -249,10 +249,10 @@ public class Constructor extends Term {
 				Term q = Term.substitute(param, shiftOne, null);
 				q = q.evaluateHead();
 				// collect the funcargs
-				ArrayDeque<LocalInfo> funcArgs = new ArrayDeque<LocalInfo>();
+				ArrayDeque<Term> funcArgs = new ArrayDeque<Term>();
 				while (q instanceof PiTerm) {
 					PiTerm pi2 = (PiTerm) q;
-					funcArgs.addLast(new LocalInfo("", pi2.mDomain, false, pi2.mIsHidden));
+					funcArgs.addLast(pi2.mDomain);
 					q = pi2.mRange.evaluateHead();
 				}
 				// build the C term "C privs"
@@ -260,8 +260,8 @@ public class Constructor extends Term {
 				// Build (t v).  paramNr is the number of variables in v.
 				int paramNr = funcArgs.size();
 				Term termParam = Term.variable(paramNr, param);
-				for (LocalInfo arg : funcArgs) {
-					termParam = Term.application(termParam, Term.variable(--paramNr, arg.mTerm), null);
+				for (Term arg : funcArgs) {
+					termParam = Term.application(termParam, Term.variable(--paramNr, arg), null);
 				}
 				// build "C privs (t v)"
 				c = Term.application(c, termParam, null);
@@ -269,7 +269,7 @@ public class Constructor extends Term {
 				while (!funcArgs.isEmpty()) {
 					c = new PiTerm(funcArgs.removeLast(), c);
 				}
-				caseParams.add(new LocalInfo("", c));
+				caseParams.add(c);
 				offset++;
 				// adapt the reorder substitution
 				reorderVars = Substitution.compose(reorderVars, shiftOne, Integer.MAX_VALUE);
@@ -281,12 +281,12 @@ public class Constructor extends Term {
 		Term me = this;
 		{
 			int paramNr = constrArgs.size();
-			for (LocalInfo type : constrArgs) {
-				Term var = Term.variable(--paramNr, type.mTerm);
-				me = Term.application
-					(me, Term.substitute(var, reorderVars, null), null);
+			for (Term type : constrArgs) {
+				Term var = Term.variable(--paramNr, type);
+				me = Term.application(me, var, null);
 			}
 		}
+		me = Term.substitute(me, reorderVars, null);
 		result = Term.application(result, me, null);
 		while (!caseParams.isEmpty()) {
 			result = new PiTerm(caseParams.removeLast(), result);

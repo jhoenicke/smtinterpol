@@ -45,7 +45,7 @@ public class AppTerm extends Term {
 		// note that type != null
 		return Term.substitute(
 				pi.mRange, Substitution.cons(arg, Substitution.shift(0), pi.mRange.numFreeVariables()), 
-				pi.mRange.getType());
+				null);
 	}
 
 	@Override

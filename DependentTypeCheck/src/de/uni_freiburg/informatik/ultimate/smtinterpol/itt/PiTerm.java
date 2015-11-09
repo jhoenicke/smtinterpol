@@ -14,26 +14,28 @@ public class PiTerm extends Term {
 	Term mDomain;
 	Term mRange;
 	int mNumFreeVariables;
-	boolean mIsHidden;
+	/**
+	 * If this is non-zero it gives the position of the next argument
+	 * in mRange that contains this and all the following
+	 * arguments in its type in a way that it can easily be recovered.
+	 */
+	int mMaybeHidden;
 	
-	public PiTerm(LocalInfo info, Term range) {
-		this(info.mTerm, range, info.mIsHidden);
-		assert !info.mIsLet;
+	public PiTerm(Term domain, Term range) {
+		this(domain, range, typecheck(domain, range));
 	}
-	public PiTerm(Term domain, Term range, boolean isHidden) {
-		this(domain, range, typecheck(domain, range), isHidden);
-	}
-	public PiTerm(Term domain, Term range, Term type, boolean isHidden) {
+	public PiTerm(Term domain, Term range, Term type) {
 		super(type);
 		assert typecheck(domain, range).isSubType(type);
 		this.mDomain = domain;
 		this.mRange = range;
-		if (isHidden) {
-			checkHidden(range);
-			this.mIsHidden = true;
+		this.mMaybeHidden = checkHidden(range);
+		this.mNumFreeVariables = Math.max(mDomain.numFreeVariables(), 
+										  mRange.numFreeVariables() - 1);
+		if (mMaybeHidden > 0) {
+			//System.err.println("Hidden: " + mMaybeHidden +
+			//				   " in " + this.evaluate());
 		}
-		mNumFreeVariables = Math.max(mDomain.numFreeVariables(), 
-				mRange.numFreeVariables() - 1);
 	}
 	
 	@Override
@@ -62,26 +64,39 @@ public class PiTerm extends Term {
 	}
 
 	/**
-	 * Checks that range is a PiTerm and that the variable 0 occurs in
-	 * the first non-hidden PiTerm at a unifiable location.
+	 * Checks if the variable may be hidden and how many type arguments
+	 * must be at least skipped.  We compute {@see mMaybeHidden}.
 	 */
-	private static void checkHidden(Term range) {
+	private static int checkHidden(Term range) {
 		int varNumber = 0;
 		range = range.evaluateHead();
 		while (range instanceof PiTerm) {
 			PiTerm pi = (PiTerm) range;
-			if (pi.mIsHidden) {
-				varNumber++;
-				range = pi.mRange.evaluateHead();
-				continue;
+			if (checkVariableUnifiable(pi.mDomain, varNumber)) {
+				return varNumber + 1;
 			}
-			if (checkVariableUnifiable(pi.mDomain, varNumber))
-				return;
-			throw new IllegalArgumentException
-				("Hidden Variables must occur in type of next non-hidden variables @-1:(" + pi.mRange.evaluate() + ") -> " + pi.mDomain.evaluate());
+			if (pi.mMaybeHidden == 0) {
+				return 0;
+			}
+			for (int i = 0; i < pi.mMaybeHidden; i++) {
+				range = ((PiTerm) range).mRange.evaluateHead();
+				varNumber++;
+			}
 		}
-		throw new IllegalArgumentException
-			("Hidden Variables must be followed by non-hidden variables: " + range.evaluate());
+		return 0;
+	}
+
+	/**
+	 * Checks if the head symbol is a constructor or a type
+	 * constructor.  Other heads are not allowed for unification.
+	 */
+	private static boolean checkHead(Term term) {
+		term = term.evaluateHead();
+		while (term instanceof AppTerm) {
+			term = ((AppTerm) term).mFunc;
+		}
+		return (term instanceof Constructor)
+			|| (term instanceof InductiveType);
 	}
 	
 	private static boolean checkVariableUnifiable(Term term, int varNumber) {
@@ -95,92 +110,168 @@ public class PiTerm extends Term {
 			return checkVariableUnifiable(pi.mDomain, varNumber)
 				|| checkVariableUnifiable(pi.mRange, varNumber+1);
 		}
-
 		/* first check that term is an application of constructor 
 		 * or type constructor */
-		Term t = term;
-		while (t instanceof AppTerm) {
-			t = ((AppTerm) t).mFunc;
-		}
-		if (!(t instanceof Constructor)
-			&& !(t instanceof InductiveType))
+		if (!checkHead(term))
 			return false;
-		
+
 		/* Check if variable occurs in argument in good position. */
-		t = term;
-		while (t instanceof AppTerm) {
-			AppTerm app = (AppTerm) t;
+		while (term instanceof AppTerm) {
+			AppTerm app = (AppTerm) term;
 			if (checkVariableUnifiable(app.mArg, varNumber))
 				return true;
-			t = app.mFunc;
+			term = app.mFunc;
 		}
 		
 		/* Variable couldn't be unified */
 		return false;
 	}
 
+	private PiTerm skipHidden(int hidden) {
+		PiTerm t = this;
+		while (hidden-- > 0) {
+			t = (PiTerm) t.mRange.evaluateHead();
+		}
+		return t;
+	}
+
 	/**
-	 * Checks that range is a PiTerm and that the variable 0 occurs in
-	 * the first non-hidden PiTerm at a unifiable location.
+	 * Substitute the hidden arguments and write them to the Term array.
+	 * We assume, we already checked that the domType is suitable for 
+	 * unification.
+	 * @param argType the type of the argument supplied to the
+	 *   function that skips hidden arguments, or a subtype on recursive 
+	 *   calls.  This is unified with domType.
+	 * @param domType The type of the parameter where the argument should be
+	 *   applied or a subtype of this at recursive calls.  
+	 * @param hiddenArgs an array where the found hidden arguments are written
+	 *   to.
+	 * @param numHidden the number of hidden arguments.  This is the number of
+	 *   parameters skipped until the domType parameter.
+	 * @param offset the number of variables in domType that are bound by
+	 *   the parameter type (for recursive calls).
 	 */
-	public static void substituteHidden(Term argType, Term domType,
-										Term[] hiddenArgs, int offset) {
+	private boolean substituteHidden(Term argType, Term domType,
+									 Term[] hiddenArgs, int numHidden,
+									 int offset) {
+		//System.err.println("substHidden: "+domType.evaluate());
+		//System.err.println("and arg:     "+argType.evaluate());
+		//System.err.println("numH,offset: "+numHidden+","+offset);
 		argType = argType.evaluateHead();
 		domType = domType.evaluateHead();
 
 		if (domType instanceof SubstTerm) {
-			/* found a substitution */
-			int index = ((SubstTerm) domType).mSubstitution.mShiftOffset - offset;
-			assert index < hiddenArgs.length
-				&& hiddenArgs[hiddenArgs.length - 1 - index] == null;
-			if (offset > 0) {
-				Term[] skipped = new Term[offset];
-				for (int i = 0; i < offset; i++) {
-					skipped[i] = Term.universe(0);
+			/* found a possible substitution */
+			int index = offset + numHidden - 1 -
+				((SubstTerm) domType).mSubstitution.mShiftOffset;
+			if (index >= 0 && index < numHidden) {
+				if (offset > 0) {
+					/* The original domType and argType are of the form
+					 * x: Type -> ... x_(index+offset) ...
+					 * x: Type -> ... argType ...
+					 * If x occurs in argType, we will get a type error
+					 * later.  We don't check for it now. Instead we replace
+					 * all x by U.
+					 */
+					Term[] skipped = new Term[offset];
+					for (int i = 0; i < offset; i++) {
+						skipped[i] = Term.universe(0);
+					}
+					argType = Term.substitute
+						(argType, new Substitution(skipped, 0), null);
 				}
-				argType = Term.substitute
-					(argType, new Substitution(skipped, 0), null);
+				if (hiddenArgs[index] == null) {
+					//System.err.println("Found match: "+index+" = "+
+					//				   argType.evaluate());
+					hiddenArgs[index] = argType;
+					/* Substitute recursively. argType becomes the new
+					 * argType for index
+					 */
+					substituteHidden(argType.getType(),
+									 skipHidden(index).mDomain,
+									 hiddenArgs, index, 0);
+				} else if (!hiddenArgs[index].equals(argType)) {
+					return false;
+				}
+				return true;
+			} else {
+				if (!(argType instanceof SubstTerm))
+					return false;
+				int argIndex = offset + numHidden - 1 -
+					((SubstTerm) argType).mSubstitution.mShiftOffset;
+				if (index < 0)
+					argIndex -= numHidden;
+				return argIndex == index;
 			}
-			hiddenArgs[hiddenArgs.length - 1 - index] = argType;
 		}
 
 		if (domType instanceof PiTerm) {
 			if (!(argType instanceof PiTerm))
-				throw new IllegalArgumentException("Can't unify " + argType +
-												   " and " + domType);
-			PiTerm pi = (PiTerm) domType;
-			for (int var = 0; var < hiddenArgs.length; var++) {
-				if (hiddenArgs[var] == null
-					&& checkVariableUnifiable(pi.mDomain, hiddenArgs.length-1-var + offset))
-					substituteHidden(((PiTerm) argType).mDomain, pi.mDomain,
-									 hiddenArgs, offset);
-				if (hiddenArgs[var] == null
-					&& checkVariableUnifiable(pi.mRange, hiddenArgs.length-1-var + offset + 1))
-					substituteHidden(((PiTerm) argType).mRange, pi.mRange,
-									 hiddenArgs, offset + 1);
-			}
-			return;
+				return false;
+			PiTerm piDom = (PiTerm) domType;
+			PiTerm piArg = (PiTerm) argType;
+			return substituteHidden(piArg.mDomain, piDom.mDomain,
+									hiddenArgs, numHidden, offset)
+				&& substituteHidden(piArg.mRange, piDom.mRange,
+									hiddenArgs, numHidden, offset + 1);
 		}
 
-		Term t = domType;
-		Term a = argType;
-		while (t instanceof AppTerm) {
-			if (!(a instanceof AppTerm))
-				throw new IllegalArgumentException("Can't unify " + a.evaluate() +
-												   " and " + t.evaluate());
-			Term arg = ((AppTerm) t).mArg;
-			for (int var = 0; var < hiddenArgs.length; var++) {
-				if (hiddenArgs[var] == null
-					&& checkVariableUnifiable(arg, hiddenArgs.length-1
-											  - var + offset)) {
-					substituteHidden(((AppTerm) a).mArg, arg,
-									 hiddenArgs, offset);
-					break;
-				}
-			}
-			a = ((AppTerm) a).mFunc;
-			t = ((AppTerm) t).mFunc;
+		/* skip things that can't be unified correctly for now. */
+		if (!checkHead(domType))
+			return true;
+
+		while (domType instanceof AppTerm) {
+			if (!(argType instanceof AppTerm))
+				return false;
+			AppTerm appDom = (AppTerm) domType;
+			AppTerm appArg = (AppTerm) argType;
+			if (!substituteHidden(appArg.mArg, appDom.mArg,
+								  hiddenArgs, numHidden, offset))
+				return false;
+			domType = appDom.mFunc;
+			argType = appArg.mFunc;
 		}
+		/* now domType is a constructor, check that it is the right one */
+		return argType.equals(domType);
+	}
+
+	private Term checkHiddenArguments(Term func, Term arg, int hidden) {
+		PiTerm next = skipHidden(hidden);
+		/* First, check if we get a match on the sub level */
+		if (next.mMaybeHidden > 0) {
+			Term result = checkHiddenArguments(func, arg,
+											   hidden + mMaybeHidden);
+			if (result != null)
+				return result;
+		}
+		System.err.println("checkHiddenArgs: "+hidden+","+evaluate());
+		//System.err.println("arg: "+arg.getType().evaluate());
+		
+		/* Check if we get a match on this level */
+		Term[] hiddenArgs = new Term[hidden];
+		if (!substituteHidden(arg.getType(), next.mDomain,
+							  hiddenArgs, hidden, 0))
+			return null;
+		
+		for (int i = 0; i < hidden; i++) {
+			//System.err.println ("hidden "+i+": "+hiddenArgs[i].evaluate());
+			//System.err.println (" type  "+i+": "+hiddenArgs[i].getType().evaluate());
+			Term dom = ((PiTerm)func.getType().evaluateHead()).mDomain;
+			if (!hiddenArgs[i].getType().isSubType(dom)) {
+				System.err.println("MISMATCH! "+dom.evaluate());
+				return null;
+			}
+			//System.err.println("apply!");
+			func = new AppTerm(func, hiddenArgs[i]);
+		}
+		//System.err.println ("success: "+func.evaluate());
+		//System.err.println ("type: "+func.getType().evaluate());
+		return func;
+	}
+
+	public Term instantiateHiddenArguments(Term func, Term arg) {
+		Term result = checkHiddenArguments(func, arg, 0);
+		return result == null ? func : result;
 	}
 	
 	@Override
@@ -194,11 +285,11 @@ public class PiTerm extends Term {
 		StringBuilder sb = new StringBuilder();
 		if (prec >= 1)
 			sb.append('(');
-		if (mIsHidden)
+		if (mMaybeHidden > 0)
 			sb.append('{');
 		sb.append('@').append(offset).append(" : ");
 		sb.append(mDomain.toString(offset, 2));
-		if (mIsHidden)
+		if (mMaybeHidden > 0)
 			sb.append('}');
 		sb.append(" -> ").append(mRange.toString(offset + 1, 0));
 		if (prec >= 1)

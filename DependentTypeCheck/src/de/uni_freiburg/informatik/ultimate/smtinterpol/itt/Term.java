@@ -76,7 +76,7 @@ public abstract class Term {
 	}
 
 	public String toString() {
-		return toString(1, 0);
+		return toString(0, 0);
 	}
 
 	public int numFreeVariables() {
@@ -105,7 +105,7 @@ public abstract class Term {
 		boolean result = me.isSubTypeHead(other);
 		if (!result) {
 			System.err.println("Not Subtype: " + me.evaluate());
-			System.err.println(" is !=   " + other.evaluate());
+			System.err.println(" is !=       " + other.evaluate());
 		}
 		return result;
 	}
@@ -152,10 +152,11 @@ public abstract class Term {
 			type = ((PiTerm) func.getType().evaluateHead()).mRange;
 			if (type.numFreeVariables() > 0) {
 				Substitution subst = new Substitution(new Term[] { arg }, 0);
-				type = Term.substitute(type, subst, type.getType());
+				type = Term.substitute(type, subst, null);
 			}
 		}
-		assert AppTerm.typecheck(func, arg).isSubType(type);
+		assert AppTerm.typecheck(func, arg).equals(type);
+		//System.err.println("Build: "+func.evaluate()+"."+arg.evaluate()+":"+type.evaluate());
 		return new AppTerm(func, arg, type);
 	}
 
@@ -172,18 +173,14 @@ public abstract class Term {
 		if (!(funcType instanceof PiTerm))
 			throw new IllegalArgumentException("Applying to a non-function");
 		PiTerm pi = (PiTerm) funcType;
-		while (pi.mIsHidden) {
-			numHidden++;
-			pi = (PiTerm) pi.mRange.evaluateHead();
+		Term ofunc = func;
+		func = pi.instantiateHiddenArguments(func, arg);
+		if (func != ofunc) {
+			System.err.println("OFunc:" + ofunc.evaluate());
+			System.err.println("NFunc:" + func.evaluate());
+			System.err.println("NPi:" + func.getType().evaluate());
 		}
-		if (numHidden > 0) {
-			Term[] hiddenArgs = new Term[numHidden];
-			PiTerm.substituteHidden(argType, pi.mDomain, hiddenArgs, 0);
-			for (int i = 0; i < numHidden; i++) {
-				func = Term.application(func, hiddenArgs[i], null);
-			}
-			pi = (PiTerm) func.getType().evaluateHead();
-		}
+		pi = (PiTerm) func.getType().evaluateHead();
 		if (!argType.isSubType(pi.mDomain))
 			throw new IllegalArgumentException(
 					"Argument has wrong type " + argType.evaluate() + 
@@ -200,9 +197,9 @@ public abstract class Term {
 	 * @return the labmda term.
 	 */
 	public static Term lambda(Term domain, Term value, Term type) {
-		assert type == null || LambdaTerm.typecheck(domain, value, ((PiTerm) type.evaluateHead()).mIsHidden).isSubType(type);
+		assert type == null || LambdaTerm.typecheck(domain, value).equals(type);
 		if (type == null)
-			type = LambdaTerm.typecheck(domain, value, false);
+			type = LambdaTerm.typecheck(domain, value);
 		return new LambdaTerm(domain, value, type);
 	}
 
@@ -214,11 +211,11 @@ public abstract class Term {
 	 * it is computed and checked.
 	 * @return the labmda term.
 	 */
-	public static Term pi(Term domain, Term range, Term type, boolean isHidden) {
-		assert type == null || PiTerm.typecheck(domain, range).isSubType(type);
+	public static Term pi(Term domain, Term range, Term type) {
+		assert type == null || PiTerm.typecheck(domain, range).equals(type);
 		if (type == null)
 			type = PiTerm.typecheck(domain, range);
-		return new PiTerm(domain, range, type, isHidden);
+		return new PiTerm(domain, range, type);
 	}
 
 	/**
@@ -230,17 +227,15 @@ public abstract class Term {
 	 * @return the labmda term.
 	 */
 	public static Term substitute(Term term, Substitution subst, Term type) {
-		assert type == null || SubstTerm.typecheck(term, subst).isSubType(type);
 		if (term.numFreeVariables() == 0)
 			return term;
 		if (subst.mShiftOffset == 0 && subst.mSubstTerms.length == 0
 				&& !(term instanceof Variable))
 			return term;
-		if (type == null)
-			type = SubstTerm.typecheck(term, subst);
 		Term substterm = new SubstTerm(term, subst, type);
 		if (term.mName != null)
 			substterm.mName = term.mName.substitute(subst);
+		assert type == null || substterm.evaluateHead().getType().equals(type);
 		return substterm;
 	}
 
@@ -275,7 +270,7 @@ public abstract class Term {
 			Term dom = pi.mDomain.evaluate();
 			Term rng = pi.mRange.evaluate();
 			if (dom != pi.mDomain || rng != pi.mRange) {
-				t = Term.pi(dom, rng, t.getType(), pi.mIsHidden);
+				t = Term.pi(dom, rng, t.getType());
 			}
 		} else if (t instanceof LambdaTerm) {
 			LambdaTerm lam = (LambdaTerm) t;

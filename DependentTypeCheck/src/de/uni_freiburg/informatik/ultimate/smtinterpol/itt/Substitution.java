@@ -14,16 +14,16 @@ public class Substitution {
 		mShiftOffset = offset;
 	}
 	
-	public String toString(int prec) {
+	public String toString(int offset, int prec) {
 		StringBuilder sb = new StringBuilder();
 		for (Term t : mSubstTerms)
-			sb.append(t.toString(1, 1)).append('.');
+			sb.append(t.toString(offset, 1)).append('.');
 		sb.append('^').append(mShiftOffset);
 		return sb.toString();
 	}
 
 	public String toString() {
-		return toString(0);
+		return toString(0, 0);
 	}
 
 	public static Substitution shift(int offset) {
@@ -61,9 +61,28 @@ public class Substitution {
 		return new Substitution(terms, second.mShiftOffset + 1);
 	}
 
+	/**
+	 * Compute the composition of two substitututions.  This is the 
+	 * substitution sigma, with term[first][second] = term[sigma] for all
+	 * terms.
+	 * @param first the first substitution.
+	 * @param second the second substitution.
+	 * @param maxVariable the maximum variable number occuring in the 
+	 * substituted terms.  This is used to shorten the substitution if
+	 * possible.
+	 * @return the composed substitution.
+	 */
 	public static Substitution compose(
 			Substitution first, Substitution second,
 			int maxVariable) {
+		/* Let first = f0...f{n-1}^fs and second = s0...s{m-1}^ss, where 
+		 * f0,...,f{n-1},s0,...,s{m-1} are terms and fs and ss numbers 
+		 * (the shift offsets).  If fs < m, then the composed substitution 
+		 * is f0[second]...f{n-1}[second].s{fs}....s{m-1}^{ss+fs-m}.
+		 * If fs >= m, then the composed substitution is
+		 * f1[second]...fn[second]^{ss}.
+		 * We set secondLen to the number of s{i} terms added. 
+		 */
 		int secondLen = Math.max(0, second.mSubstTerms.length
 				- first.mShiftOffset);
 		Term[] terms = new Term[Math.min(first.mSubstTerms.length + secondLen,

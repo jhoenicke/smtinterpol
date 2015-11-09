@@ -27,20 +27,19 @@ public class SubstTerm extends Term {
 		return mNumFreeVariables;
 	}
 
-	/**
-	 * Compute the type of a substituted term.  This is the type of 
-	 * the subterm substituted with the same substitution.
-	 * @param term the sub term.
-	 * @param subst the substitution.
-	 * @return the type of the SubstTerm.
-	 */
-	public static Term typecheck(Term term, Substitution subst) {
-		// TODO check substitution?
-		Term type = term.getType();
-		/* avoid deep recursions */
-		if (type.numFreeVariables() == 0)
-			return type;
-		return Term.substitute(type, subst, null);
+	public Term getType() {
+		if (mType == null) {
+			Term me = evaluateHead();
+			if (me == this) {
+				assert mSubstitution.mSubstTerms.length == 0;
+ 				mType = Term.substitute(mSubTerm.getType(),	
+ 						Substitution.shift(mSubstitution.mShiftOffset),
+ 						null);
+			} else {
+				mType = me.getType();
+			}
+		}
+		return mType;
 	}
 	
 	@Override
@@ -53,38 +52,40 @@ public class SubstTerm extends Term {
 			evaluated = Term.substitute(subsubst.mSubTerm,
 					Substitution.compose(subsubst.mSubstitution, mSubstitution,
 							subsubst.mSubTerm.numFreeVariables()),
-							getType());
+							mType);
 		} else if (mSubTerm instanceof AppTerm) {
 			AppTerm app = (AppTerm) mSubTerm;
 			evaluated = Term.application(
 					Term.substitute(app.mFunc, mSubstitution, null),
 					Term.substitute(app.mArg, mSubstitution, null), 
-					getType());
+					mType);
 		} else if (mSubTerm instanceof LambdaTerm) {
 			LambdaTerm lam = (LambdaTerm) mSubTerm;
 			Term substArg = Term.substitute(lam.mArgType, mSubstitution, null);
 			Substitution shifted = Substitution.consShifted(
 					Term.variable(0, substArg), mSubstitution,
 					lam.mSubTerm.numFreeVariables());
-			evaluated = new LambdaTerm(
+			evaluated = Term.lambda(
 					substArg,
 					Term.substitute(lam.mSubTerm, shifted, null), 
-					getType());
+					mType);
 		} else if (mSubTerm instanceof PiTerm) {
 			PiTerm pi = (PiTerm) mSubTerm;
 			Term substArg = Term.substitute(pi.mDomain, mSubstitution, null);
 			Substitution shifted = Substitution.consShifted(
 					Term.variable(0, substArg), mSubstitution,
 					pi.mRange.numFreeVariables());
-			evaluated = new PiTerm(
-					substArg,
+			evaluated = Term.pi(substArg,
 					Term.substitute(pi.mRange, shifted, null), 
-					getType(), pi.mIsHidden);
+					mType);
 		} else if (mSubTerm instanceof Variable) {
-			if (mSubstitution.mSubstTerms.length == 0)
+			if (mSubstitution.mSubstTerms.length == 0) {
 				return (mEvaluated = this);
-			else
+			} else {
+				assert mSubstitution.mSubstTerms[0].getType().isSubType(
+						Term.substitute(mSubTerm.getType(), mSubstitution, null));
 				evaluated = mSubstitution.mSubstTerms[0];
+			}
 		} else {
 			/* term is Universe, Constructor, RecOp, or InductiveType, 
 			 * or assumption */
@@ -112,9 +113,9 @@ public class SubstTerm extends Term {
 			return "@" + (offset - index - 1);
 		}
 		
-		String str = mSubTerm.toString(offset, 2) + "[" 
-				+ mSubstitution.toString(0) + "]";
-		return prec >= 2 ? "(" + str + ")" : str;
+		String str = mSubTerm.toString(offset, 3) + "[" 
+				+ mSubstitution.toString(offset, 0) + "]";
+		return prec >= 4 ? "(" + str + ")" : str;
 	}
 
 	@Override

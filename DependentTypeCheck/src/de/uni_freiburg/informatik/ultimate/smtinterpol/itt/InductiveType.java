@@ -9,19 +9,11 @@ public class InductiveType extends Term {
 	Constructor[] mConstrs;
 	RecOperator mRecOperator;
 	Term[] mParams;
-	boolean[] mHidden;
 	
 	public InductiveType(String name, Term type) {
 		super(type);
 		mName = name;
 		mParams = splitParams(type);
-		mHidden = new boolean[mParams.length];
-		Term t = type;
-		for (int i = 0; i < mHidden.length; i++) {
-			PiTerm pi = (PiTerm) t.evaluateHead();
-			mHidden[i] = pi.mIsHidden;
-			t = pi.mRange;
-		}
 		mNumShared = -1;
 		mConstrs = null;
 	}
