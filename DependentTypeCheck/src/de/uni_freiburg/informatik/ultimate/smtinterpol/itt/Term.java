@@ -49,6 +49,10 @@ public abstract class Term {
 	 */
 	Term mType;
 	/**
+	 * The free variable with the maximal index plus one.
+	 */
+	int mNumFreeVariables;
+	/**
 	 * The name of the term.  This is set for defined terms.
 	 */
 	PrettyTerm mName;
@@ -79,8 +83,8 @@ public abstract class Term {
 		return toString(0, 0);
 	}
 
-	public int numFreeVariables() {
-		return 0;
+	public final int numFreeVariables() {
+		return mNumFreeVariables;
 	}
 
 	protected abstract String toString(int offset, int prec);
@@ -156,7 +160,6 @@ public abstract class Term {
 			}
 		}
 		assert AppTerm.typecheck(func, arg).equals(type);
-		//System.err.println("Build: "+func.evaluate()+"."+arg.evaluate()+":"+type.evaluate());
 		return new AppTerm(func, arg, type);
 	}
 
@@ -167,19 +170,12 @@ public abstract class Term {
 	 * @return the application term
 	 */
 	public static Term buildApplication(Term func, Term arg) {
-		int numHidden = 0;
 		Term funcType = func.getType().evaluateHead();
 		Term argType = arg.getType().evaluateHead();
 		if (!(funcType instanceof PiTerm))
 			throw new IllegalArgumentException("Applying to a non-function");
 		PiTerm pi = (PiTerm) funcType;
-		Term ofunc = func;
 		func = pi.instantiateHiddenArguments(func, arg);
-		if (func != ofunc) {
-			System.err.println("OFunc:" + ofunc.evaluate());
-			System.err.println("NFunc:" + func.evaluate());
-			System.err.println("NPi:" + func.getType().evaluate());
-		}
 		pi = (PiTerm) func.getType().evaluateHead();
 		if (!argType.isSubType(pi.mDomain))
 			throw new IllegalArgumentException(

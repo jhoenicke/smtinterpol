@@ -13,7 +13,6 @@ public class SubstTerm extends Term {
 	Substitution mSubstitution;
 	
 	Term mEvaluated;
-	int mNumFreeVariables;
 	
 	public SubstTerm(Term term, Substitution subst, Term type) {
 		super(type);
@@ -22,11 +21,6 @@ public class SubstTerm extends Term {
 		mNumFreeVariables = subst.numFreeVariables(term.numFreeVariables());
 	}
 	
-	@Override
-	public int numFreeVariables() {
-		return mNumFreeVariables;
-	}
-
 	public Term getType() {
 		if (mType == null) {
 			Term me = evaluateHead();
@@ -49,10 +43,25 @@ public class SubstTerm extends Term {
 		Term evaluated;
 		if (mSubTerm instanceof SubstTerm) {
 			SubstTerm subsubst = (SubstTerm) mSubTerm;
-			evaluated = Term.substitute(subsubst.mSubTerm,
-					Substitution.compose(subsubst.mSubstitution, mSubstitution,
-							subsubst.mSubTerm.numFreeVariables()),
+			if (subsubst.mSubTerm instanceof Variable
+				&& subsubst.mSubstitution.mSubstTerms.length == 0) {
+				int offset = subsubst.mSubstitution.mShiftOffset;
+				if (offset < mSubstitution.mSubstTerms.length)
+					evaluated = mSubstitution.mSubstTerms[offset];
+				else {
+					offset += mSubstitution.mShiftOffset -
+							mSubstitution.mSubstTerms.length;
+					evaluated = Term.substitute(subsubst.mSubTerm,
+							Substitution.shift(offset),
 							mType);
+				}
+			} else {
+				evaluated = Term.substitute(subsubst.mSubTerm,
+						Substitution.compose(subsubst.mSubstitution, 
+								mSubstitution,
+								subsubst.mSubTerm.numFreeVariables()),
+						mType);
+			}
 		} else if (mSubTerm instanceof AppTerm) {
 			AppTerm app = (AppTerm) mSubTerm;
 			evaluated = Term.application(
@@ -101,7 +110,6 @@ public class SubstTerm extends Term {
 		mEvaluated = evaluated.evaluateHead();
 		assert !(mEvaluated instanceof SubstTerm) ||
 			(((SubstTerm) mEvaluated).mSubTerm instanceof Variable);
-		//System.err.println("EvaluateHead: "+this + " gives "+mEvaluated);
 		return mEvaluated;
 	}
 

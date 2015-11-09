@@ -13,7 +13,6 @@ package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
 public class PiTerm extends Term {
 	Term mDomain;
 	Term mRange;
-	int mNumFreeVariables;
 	/**
 	 * If this is non-zero it gives the position of the next argument
 	 * in mRange that contains this and all the following
@@ -32,15 +31,6 @@ public class PiTerm extends Term {
 		this.mMaybeHidden = checkHidden(range);
 		this.mNumFreeVariables = Math.max(mDomain.numFreeVariables(), 
 										  mRange.numFreeVariables() - 1);
-		if (mMaybeHidden > 0) {
-			//System.err.println("Hidden: " + mMaybeHidden +
-			//				   " in " + this.evaluate());
-		}
-	}
-	
-	@Override
-	public int numFreeVariables() {
-		return mNumFreeVariables;
 	}
 	
 	/**
@@ -154,9 +144,6 @@ public class PiTerm extends Term {
 	private boolean substituteHidden(Term argType, Term domType,
 									 Term[] hiddenArgs, int numHidden,
 									 int offset) {
-		//System.err.println("substHidden: "+domType.evaluate());
-		//System.err.println("and arg:     "+argType.evaluate());
-		//System.err.println("numH,offset: "+numHidden+","+offset);
 		argType = argType.evaluateHead();
 		domType = domType.evaluateHead();
 
@@ -181,8 +168,6 @@ public class PiTerm extends Term {
 						(argType, new Substitution(skipped, 0), null);
 				}
 				if (hiddenArgs[index] == null) {
-					//System.err.println("Found match: "+index+" = "+
-					//				   argType.evaluate());
 					hiddenArgs[index] = argType;
 					/* Substitute recursively. argType becomes the new
 					 * argType for index
@@ -244,8 +229,6 @@ public class PiTerm extends Term {
 			if (result != null)
 				return result;
 		}
-		System.err.println("checkHiddenArgs: "+hidden+","+evaluate());
-		//System.err.println("arg: "+arg.getType().evaluate());
 		
 		/* Check if we get a match on this level */
 		Term[] hiddenArgs = new Term[hidden];
@@ -254,18 +237,12 @@ public class PiTerm extends Term {
 			return null;
 		
 		for (int i = 0; i < hidden; i++) {
-			//System.err.println ("hidden "+i+": "+hiddenArgs[i].evaluate());
-			//System.err.println (" type  "+i+": "+hiddenArgs[i].getType().evaluate());
 			Term dom = ((PiTerm)func.getType().evaluateHead()).mDomain;
 			if (!hiddenArgs[i].getType().isSubType(dom)) {
-				System.err.println("MISMATCH! "+dom.evaluate());
 				return null;
 			}
-			//System.err.println("apply!");
 			func = new AppTerm(func, hiddenArgs[i]);
 		}
-		//System.err.println ("success: "+func.evaluate());
-		//System.err.println ("type: "+func.getType().evaluate());
 		return func;
 	}
 

@@ -78,9 +78,9 @@ public class Substitution {
 		/* Let first = f0...f{n-1}^fs and second = s0...s{m-1}^ss, where 
 		 * f0,...,f{n-1},s0,...,s{m-1} are terms and fs and ss numbers 
 		 * (the shift offsets).  If fs < m, then the composed substitution 
-		 * is f0[second]...f{n-1}[second].s{fs}....s{m-1}^{ss+fs-m}.
+		 * is f0[second]...f{n-1}[second].s{fs}....s{m-1}^{ss}.
 		 * If fs >= m, then the composed substitution is
-		 * f1[second]...fn[second]^{ss}.
+		 * f1[second]...fn[second]^{ss+fs-m}.
 		 * We set secondLen to the number of s{i} terms added. 
 		 */
 		int secondLen = Math.max(0, second.mSubstTerms.length

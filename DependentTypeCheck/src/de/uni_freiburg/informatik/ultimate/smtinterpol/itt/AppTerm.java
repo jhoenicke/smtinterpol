@@ -12,9 +12,7 @@ package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
  */
 public class AppTerm extends Term {
 	Term mFunc, mArg;
-	
 	Term mEvaluated;
-	int mNumFreeVariables;
 
 	public AppTerm(Term func, Term arg, Term type) {
 		super(type);
@@ -27,11 +25,6 @@ public class AppTerm extends Term {
 	
 	public AppTerm(Term func, Term arg) {
 		this(func, arg, typecheck(func, arg));
-	}
-	
-	@Override
-	public int numFreeVariables() {
-		return mNumFreeVariables;
 	}
 	
 	public static Term typecheck(Term func, Term arg) {
@@ -93,8 +86,8 @@ public class AppTerm extends Term {
 	}
 
 	public String toString(int offset, int prec) {
-		if (mName != null)
-			return mName.toString(offset, prec);
+		//if (mName != null)
+		//	return mName.toString(offset, prec);
 		String str = mFunc.toString(offset, 2) + " " 
 				+ mArg.toString(offset, 3);
 		return prec >= 3 ? "(" + str + ")" : str;

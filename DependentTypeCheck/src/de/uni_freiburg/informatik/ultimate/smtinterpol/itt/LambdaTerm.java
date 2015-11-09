@@ -18,8 +18,6 @@ public class LambdaTerm extends Term {
 	Term mArgType;
 	Term mSubTerm;
 	
-	int mNumFreeVariables;
-
 	public LambdaTerm(Term argType, Term subTerm) {
 		this(argType, subTerm, typecheck(argType, subTerm));
 	}
@@ -31,11 +29,6 @@ public class LambdaTerm extends Term {
 		mSubTerm = subTerm;
 		mNumFreeVariables = Math.max(mArgType.numFreeVariables(), 
 				mSubTerm.numFreeVariables() - 1);
-	}
-	
-	@Override
-	public int numFreeVariables() {
-		return mNumFreeVariables;
 	}
 	
 	public static Term typecheck(Term argType, Term subTerm) {
