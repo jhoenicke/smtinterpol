@@ -1,6 +1,3 @@
-Inductive Prop : prop:U -> U =
-  mk: Prop prop
-
 Inductive T : U = tt:T
 Inductive F : U =
 
@@ -26,6 +23,12 @@ Definition Sigma.2 = {\A:U} {\B:(A->U)} ->
 Inductive I : {A:U} -> a:A -> b:A -> U =
   r : I a a
 Definition T.eq = T.rec (\t1:T -> t2:T -> I t1 t2) (T.rec (I T.tt) (I.r T.tt))
+
+Inductive Prop : prop:U -> U =
+  mk: Prop prop
+Definition Prop.eq = \P:U ->
+  Prop.rec (\p1: Prop P -> p2:Prop P -> I p1 p2)
+     (Prop.rec (I (Prop.mk P)) (I.r (Prop.mk P)))
 
 Definition I.subst = {\A:U} {\a:A} {\b:A} \eq:I a b \C:(A -> U) ->
     I.rec (\x:A \_:I a x -> C a -> C x)
@@ -63,7 +66,7 @@ Definition I.cong3 = {\A:U} {\B:U} {\C:U} {\D:U} \f:(A->B->C->D)
   I.subst eq1 (\x:A -> I (f a1 b1 c1) (f x b2 c2)) (I.cong2 (f a1) eq2 eq3)
 
 Inductive Bool : U = tt:Bool, ff:Bool
-Definition Bool.ite = \b:Bool {\C:U} \t:C \e:C ->
+Definition Bool.ite = \b:Bool {\C:U1} \t:C \e:C ->
   Bool.rec (\_:Bool -> C) t e b
 
 ;===========================================
@@ -277,7 +280,7 @@ Definition Term.substn.shiftn.id =
     (\vt:VarType \n:Nat \N:Term -> I.r (Term.univ vt))
 Definition Term.shiftvar.subst.id = \M:Term \N:Term ->
   Term.substn.shiftn.id M Nat.0 N
-	     
+
 ;; Lemma 2: Arbitrary Substitution on M.shift
 ;; I (Term.substn (Term.shiftvar M) (Nat.s i) N)
 ;;   (Term.shiftvar (Term.substn M i N))
@@ -1104,9 +1107,14 @@ Definition Normalize.arg2 =
 Definition Bool.cases = {\A1:U} {\B1:U} \f1:(A1 -> B1)
 	                {\A2:U} {\B2:U} \f2:(A2 -> B2) ->
   Bool.rec (\b:Bool -> Bool.ite b A1 A2 -> Bool.ite b B1 B2) f1 f2
+TypeCheck Bool.cases :
+  A1:U -> B1:U -> (A1->B1) -> A2:U -> B2:U -> (A2->B2) ->
+  b:Bool -> (Bool.ite b A1 A2) -> (Bool.ite b B1 B2)
 Definition Bool.case = \b:Bool \A:U -> Bool.ite b A T
 Definition Bool.case.cong = {\A:U} {\B:U} \f:(A -> B) ->
-  Bool.cases f (\x:T -> x)
+  Bool.cases f T (\x:T -> x)
+TypeCheck Bool.case.cong : A:U -> B:U -> (A->B) ->
+  b:Bool -> (Bool.case b A) -> (Bool.case b B)
 Definition Bool.case.in = {\A1:U} {\B:U} \f1:(A1 -> B) {\A2:U} \f2:(A2 -> B) ->
   Bool.rec (\b:Bool -> Bool.ite b A1 A2 -> B) f1 f2
 
@@ -1217,8 +1225,7 @@ Definition Normalize.case.eq =
      Let eq = (Assume I (Term.isLam M1) Bool.ff) ->
      I.rsubst eq (\x:Bool ->
 	 I (Normalize.case.app (SN.sn n1) (SN.sn n2)
-	   x (I.r x) (Normalized.arg3 n))
-
+	   x (I.r x) (Normalize.arg3 n))
 
 Bool.rec (\b:Bool -> I (Term.isLam M1') b -> Thesis n)
      	(\eq:I (Term.isLam M1') Bool.tt ->

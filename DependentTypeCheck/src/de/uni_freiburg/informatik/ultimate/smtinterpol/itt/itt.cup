@@ -20,7 +20,6 @@
 
 package de.uni_freiburg.informatik.ultimate.smtinterpol.itt;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.HashMap;
 import java_cup.runtime.Symbol;
 
