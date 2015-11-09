@@ -25,7 +25,7 @@ public class PiTerm extends Term {
 	}
 	public PiTerm(Term domain, Term range, Term type) {
 		super(type);
-		assert typecheck(domain, range).isSubType(type);
+		assert typecheck(domain, range).equals(type);
 		this.mDomain = domain;
 		this.mRange = range;
 		this.mMaybeHidden = checkHidden(range);

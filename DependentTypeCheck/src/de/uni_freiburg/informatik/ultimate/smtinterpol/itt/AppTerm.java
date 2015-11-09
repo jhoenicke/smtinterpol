@@ -16,7 +16,8 @@ public class AppTerm extends Term {
 
 	public AppTerm(Term func, Term arg, Term type) {
 		super(type);
-		assert typecheck(func, arg).isSubType(type);
+		//Expensive assert:
+		//assert typecheck(func, arg).equals(type);
 		mFunc = func;
 		mArg = arg;
 		mNumFreeVariables = 

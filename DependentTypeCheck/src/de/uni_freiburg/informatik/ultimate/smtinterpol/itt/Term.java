@@ -159,7 +159,6 @@ public abstract class Term {
 				type = Term.substitute(type, subst, null);
 			}
 		}
-		assert AppTerm.typecheck(func, arg).equals(type);
 		return new AppTerm(func, arg, type);
 	}
 
