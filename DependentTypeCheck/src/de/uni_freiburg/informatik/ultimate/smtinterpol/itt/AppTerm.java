@@ -87,8 +87,8 @@ public class AppTerm extends Term {
 	}
 
 	public String toString(int offset, int prec) {
-		//if (mName != null)
-		//	return mName.toString(offset, prec);
+		if (mName != null)
+			return mName.toString(offset, prec);
 		String str = mFunc.toString(offset, 2) + " " 
 				+ mArg.toString(offset, 3);
 		return prec >= 3 ? "(" + str + ")" : str;

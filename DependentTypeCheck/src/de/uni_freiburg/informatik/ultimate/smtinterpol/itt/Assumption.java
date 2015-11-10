@@ -4,6 +4,7 @@ public class Assumption extends Term {
 	public Assumption(String name, Term type) {
 		super(type);
 		setName(name);
+		mNumFreeVariables = type.numFreeVariables();
 	}
 
 	@Override

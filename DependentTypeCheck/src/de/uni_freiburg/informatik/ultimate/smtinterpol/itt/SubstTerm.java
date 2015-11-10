@@ -95,6 +95,10 @@ public class SubstTerm extends Term {
 						Term.substitute(mSubTerm.getType(), mSubstitution, null));
 				evaluated = mSubstitution.mSubstTerms[0];
 			}
+		} else if (mSubTerm instanceof Assumption) {
+			Assumption assump = (Assumption) mSubTerm;
+			evaluated = new Assumption(assump.toString(), 
+					Term.substitute(assump.getType(), mSubstitution, null));
 		} else {
 			/* term is Universe, Constructor, RecOp, or InductiveType, 
 			 * or assumption */

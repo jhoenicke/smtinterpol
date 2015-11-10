@@ -21,4 +21,8 @@ public class LocalInfo {
 		this.mTerm = term;
 		this.mIsLet = isLet;
 	}
+	
+	public String toString() {
+		return mName;
+	}
 }
