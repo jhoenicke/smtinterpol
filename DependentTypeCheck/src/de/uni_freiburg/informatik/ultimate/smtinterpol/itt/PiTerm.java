@@ -238,7 +238,8 @@ public class PiTerm extends Term {
 		
 		for (int i = 0; i < hidden; i++) {
 			Term dom = ((PiTerm)func.getType().evaluateHead()).mDomain;
-			if (!hiddenArgs[i].getType().isSubType(dom)) {
+			if (hiddenArgs[i] == null
+				|| !hiddenArgs[i].getType().isSubType(dom)) {
 				return null;
 			}
 			func = new AppTerm(func, hiddenArgs[i]);
