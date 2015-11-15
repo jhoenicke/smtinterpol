@@ -41,7 +41,7 @@ public class RecOperator extends Term {
 					constrShift, null);
 			constrArgTypes[i] = privArgType;
 			Term var = Term.variable(numPriv - i, privArgType);
-			constrShift = Substitution.consShifted(Term.variable(0, privArgType), 
+			constrShift = Substitution.consShifted(privArgType, 
 					constrShift, Integer.MAX_VALUE);
 			result = Term.application(result, var, null);
 		}

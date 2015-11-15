@@ -233,7 +233,7 @@ public class Constructor extends Term {
 			caseParams.add(param);
 
 			// update reorder substitution to handle the parameter.
-			reorderVars = Substitution.consShifted(Term.variable(0, param),
+			reorderVars = Substitution.consShifted(param,
 					reorderVars, Integer.MAX_VALUE);
 			offset++;
 			if (isTC(param)) {

@@ -37,9 +37,7 @@ public class AppTerm extends Term {
 		if (!arg.getType().isSubType(pi.mDomain))
 			throw new IllegalArgumentException("Typecheck: function parameter has wrong type");
 		// note that type != null
-		return Term.substitute(
-				pi.mRange, Substitution.cons(arg, Substitution.shift(0), pi.mRange.numFreeVariables()), 
-				null);
+		return Term.substitute(pi.mRange, Substitution.unit(arg), null);
 	}
 
 	@Override
@@ -59,9 +57,8 @@ public class AppTerm extends Term {
 		}
 		if (f instanceof LambdaTerm) {
 			Term head = Term.substitute(((LambdaTerm) f).mSubTerm, 
-					Substitution.cons(a, Substitution.shift(0), 
-							((LambdaTerm) f).mSubTerm.numFreeVariables()),
-										getType());
+					Substitution.unit(a),
+					getType());
 			head.mName = name;
 			return head.evaluateHead();
 		}

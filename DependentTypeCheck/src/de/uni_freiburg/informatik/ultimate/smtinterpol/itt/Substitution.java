@@ -37,25 +37,17 @@ public class Substitution {
 		return sShifts[offset];
 	}
 	
-	public static Substitution cons(Term first, Substitution second, 
-			int maxVariable) {
-		Term[] terms = new Term[Math.min(maxVariable,
-				second.mSubstTerms.length + 1)];
-		if (terms.length == 0)
-			return shift(second.mShiftOffset);
-		terms[0] = first;
-		for (int i = 1; i < terms.length; i++)
-			terms[i] = second.mSubstTerms[i - 1];
-		return new Substitution(terms, second.mShiftOffset);
+	public static Substitution unit(Term first) {
+		return new Substitution(new Term[] { first }, 0);
 	}
 
-	public static Substitution consShifted(Term first, Substitution second, 
+	public static Substitution consShifted(Term varType, Substitution second, 
 			int maxVariable) {
 		Term[] terms = new Term[Math.min(maxVariable,
 				second.mSubstTerms.length + 1)];
 		if (terms.length == 0)
 			return shift(second.mShiftOffset);
-		terms[0] = first;
+		terms[0] = Term.variable(0,  varType);
 		for (int i = 1; i < terms.length; i++)
 			terms[i] = Term.substitute(second.mSubstTerms[i - 1], shift(1), null);
 		return new Substitution(terms, second.mShiftOffset + 1);

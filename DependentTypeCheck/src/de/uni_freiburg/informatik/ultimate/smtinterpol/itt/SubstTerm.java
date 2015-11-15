@@ -72,7 +72,7 @@ public class SubstTerm extends Term {
 			LambdaTerm lam = (LambdaTerm) mSubTerm;
 			Term substArg = Term.substitute(lam.mArgType, mSubstitution, null);
 			Substitution shifted = Substitution.consShifted(
-					Term.variable(0, substArg), mSubstitution,
+					substArg, mSubstitution,
 					lam.mSubTerm.numFreeVariables());
 			evaluated = Term.lambda(
 					substArg,
@@ -82,7 +82,7 @@ public class SubstTerm extends Term {
 			PiTerm pi = (PiTerm) mSubTerm;
 			Term substArg = Term.substitute(pi.mDomain, mSubstitution, null);
 			Substitution shifted = Substitution.consShifted(
-					Term.variable(0, substArg), mSubstitution,
+					substArg, mSubstitution,
 					pi.mRange.numFreeVariables());
 			evaluated = Term.pi(substArg,
 					Term.substitute(pi.mRange, shifted, null), 
