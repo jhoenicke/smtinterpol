@@ -1067,14 +1067,6 @@ Definition ConvStep.substn =
      \n2:Nat \N2:Term ->
      ConvStep.app2 (Term.substn T n2 N2) (hyp n2 N2))
 
-Definition ConvStep.var = \vt:VarType \i:Nat ->
-  \M':Term \step: ConvStep (Term.var vt i) M' ->
-  Assume F
-Definition ConvStep.univ = \vt:VarType
-  \M':Term \step: ConvStep (Term.univ vt) M' ->
-  Assume F
-  
-
 Inductive SN : Term -> U =
   def   : M:Term -> (M':Term -> ConvStep M M' -> SN M') -> SN M
 
@@ -1315,14 +1307,17 @@ Definition SN.step =
     (\vt:VarType ->
      Norm (Normalized.mk (Term.univ vt) Normalized.* Normalized.* T.tt))
 
+Definition SN.normalized.step =
+  \t:Term \Hyp:(t':Term -> ConvStep t t' -> Sigma Normalized) ->
+  +.rec (\_: + (Normalized t) (Sigma (ConvStep t)) -> Sigma Normalized)
+        (\n:Normalized t -> Sigma.mk Normalized n)
+	(\step:Sigma (ConvStep t) -> Hyp (Sigma.2 step))
+
 Definition SN.normalized.aux =
   SN.rec (\t:Term \snt:SN t -> Sigma Normalized)
     (\t:Term \f:(t':Term -> ConvStep t t' -> SN t')
      \Hyp:(t':Term -> step:ConvStep t t' -> Sigma Normalized) ->
-     +.rec (\_: + (Normalized t) (Sigma (ConvStep t)) -> Sigma Normalized)
-        (\n:Normalized t -> Sigma.mk Normalized n)
-	(\step:Sigma (ConvStep t) -> Hyp (Sigma.2 step))
-	(SN.step t))
+     SN.normalized.step t Hyp (SN.step t))
 Definition SN.normalized = \t:Term \snt:SN t -> Sigma.1 (SN.normalized.aux snt)
 
 Inductive ConvStep* : Term -> Term -> U =
@@ -1330,20 +1325,594 @@ Inductive ConvStep* : Term -> Term -> U =
   cons: t:Term -> t':Term -> ConvStep t t' -> t'':Term -> ConvStep* t' t'' ->
         ConvStep* t t''
 
+Definition ConvStep*.app =
+  ConvStep*.rec (\t:Term \t':Term \_:ConvStep* t t' ->
+  	        t'':Term -> ConvStep* t' t'' -> ConvStep* t t'')
+    (\t:Term \t'':Term \step2:ConvStep* t t'' -> step2)
+    (\t:Term \t':Term \step0:ConvStep t t' \t'':Term \step1:ConvStep* t' t''
+     \Hyp:(t''':Term -> ConvStep* t'' t''' -> ConvStep* t' t''')
+     \t''':Term \step2:ConvStep* t'' t''' ->
+     ConvStep*.cons step0 (Hyp t''' step2))
+
+Definition ConvStep*.lift =
+  \f:(Term -> Term)
+  \liftstep:(t:Term -> t':Term -> ConvStep t t' -> ConvStep (f t) (f t')) ->
+  Let Thesis = (\t:Term \t':Term \_:ConvStep* t t' -> ConvStep* (f t) (f t')) ->
+  ConvStep*.rec Thesis
+    (\t:Term -> ConvStep*.id (f t))
+    (\t:Term \t':Term \step:ConvStep t t'
+     \t'':Term \path:ConvStep* t' t'' \Hyp:Thesis path ->
+     ConvStep*.cons (liftstep step) Hyp)
+  
+Definition ConvStep*.lam1 =
+  \vt:VarType \t:Term \t':Term \path: ConvStep* t t' \m:Term ->
+  ConvStep*.lift (\t:Term -> Term.lam vt t m)
+  		 (\t:Term \t':Term \st:ConvStep t t' -> ConvStep.lam1 vt st m)
+		 path
+Definition ConvStep*.lam2 =
+  \vt:VarType \t:Term ->
+  ConvStep*.lift (\m:Term -> Term.lam vt t m)
+  		 (\m:Term \m':Term \st:ConvStep m m' -> ConvStep.lam2 vt st t)
+Definition ConvStep*.pi1 =
+  \vt:VarType \t:Term \t':Term \path: ConvStep* t t' \m:Term ->
+  ConvStep*.lift (\t:Term -> Term.pi vt t m)
+  		 (\t:Term \t':Term \st:ConvStep t t' -> ConvStep.pi1 vt st m)
+		 path
+Definition ConvStep*.pi2 =
+  \vt:VarType \t:Term ->
+  ConvStep*.lift (\m:Term -> Term.pi vt t m)
+  		 (\m:Term \m':Term \st:ConvStep m m' -> ConvStep.pi2 vt st t)
+Definition ConvStep*.app1 =
+  \t:Term \t':Term \path: ConvStep* t t' \m:Term ->
+  ConvStep*.lift (\t:Term -> Term.app t m)
+  		 (\t:Term \t':Term \st:ConvStep t t' -> ConvStep.app1 st m)
+		 path
+Definition ConvStep*.app2 =
+  \t:Term ->
+  ConvStep*.lift (\m:Term -> Term.app t m)
+  		 (\m:Term \m':Term \st:ConvStep m m' -> ConvStep.app2 t st)
+Definition ConvStep*.shiftn =
+  \t:Term \t':Term \path:ConvStep* t t' \n:Nat ->
+  ConvStep*.lift (\m:Term -> Term.shiftn m n)
+  		 (\m:Term \m':Term \st:ConvStep m m' -> ConvStep.shiftn st n)
+		 path
+
+Definition ConvStep*.substn.2 = \N:Term \N':Term \step:ConvStep N N'
+  Let Thesis = (\M:Term -> n:Nat ->
+      ConvStep* (Term.substn M n N) (Term.substn M n N')) ->
+  Term.rec Thesis
+    (\vt:VarType \t:Term \HypT:Thesis t \m:Term \HypM:Thesis m
+     \n:Nat ->
+     ConvStep*.app (ConvStep*.lam1 vt (HypT n) (Term.substn m (Nat.s n) N)) 
+     		   (ConvStep*.lam2 vt (Term.substn t n N') (HypM (Nat.s n))))
+    (\vt:VarType \t:Term \HypT:Thesis t \m:Term \HypM:Thesis m
+     \n:Nat ->
+     ConvStep*.app (ConvStep*.pi1 vt (HypT n) (Term.substn m (Nat.s n) N)) 
+     		   (ConvStep*.pi2 vt (Term.substn t n N') (HypM (Nat.s n))))
+    (\t:Term \HypT:Thesis t \m:Term \HypM:Thesis m \n:Nat ->
+     ConvStep*.app (ConvStep*.app1 (HypT n) (Term.substn m n N)) 
+     		   (ConvStep*.app2 (Term.substn t n N') (HypM n)))
+    (\vt:VarType \i:Nat \n:Nat ->
+     Let Aux = (\n:Nat \i:Nat ->
+          ConvStep* (Term.var.substn vt N n i) (Term.var.substn vt N' n i)) ->
+     Nat.rec (\n:Nat -> i:Nat -> Aux n i)
+        (Nat.rec (\i:Nat -> Aux Nat.0 i)
+	   (ConvStep*.cons step (ConvStep*.id N'))
+           (\i:Nat \_:Aux Nat.0 i -> ConvStep*.id (Term.var vt i)))
+        (\n:Nat \Hyp:(i:Nat -> Aux n i) ->
+          Nat.rec (\i:Nat -> Aux (Nat.s n) i)
+             (ConvStep*.id (Term.var vt Nat.0))
+             (\i:Nat \_:(Aux (Nat.s n) i) ->
+	      ConvStep*.shiftn (Hyp i) Nat.0))
+     n i)
+    (\vt:VarType \n:Nat -> ConvStep*.id (Term.univ vt))
+
 Definition SN.steps =
   Let Thesis = (\t:Term \snt:SN t -> ConvStep* t (SN.normalized snt)) ->
   SN.rec Thesis
     (\t:Term \f:(t':Term -> ConvStep t t' -> SN t')
      \Hyp:(t':Term -> step:ConvStep t t' -> Thesis (f step)) ->
-     +.rec (\_: + (Normalized t) (Sigma (ConvStep t)) -> Thesis (SN.def f))
+     Let step.aux = SN.normalized.step t
+     	 (\t':Term \step:ConvStep t t' -> SN.normalized.aux (f t' step)) ->
+     Let Th2 = (\stept:+ (Normalized t) (Sigma (ConvStep t))  ->
+       ConvStep* t (Sigma.1 (step.aux stept))) ->
+     +.rec Th2
         (\n:Normalized t -> ConvStep*.id t)
 	(\step:Sigma (ConvStep t) ->
 	  ConvStep*.cons (Sigma.2 step) (Hyp (Sigma.2 step)))
 	(SN.step t))
-  
+
+Definition ConvStep.confluent.beta.lam1 =
+  \vt:VarType \t:Term \m:Term \n:Term \m':Term
+  \step:ConvStep (Term.lam vt t m) m' ->
+  Let Goal = (\m': Term ->
+      \t'':Term -> * (ConvStep* (Term.subst m n) t'')
+		     (ConvStep* (Term.app m' n) t'')) ->
+  Let Thesis = (\lamtm:Term \m':Term \_:ConvStep lamtm m' ->
+    I (Term.lam vt t m) lamtm -> Sigma (Goal m')) ->
+  ConvStep.rec Thesis
+    (\vt1:VarType \t1:Term \m1:Term \n1:Term
+     \eq:I (Term.lam vt t m) (Term.app (Term.lam vt1 t1 m1) n1) ->
+     F.rec (\_:F -> Sigma (Goal (Term.subst m1 n1)))
+       (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+    (\vt1:VarType \t1:Term \t1':Term \st:ConvStep t1 t1' \_:Thesis st \m1:Term
+     \eq:I (Term.lam vt t m) (Term.lam vt1 t1 m1) ->
+     Sigma.mk (Goal (Term.lam vt1 t1' m1))
+       (Term.subst m n)
+       (*.mk (ConvStep*.id (Term.subst m n))
+       	     (I.rsubst eq
+       	  (\x:Term -> ConvStep* (Term.app (Term.lam vt1 t1' m1) n)
+	  	                (Term.subst (Term.arg2 x) n))
+	  (ConvStep*.cons (ConvStep.beta vt1 t1' m1 n)
+			  (ConvStep*.id (Term.subst m1 n))))))
+    (\vt1:VarType \m1:Term \m1':Term \st:ConvStep m1 m1' \_:Thesis st \t1:Term
+     \eq:I (Term.lam vt t m) (Term.lam vt1 t1 m1) ->
+     Sigma.mk (Goal (Term.lam vt1 t1 m1'))
+       (I.rsubst eq 
+       	 (\x:Term -> * (ConvStep* (Term.subst (Term.arg2 x) n) (Term.subst m1' n))
+	 	       (ConvStep* (Term.app (Term.lam vt1 t1 m1') n)
+		       		  (Term.subst m1' n)))
+        (*.mk (ConvStep*.cons (ConvStep.substn st Nat.0 n)
+			      (ConvStep*.id (Term.subst m1' n)))
+	      (ConvStep*.cons (ConvStep.beta vt1 t1 m1' n)
+			      (ConvStep*.id (Term.subst m1' n))))))
+    (\vt1:VarType \t1:Term \t1':Term \st:ConvStep t1 t1' \_:Thesis st \m1:Term
+     \eq:I (Term.lam vt t m) (Term.pi vt1 t1 m1) ->
+     F.rec (\_:F -> Sigma (Goal (Term.pi vt1 t1' m1)))
+       (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+    (\vt1:VarType \m1:Term \m1':Term \st:ConvStep m1 m1' \_:Thesis st \t1:Term
+     \eq:I (Term.lam vt t m) (Term.pi vt1 t1 m1) ->
+     F.rec (\_:F -> Sigma (Goal (Term.pi vt1 t1 m1')))
+       (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+    (\t1:Term \t1':Term \st:ConvStep t1 t1' \_:Thesis st \m1:Term
+     \eq:I (Term.lam vt t m) (Term.app t1 m1) ->
+     F.rec (\_:F -> Sigma (Goal (Term.app t1' m1)))
+       (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+    (\t1:Term \m1:Term \m1':Term \st:ConvStep m1 m1' \_:Thesis st
+     \eq:I (Term.lam vt t m) (Term.app t1 m1) ->
+     F.rec (\_:F -> Sigma (Goal (Term.app t1 m1')))
+       (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+    step (I.r (Term.lam vt t m))
+       
+Definition ConvStep.confluent.beta.lam2 =
+  Let Confluence = (\t1:Term \t2:Term \t':Term ->
+                    * (ConvStep* t1 t') (ConvStep* t2 t')) ->
+  \vt:VarType \t:Term \m:Term \n:Term \n':Term
+  \step:ConvStep n n' ->
+  Sigma.mk (Confluence (Term.subst m n) (Term.app (Term.lam vt t m) n'))
+    (*.mk (ConvStep*.substn.2 step m Nat.0)
+    	  (ConvStep*.cons (ConvStep.beta vt t m n')
+	  		  (ConvStep*.id (Term.subst m n'))))
 
 Definition SN.confluent =
-  ConvStep.rec (\t:Term \t':Term \_:ConvStep t t' -> SN t ->)
+  Let Confluence = (\t1:Term \t2:Term \t':Term ->
+                    * (ConvStep* t1 t') (ConvStep* t2 t')) ->
+  Let Thesis = (\t1:Term \t2:Term -> Sigma (Confluence t1 t2))
+  Let Th1 = (\t:Term \t1:Term \_:ConvStep t t1 ->
+             t2:Term -> ConvStep t t2 -> Thesis t1 t2) ->
+  ConvStep.rec Th1
+    (\vt1:VarType \t1:Term \m1:Term \n1:Term ->
+     \t2:Term \step2:ConvStep (Term.app (Term.lam vt1 t1 m1) n1) t2 ->
+     Let Th2 = (\t:Term \t2:Term \_:ConvStep t t2 ->
+                   I (Term.app (Term.lam vt1 t1 m1) n1) t ->
+		   Thesis (Term.subst m1 n1) t2) ->
+     ConvStep.rec Th2
+       (\vt2:VarType \t2:Term \m2:Term \n2:Term
+        \eq:I (Term.app (Term.lam vt1 t1 m1) n1)
+	      (Term.app (Term.lam vt2 t2 m2) n2) ->
+	Sigma.mk (Confluence (Term.subst m1 n1) (Term.subst m2 n2))
+	(*.mk (ConvStep*.id (Term.subst m1 n1))
+	     (I.subst eq (\x:Term ->
+	       ConvStep* (Term.subst (Term.arg2 (Term.arg1 x)) (Term.arg2 x))
+	   	         (Term.subst m1 n1))
+	       (ConvStep*.id (Term.subst m1 n1)))))
+       (\vt2:VarType \t2:Term \t2':Term \step:ConvStep t2 t2' \_:Th2 step
+        \m2:Term
+        \eq:I (Term.app (Term.lam vt1 t1 m1) n1) (Term.lam vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.subst m1 n1) (Term.lam vt2 t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+       (\vt2:VarType \m2:Term \m2':Term \step:ConvStep m2 m2' \_:Th2 step
+        \t2:Term
+        \eq:I (Term.app (Term.lam vt1 t1 m1) n1) (Term.lam vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.subst m1 n1) (Term.lam vt2 t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+       (\vt2:VarType \t2:Term \t2':Term \step:ConvStep t2 t2' \_:Th2 step
+        \m2:Term
+        \eq:I (Term.app (Term.lam vt1 t1 m1) n1) (Term.pi vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.subst m1 n1) (Term.pi vt2 t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+       (\vt2:VarType \m2:Term \m2':Term \step:ConvStep m2 m2' \_:Th2 step
+        \t2:Term
+        \eq:I (Term.app (Term.lam vt1 t1 m1) n1) (Term.pi vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.subst m1 n1) (Term.pi vt2 t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+       (\m2:Term \m2':Term \step:ConvStep m2 m2' \_:Th2 step \n2:Term
+        \eq:I (Term.app (Term.lam vt1 t1 m1) n1) (Term.app m2 n2) ->
+	(I.subst eq
+	  (\x:Term ->
+	   ConvStep (Term.arg1 x) m2' ->
+	   Thesis (Term.subst m1 n1) (Term.app m2' (Term.arg2 x)))
+	  (ConvStep.confluent.beta.lam1 vt1 t1 m1 n1 m2')
+	  step))
+       (\m2:Term \n2:Term \n2':Term \step:ConvStep n2 n2' \_:Th2 step
+        \eq:I (Term.app (Term.lam vt1 t1 m1) n1) (Term.app m2 n2) ->
+	(I.subst eq
+	  (\x:Term ->
+	   ConvStep (Term.arg2 x) n2' ->
+	   Thesis (Term.subst m1 n1) (Term.app (Term.arg1 x) n2'))
+	  (ConvStep.confluent.beta.lam2 vt1 t1 m1 n1 n2')
+	  step))
+       (Term.app (Term.lam vt1 t1 m1) n1) t2 step2
+       (I.r (Term.app (Term.lam vt1 t1 m1) n1)))
+    (\vt1:VarType \t1:Term \t1':Term \step1: ConvStep t1 t1' \Hyp:Th1 step1
+     \m1:Term
+     \t2:Term \step2:ConvStep (Term.lam vt1 t1 m1) t2 ->
+     Let Th2 = (\t:Term \t2:Term \_:ConvStep t t2 ->
+                   I (Term.lam vt1 t1 m1) t ->
+		   Thesis (Term.lam vt1 t1' m1) t2) ->
+     ConvStep.rec Th2
+       (\vt2:VarType \t2:Term \m2:Term \n2:Term
+        \eq:I (Term.lam vt1 t1 m1)
+	      (Term.app (Term.lam vt2 t2 m2) n2) ->
+	F.rec (\_:F -> Thesis (Term.lam vt1 t1' m1) (Term.subst m2 n2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+       (\vt2:VarType \t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.lam vt1 t1 m1) (Term.lam vt2 t2 m2) ->
+	Let Hyp1 = Hyp (I.rsubst eq (\x:Term -> ConvStep (Term.arg1 x) t2')
+	               		 step2) ->
+	I.subst eq (\x:Term ->
+	  Sigma (Confluence (Term.lam vt1 t1' m1)
+	  		    (Term.lam (Term.vt x) t2' (Term.arg2 x))))
+	(Sigma.mk (Confluence (Term.lam vt1 t1' m1) (Term.lam vt1 t2' m1))
+	  (Term.lam vt1 (Sigma.1 Hyp1) m1)
+	  (*.mk (ConvStep*.lam1 vt1 (*.1 (Sigma.2 Hyp1)) m1)
+	  	(ConvStep*.lam1 vt1 (*.2 (Sigma.2 Hyp1)) m1))))
+       (\vt2:VarType \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \t2:Term
+        \eq:I (Term.lam vt1 t1 m1) (Term.lam vt2 t2 m2) ->
+	Sigma.mk (Confluence (Term.lam vt1 t1' m1) (Term.lam vt2 t2 m2'))
+	  (Term.lam vt1 t1' m2')
+	  (*.mk (ConvStep*.cons (I.rsubst eq
+                       (\x:Term -> ConvStep (Term.lam vt1 t1' (Term.arg2 x))
+					    (Term.lam vt1 t1' m2'))
+		       (ConvStep.lam2 vt1 step2 t1'))
+		    (ConvStep*.id (Term.lam vt1 t1' m2')))
+		(ConvStep*.cons (I.subst eq
+                       (\x:Term -> ConvStep (Term.lam (Term.vt x) (Term.arg1 x)
+		       		   	    	      m2')
+					    (Term.lam vt1 t1' m2'))
+		       (ConvStep.lam1 vt1 step1 m2'))
+		    (ConvStep*.id (Term.lam vt1 t1' m2')))))
+       (\vt2:VarType \t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.lam vt1 t1 m1) (Term.pi vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.lam vt1 t1' m1) (Term.pi vt2 t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+       (\vt2:VarType \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \t2:Term
+        \eq:I (Term.lam vt1 t1 m1) (Term.pi vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.lam vt1 t1' m1) (Term.pi vt2 t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+       (\t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.lam vt1 t1 m1) (Term.app t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.lam vt1 t1' m1) (Term.app t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+       (\t2:Term \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \eq:I (Term.lam vt1 t1 m1) (Term.app t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.lam vt1 t1' m1) (Term.app t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+       step2
+       (I.r (Term.lam vt1 t1 m1)))
+    (\vt1:VarType \m1:Term \m1':Term \step1: ConvStep m1 m1' \Hyp:Th1 step1
+     \t1:Term
+     \t2:Term \step2:ConvStep (Term.lam vt1 t1 m1) t2 ->
+     Let Th2 = (\t:Term \t2:Term \_:ConvStep t t2 ->
+                   I (Term.lam vt1 t1 m1) t ->
+		   Thesis (Term.lam vt1 t1 m1') t2) ->
+     ConvStep.rec Th2
+       (\vt2:VarType \t2:Term \m2:Term \n2:Term
+        \eq:I (Term.lam vt1 t1 m1)
+	      (Term.app (Term.lam vt2 t2 m2) n2) ->
+	F.rec (\_:F -> Thesis (Term.lam vt1 t1 m1') (Term.subst m2 n2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+       (\vt2:VarType \t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.lam vt1 t1 m1) (Term.lam vt2 t2 m2) ->
+	Sigma.mk (Confluence (Term.lam vt1 t1 m1') (Term.lam vt2 t2' m2))
+	  (Term.lam vt1 t2' m1')
+	  (*.mk (ConvStep*.cons (I.rsubst eq
+                       (\x:Term -> ConvStep (Term.lam vt1 (Term.arg1 x) m1')
+					    (Term.lam vt1 t2' m1'))
+		       (ConvStep.lam1 vt1 step2 m1'))
+		    (ConvStep*.id (Term.lam vt1 t2' m1')))
+		(ConvStep*.cons (I.subst eq
+                       (\x:Term -> ConvStep (Term.lam (Term.vt x) t2' (Term.arg2 x))
+					    (Term.lam vt1 t2' m1'))
+		       (ConvStep.lam2 vt1 step1 t2'))
+		    (ConvStep*.id (Term.lam vt1 t2' m1')))))
+       (\vt2:VarType \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \t2:Term
+        \eq:I (Term.lam vt1 t1 m1) (Term.lam vt2 t2 m2) ->
+	Let Hyp1 = Hyp (I.rsubst eq (\x:Term -> ConvStep (Term.arg2 x) m2')
+	               		 step2) ->
+	I.subst eq (\x:Term ->
+	  Sigma (Confluence (Term.lam vt1 t1 m1')
+	  		    (Term.lam (Term.vt x) (Term.arg1 x) m2')))
+	(Sigma.mk (Confluence (Term.lam vt1 t1 m1') (Term.lam vt1 t1 m2'))
+	  (Term.lam vt1 t1 (Sigma.1 Hyp1))
+	  (*.mk (ConvStep*.lam2 vt1 t1 (*.1 (Sigma.2 Hyp1)))
+	  	(ConvStep*.lam2 vt1 t1 (*.2 (Sigma.2 Hyp1))))))
+       (\vt2:VarType \t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.lam vt1 t1 m1) (Term.pi vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.lam vt1 t1 m1') (Term.pi vt2 t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+       (\vt2:VarType \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \t2:Term
+        \eq:I (Term.lam vt1 t1 m1) (Term.pi vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.lam vt1 t1 m1') (Term.pi vt2 t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+       (\t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.lam vt1 t1 m1) (Term.app t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.lam vt1 t1 m1') (Term.app t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+       (\t2:Term \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \eq:I (Term.lam vt1 t1 m1) (Term.app t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.lam vt1 t1 m1') (Term.app t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+       step2
+       (I.r (Term.lam vt1 t1 m1)))
+    (\vt1:VarType \t1:Term \t1':Term \step1: ConvStep t1 t1' \Hyp:Th1 step1
+     \m1:Term
+     \t2:Term \step2:ConvStep (Term.pi vt1 t1 m1) t2 ->
+     Let Th2 = (\t:Term \t2:Term \_:ConvStep t t2 ->
+                   I (Term.pi vt1 t1 m1) t ->
+		   Thesis (Term.pi vt1 t1' m1) t2) ->
+     ConvStep.rec Th2
+       (\vt2:VarType \t2:Term \m2:Term \n2:Term
+        \eq:I (Term.pi vt1 t1 m1)
+	      (Term.app (Term.lam vt2 t2 m2) n2) ->
+	F.rec (\_:F -> Thesis (Term.pi vt1 t1' m1) (Term.subst m2 n2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+       (\vt2:VarType \t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.pi vt1 t1 m1) (Term.lam vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.pi vt1 t1' m1) (Term.lam vt2 t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+       (\vt2:VarType \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \t2:Term
+        \eq:I (Term.pi vt1 t1 m1) (Term.lam vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.pi vt1 t1' m1) (Term.lam vt2 t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+       (\vt2:VarType \t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.pi vt1 t1 m1) (Term.pi vt2 t2 m2) ->
+	Let Hyp1 = Hyp (I.rsubst eq (\x:Term -> ConvStep (Term.arg1 x) t2')
+	               		 step2) ->
+	I.subst eq (\x:Term ->
+	  Sigma (Confluence (Term.pi vt1 t1' m1)
+	  		    (Term.pi (Term.vt x) t2' (Term.arg2 x))))
+	(Sigma.mk (Confluence (Term.pi vt1 t1' m1) (Term.pi vt1 t2' m1))
+	  (Term.pi vt1 (Sigma.1 Hyp1) m1)
+	  (*.mk (ConvStep*.pi1 vt1 (*.1 (Sigma.2 Hyp1)) m1)
+	  	(ConvStep*.pi1 vt1 (*.2 (Sigma.2 Hyp1)) m1))))
+       (\vt2:VarType \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \t2:Term
+        \eq:I (Term.pi vt1 t1 m1) (Term.pi vt2 t2 m2) ->
+	Sigma.mk (Confluence (Term.pi vt1 t1' m1) (Term.pi vt2 t2 m2'))
+	  (Term.pi vt1 t1' m2')
+	  (*.mk (ConvStep*.cons (I.rsubst eq
+                       (\x:Term -> ConvStep (Term.pi vt1 t1' (Term.arg2 x))
+					    (Term.pi vt1 t1' m2'))
+		       (ConvStep.pi2 vt1 step2 t1'))
+		    (ConvStep*.id (Term.pi vt1 t1' m2')))
+		(ConvStep*.cons (I.subst eq
+                       (\x:Term -> ConvStep (Term.pi (Term.vt x) (Term.arg1 x)
+		       		   	    	      m2')
+					    (Term.pi vt1 t1' m2'))
+		       (ConvStep.pi1 vt1 step1 m2'))
+		    (ConvStep*.id (Term.pi vt1 t1' m2')))))
+       (\t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.pi vt1 t1 m1) (Term.app t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.pi vt1 t1' m1) (Term.app t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+       (\t2:Term \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \eq:I (Term.pi vt1 t1 m1) (Term.app t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.pi vt1 t1' m1) (Term.app t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+       step2
+       (I.r (Term.pi vt1 t1 m1)))
+    (\vt1:VarType \m1:Term \m1':Term \step1: ConvStep m1 m1' \Hyp:Th1 step1
+     \t1:Term
+     \t2:Term \step2:ConvStep (Term.pi vt1 t1 m1) t2 ->
+     Let Th2 = (\t:Term \t2:Term \_:ConvStep t t2 ->
+                   I (Term.pi vt1 t1 m1) t ->
+		   Thesis (Term.pi vt1 t1 m1') t2) ->
+     ConvStep.rec Th2
+       (\vt2:VarType \t2:Term \m2:Term \n2:Term
+        \eq:I (Term.pi vt1 t1 m1)
+	      (Term.app (Term.lam vt2 t2 m2) n2) ->
+	F.rec (\_:F -> Thesis (Term.pi vt1 t1 m1') (Term.subst m2 n2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+       (\vt2:VarType \t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.pi vt1 t1 m1) (Term.lam vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.pi vt1 t1 m1') (Term.lam vt2 t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+       (\vt2:VarType \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \t2:Term
+        \eq:I (Term.pi vt1 t1 m1) (Term.lam vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.pi vt1 t1 m1') (Term.lam vt2 t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+       (\vt2:VarType \t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.pi vt1 t1 m1) (Term.pi vt2 t2 m2) ->
+	Sigma.mk (Confluence (Term.pi vt1 t1 m1') (Term.pi vt2 t2' m2))
+	  (Term.pi vt1 t2' m1')
+	  (*.mk (ConvStep*.cons (I.rsubst eq
+                       (\x:Term -> ConvStep (Term.pi vt1 (Term.arg1 x) m1')
+					    (Term.pi vt1 t2' m1'))
+		       (ConvStep.pi1 vt1 step2 m1'))
+		    (ConvStep*.id (Term.pi vt1 t2' m1')))
+		(ConvStep*.cons (I.subst eq
+                       (\x:Term -> ConvStep (Term.pi (Term.vt x) t2' (Term.arg2 x))
+					    (Term.pi vt1 t2' m1'))
+		       (ConvStep.pi2 vt1 step1 t2'))
+		    (ConvStep*.id (Term.pi vt1 t2' m1')))))
+       (\vt2:VarType \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \t2:Term
+        \eq:I (Term.pi vt1 t1 m1) (Term.pi vt2 t2 m2) ->
+	Let Hyp1 = Hyp (I.rsubst eq (\x:Term -> ConvStep (Term.arg2 x) m2')
+	               		 step2) ->
+	I.subst eq (\x:Term ->
+	  Sigma (Confluence (Term.pi vt1 t1 m1')
+	  		    (Term.pi (Term.vt x) (Term.arg1 x) m2')))
+	(Sigma.mk (Confluence (Term.pi vt1 t1 m1') (Term.pi vt1 t1 m2'))
+	  (Term.pi vt1 t1 (Sigma.1 Hyp1))
+	  (*.mk (ConvStep*.pi2 vt1 t1 (*.1 (Sigma.2 Hyp1)))
+	  	(ConvStep*.pi2 vt1 t1 (*.2 (Sigma.2 Hyp1))))))
+       (\t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.pi vt1 t1 m1) (Term.app t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.pi vt1 t1 m1') (Term.app t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+       (\t2:Term \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \eq:I (Term.pi vt1 t1 m1) (Term.app t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.pi vt1 t1 m1') (Term.app t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+       step2
+       (I.r (Term.pi vt1 t1 m1)))
+    (\m1:Term \m1':Term \step1: ConvStep m1 m1' \Hyp:Th1 step1
+     \n1:Term
+     \t2:Term \step2:ConvStep (Term.app m1 n1) t2 ->
+     Let Th2 = (\t:Term \t2:Term \_:ConvStep t t2 ->
+                   I (Term.app m1 n1) t ->
+		   Thesis (Term.app m1' n1) t2) ->
+     ConvStep.rec Th2
+       (\vt2:VarType \t2:Term \m2:Term \n2:Term
+        \eq:I (Term.app m1 n1)
+	      (Term.app (Term.lam vt2 t2 m2) n2) ->
+	Let confluence = Sigma.2 (I.rsubst eq
+	  (\x:Term ->
+	   ConvStep (Term.arg1 x) m1' ->
+	   Thesis (Term.subst m2 n2) (Term.app m1' (Term.arg2 x)))
+	  (ConvStep.confluent.beta.lam1 vt2 t2 m2 n2 m1')
+	  step1) ->
+	Sigma.mk (Confluence (Term.app m1' n1) (Term.subst m2 n2))
+	  (*.mk (*.2 confluence) (*.1 confluence)))
+       (\vt2:VarType \t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.app m1 n1) (Term.lam vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.app m1' n1) (Term.lam vt2 t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+       (\vt2:VarType \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \t2:Term
+        \eq:I (Term.app m1 n1) (Term.lam vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.app m1' n1) (Term.lam vt2 t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+       (\vt2:VarType \t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.app m1 n1) (Term.pi vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.app m1' n1) (Term.pi vt2 t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+       (\vt2:VarType \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \t2:Term
+        \eq:I (Term.app m1 n1) (Term.pi vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.app m1' n1) (Term.pi vt2 t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+       (\m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \n2:Term
+        \eq:I (Term.app m1 n1) (Term.app m2 n2) ->
+	Let Hyp1 = Hyp (I.rsubst eq (\x:Term -> ConvStep (Term.arg1 x) m2')
+	               		 step2) ->
+	I.subst eq (\x:Term ->
+	  Sigma (Confluence (Term.app m1' n1)
+	  		    (Term.app m2' (Term.arg2 x))))
+	(Sigma.mk (Confluence (Term.app m1' n1) (Term.app m2' n1))
+	  (Term.app (Sigma.1 Hyp1) n1)
+	  (*.mk (ConvStep*.app1 (*.1 (Sigma.2 Hyp1)) n1)
+	  	(ConvStep*.app1 (*.2 (Sigma.2 Hyp1)) n1))))
+       (\m2:Term \n2:Term \n2':Term \step2:ConvStep n2 n2' \_:Th2 step2
+        \eq:I (Term.app m1 n1) (Term.app m2 n2) ->
+	Sigma.mk (Confluence (Term.app m1' n1) (Term.app m2 n2'))
+	  (*.mk (ConvStep*.cons (I.rsubst eq
+                       (\x:Term -> ConvStep (Term.app m1' (Term.arg2 x))
+					    (Term.app m1' n2'))
+		       (ConvStep.app2 m1' step2))
+		    (ConvStep*.id (Term.app m1' n2')))
+		(ConvStep*.cons (I.subst eq
+                       (\x:Term -> ConvStep (Term.app (Term.arg1 x) n2')
+					    (Term.app m1' n2'))
+		       (ConvStep.app1 step1 n2'))
+		    (ConvStep*.id (Term.app m1' n2')))))
+       step2
+       (I.r (Term.app m1 n1)))
+    (\m1:Term \n1:Term \n1':Term \step1: ConvStep n1 n1' \Hyp:Th1 step1
+     \t2:Term \step2:ConvStep (Term.app m1 n1) t2 ->
+     Let Th2 = (\t:Term \t2:Term \_:ConvStep t t2 ->
+                   I (Term.app m1 n1) t ->
+		   Thesis (Term.app m1 n1') t2) ->
+     ConvStep.rec Th2
+       (\vt2:VarType \t2:Term \m2:Term \n2:Term
+        \eq:I (Term.app m1 n1)
+	      (Term.app (Term.lam vt2 t2 m2) n2) ->
+	Let confluence = Sigma.2 (I.rsubst eq
+	  (\x:Term ->
+	   ConvStep (Term.arg2 x) n1' ->
+	   Thesis (Term.subst m2 n2) (Term.app (Term.arg1 x) n1'))
+	  (ConvStep.confluent.beta.lam2 vt2 t2 m2 n2 n1')
+	  step1) ->
+	Sigma.mk (Confluence (Term.app m1 n1') (Term.subst m2 n2))
+	  (*.mk (*.2 confluence) (*.1 confluence)))
+       (\vt2:VarType \t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.app m1 n1) (Term.lam vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.app m1 n1') (Term.lam vt2 t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+       (\vt2:VarType \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \t2:Term
+        \eq:I (Term.app m1 n1) (Term.lam vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.app m1 n1') (Term.lam vt2 t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+       (\vt2:VarType \t2:Term \t2':Term \step2:ConvStep t2 t2' \_:Th2 step2
+        \m2:Term
+        \eq:I (Term.app m1 n1) (Term.pi vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.app m1 n1') (Term.pi vt2 t2' m2))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+       (\vt2:VarType \m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2
+        \t2:Term
+        \eq:I (Term.app m1 n1) (Term.pi vt2 t2 m2) ->
+	F.rec (\_:F -> Thesis (Term.app m1 n1') (Term.pi vt2 t2 m2'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+       (\m2:Term \m2':Term \step2:ConvStep m2 m2' \_:Th2 step2 \n2:Term 
+        \eq:I (Term.app m1 n1) (Term.app m2 n2) ->
+	Sigma.mk (Confluence (Term.app m1 n1') (Term.app m2' n2))
+	  (*.mk (ConvStep*.cons (I.rsubst eq
+                       (\x:Term -> ConvStep (Term.app (Term.arg1 x) n1')
+					    (Term.app m2' n1'))
+		       (ConvStep.app1 step2 n1'))
+		    (ConvStep*.id (Term.app m2' n1')))
+		(ConvStep*.cons (I.subst eq
+                       (\x:Term -> ConvStep (Term.app m2' (Term.arg2 x))
+					    (Term.app m2' n1'))
+		       (ConvStep.app2 m2' step1))
+		    (ConvStep*.id (Term.app m2' n1')))))
+       (\m2:Term \n2:Term \n2':Term \step2:ConvStep n2 n2' \_:Th2 step2
+        \eq:I (Term.app m1 n1) (Term.app m2 n2) ->
+	Let Hyp1 = Hyp (I.rsubst eq (\x:Term -> ConvStep (Term.arg2 x) n2')
+				 step2) ->
+	I.subst eq (\x:Term ->
+	  Sigma (Confluence (Term.app m1 n1')
+	  		    (Term.app (Term.arg1 x) n2')))
+	(Sigma.mk (Confluence (Term.app m1 n1') (Term.app m1 n2'))
+	  (*.mk (ConvStep*.app2 m1 (*.1 (Sigma.2 Hyp1)))
+	  	(ConvStep*.app2 m1 (*.2 (Sigma.2 Hyp1))))))
+       step2
+       (I.r (Term.app m1 n1)))
 
 Inductive Normalize : Term -> Term -> U =
   lam   : vt:VarType -> {M:Term} -> {M':Term} -> Normalize M M' ->
