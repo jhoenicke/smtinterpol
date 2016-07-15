@@ -257,8 +257,7 @@ exprLambda ::=
 		try {
 			if (varInfo.mIsLet) {
 				RESULT = Term.substitute(exprSub, 
-					Substitution.cons(varInfo.mTerm, Substitution.shift(0), 
-							exprSub.numFreeVariables()), null);
+					Substitution.unit(varInfo.mTerm), null);
 			} else {
 				RESULT = new LambdaTerm(varInfo.mTerm, exprSub);
 			}
