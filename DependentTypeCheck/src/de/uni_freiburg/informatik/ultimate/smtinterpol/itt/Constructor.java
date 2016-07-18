@@ -193,7 +193,7 @@ public class Constructor extends Term {
 		return true;
 	}
 
-	protected String toString(int offset, int prec) {
+	protected String toString(int offset, int prec, boolean raw) {
 		return mInductiveType.mName + "." + mName;
 	}
 

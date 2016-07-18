@@ -6,7 +6,7 @@ public class Variable extends Term {
 		mNumFreeVariables = Math.max(1, getType().numFreeVariables());
 	}
 	
-	public String toString(int offset, int prec) {
+	public String toString(int offset, int prec, boolean raw) {
 		return "@";
 	}
 

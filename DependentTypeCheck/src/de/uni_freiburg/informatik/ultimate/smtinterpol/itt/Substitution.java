@@ -14,16 +14,16 @@ public class Substitution {
 		mShiftOffset = offset;
 	}
 	
-	public String toString(int offset, int prec) {
+	public String toString(int offset, int prec, boolean raw) {
 		StringBuilder sb = new StringBuilder();
 		for (Term t : mSubstTerms)
-			sb.append(t.toString(offset, 1)).append('.');
+			sb.append(t.toString(offset, 1, raw)).append('.');
 		sb.append('^').append(mShiftOffset);
 		return sb.toString();
 	}
 
 	public String toString() {
-		return toString(0, 0);
+		return toString(0, 0, false);
 	}
 
 	public static Substitution shift(int offset) {

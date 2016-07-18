@@ -13,7 +13,7 @@ public class UniverseTerm extends Term {
 	}
 
 	@Override
-	protected String toString(int offset, int prec) {
+	protected String toString(int offset, int prec, boolean raw) {
 		return level == 0 ? "U" : "U"+level;
 	}
 

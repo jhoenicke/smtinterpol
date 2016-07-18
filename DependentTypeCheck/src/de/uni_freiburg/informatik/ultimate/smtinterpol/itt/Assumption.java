@@ -8,7 +8,7 @@ public class Assumption extends Term {
 	}
 
 	@Override
-	protected String toString(int offset, int prec) {
-		return mName.toString(offset, prec);
+	protected String toString(int offset, int prec, boolean raw) {
+		return mName.toString(offset, prec, raw);
 	}
 }

@@ -177,7 +177,7 @@ declaration ::= inductivedecl
 	| EVALUATETYPE expr:e
 	  {: System.out.println(e.getType().evaluate()); :}
 	| EVALUATE expr:e
-	  {: System.out.println(e.evaluate()); :}
+	  {: System.out.println(e.evaluate().toStringRaw()); :}
 	;
 
 inductivedecl ::= INDUCTIVE ID:i COLON inductivetype:type

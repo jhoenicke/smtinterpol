@@ -42,7 +42,7 @@ public class InductiveType extends Term {
 		return params.toArray(new Term[params.size()]);
 	}
 
-	protected String toString(int offset, int prec) {
+	protected String toString(int offset, int prec, boolean raw) {
 		return mName;
 	}
 }

@@ -16,7 +16,7 @@ public abstract class PrettyTerm {
 			mName = name;
 		}
 
-		public String toString(int offset, int prec) {
+		public String toString(int offset, int prec, boolean raw) {
 			return mName;
 		}
 	}
@@ -30,9 +30,9 @@ public abstract class PrettyTerm {
 			mArg = arg;
 		}
 
-		public String toString(int offset, int prec) {
-			String str = mFunc.toString(offset, 2) + " " 
-				+ mArg.evaluate().toString(offset, 3);
+		public String toString(int offset, int prec, boolean raw) {
+			String str = mFunc.toString(offset, 2, raw) + " " 
+				+ mArg.evaluate().toString(offset, 3, raw);
 			return prec >= 3 ? "(" + str + ")" : str;
 		}
 
@@ -52,8 +52,8 @@ public abstract class PrettyTerm {
 	}
 	
 	public String toString() {
-		return toString(1, 0);
+		return toString(1, 0, false);
 	}
 	
-	public abstract String toString(int offset, int prec);
+	public abstract String toString(int offset, int prec, boolean raw);
 }

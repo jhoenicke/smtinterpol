@@ -257,19 +257,19 @@ public class PiTerm extends Term {
 		return this;
 	}
 
-	public String toString(int offset, int prec) {
-		if (mName != null)
-			return mName.toString(offset, prec);
+	public String toString(int offset, int prec, boolean raw) {
+		if (!raw && mName != null)
+			return mName.toString(offset, prec, raw);
 		StringBuilder sb = new StringBuilder();
 		if (prec >= 1)
 			sb.append('(');
 		if (mMaybeHidden > 0)
 			sb.append('{');
 		sb.append('@').append(offset).append(" : ");
-		sb.append(mDomain.toString(offset, 2));
+		sb.append(mDomain.toString(offset, 2, raw));
 		if (mMaybeHidden > 0)
 			sb.append('}');
-		sb.append(" -> ").append(mRange.toString(offset + 1, 0));
+		sb.append(" -> ").append(mRange.toString(offset + 1, 0, raw));
 		if (prec >= 1)
 			sb.append(')');
 		return sb.toString();

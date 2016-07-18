@@ -40,17 +40,17 @@ public class LambdaTerm extends Term {
 		return this;
 	}
 
-	public String toString(int offset, int prec) {
-		if (mName != null)
-			return mName.toString(offset, prec);
+	public String toString(int offset, int prec, boolean raw) {
+		if (!raw && mName != null)
+			return mName.toString(offset, prec, raw);
 		StringBuilder sb = new StringBuilder();
 		if (prec >= 1)
 			sb.append('(');
 		sb.append("\\@").append(offset).append(" : ");
-		sb.append(mArgType.toString(offset, 2)).append(' ');
+		sb.append(mArgType.toString(offset, 2, raw)).append(' ');
 		if (!(mSubTerm instanceof LambdaTerm))
 			sb.append("-> ");
-		sb.append(mSubTerm.toString(offset + 1, 0));
+		sb.append(mSubTerm.toString(offset + 1, 0, raw));
 		if (prec >= 1)
 			sb.append(')');
 		return sb.toString();

@@ -72,7 +72,7 @@ public class RecOperator extends Term {
 				mInductiveType.mConstrs.length + 2;
 	}
 	
-	protected String toString(int offset, int prec) {
+	protected String toString(int offset, int prec, boolean raw) {
 		return mInductiveType.mName + ".rec";
 	}
 

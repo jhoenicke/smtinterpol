@@ -118,15 +118,15 @@ public class SubstTerm extends Term {
 	}
 
 	@Override
-	protected String toString(int offset, int prec) {
+	protected String toString(int offset, int prec, boolean raw) {
 		if (mSubTerm instanceof Variable
 			&& mSubstitution.mSubstTerms.length == 0) {
 			int index = mSubstitution.mShiftOffset;
 			return "@" + (offset - index - 1);
 		}
 		
-		String str = mSubTerm.toString(offset, 3) + "[" 
-				+ mSubstitution.toString(offset, 0) + "]";
+		String str = mSubTerm.toString(offset, 3, raw) + "[" 
+			+ mSubstitution.toString(offset, 0, raw) + "]";
 		return prec >= 4 ? "(" + str + ")" : str;
 	}
 

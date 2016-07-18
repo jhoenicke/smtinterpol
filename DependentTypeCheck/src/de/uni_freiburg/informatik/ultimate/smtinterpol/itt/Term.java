@@ -80,14 +80,18 @@ public abstract class Term {
 	}
 
 	public String toString() {
-		return toString(0, 0);
+		return toString(0, 0, false);
+	}
+
+	public String toStringRaw() {
+		return toString(0, 0, true);
 	}
 
 	public final int numFreeVariables() {
 		return mNumFreeVariables;
 	}
 
-	protected abstract String toString(int offset, int prec);
+	protected abstract String toString(int offset, int prec, boolean raw);
 	
 	public boolean equalsHead(Term t) {
 		return this == t;

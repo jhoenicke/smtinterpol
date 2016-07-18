@@ -1,3 +1,7 @@
+; Proofs from the Paper
+;  Herman Geuvers, A short and flexible proof of Strong Normalization for
+;  the Calculus of Constructions
+
 Inductive T : U = tt:T
 Inductive F : U =
 
@@ -23,12 +27,6 @@ Definition Sigma.2 = {\A:U} {\B:(A->U)} ->
 Inductive I : {A:U} -> a:A -> b:A -> U =
   r : I a a
 Definition T.eq = T.rec (\t1:T -> t2:T -> I t1 t2) (T.rec (I T.tt) (I.r T.tt))
-
-Inductive Prop : prop:U -> U =
-  mk: Prop prop
-Definition Prop.eq = \P:U ->
-  Prop.rec (\p1: Prop P -> p2:Prop P -> I p1 p2)
-     (Prop.rec (I (Prop.mk P)) (I.r (Prop.mk P)))
 
 Definition I.subst = {\A:U} {\a:A} {\b:A} \eq:I a b \C:(A -> U) ->
     I.rec (\x:A \_:I a x -> C a -> C x)
@@ -372,8 +370,9 @@ TypeCheck Term.subst.substn.commutes : M:Term -> N:Term -> n2:Nat -> N2:Term ->
      (Term.substn (Term.subst M N) n2 N2)
 
 ;; Lemma 4: Shift and Substitution
-;; I (Term.shiftn (Term.subst M N) n2)
-;;   (Term.subst (Term.shiftn M (Nat.s n2)) (Term.shiftn N n))
+;; Term.subst.shiftn N n2 M n =
+;; I (Term.substn (Term.shiftn M n+n2+1) n (Term.shiftn N n2))
+;;   (Term.shiftn (Term.substn M n N) n+n2)
 Definition Term.subst.shiftn = \N:Term \n2:Nat ->
   Let Thesis = (\M:Term -> n:Nat ->
     I (Term.substn (Term.shiftn M (Nat.s (Nat.plus n n2)))
@@ -421,7 +420,11 @@ TypeCheck Term.subst.shift : t:Term -> subst:Term -> n:Nat ->
     I (Term.shiftn (Term.subst t subst) n)
       (Term.subst (Term.shiftn t (Nat.s n)) (Term.shiftn subst n))
 
+;===========================================
+;  Beta Conversion
+;===========================================
 
+; One step of beta conversion
 Inductive ConvStep : Term -> Term -> U =
   beta : vt:VarType -> T:Term -> M:Term -> N:Term ->
          ConvStep (Term.app (Term.lam vt T M) N) (Term.subst M N),
@@ -438,6 +441,8 @@ Inductive ConvStep : Term -> Term -> U =
   app2 : M:Term -> {N1:Term} -> {N2:Term} -> ConvStep N1 N2 ->
          ConvStep (Term.app M N1) (Term.app M N2)
 
+; Lemma: ConvStep applies the same for shifted terms.
+; ConvStep T S -> ConvStep (Term.shiftn T n) (Term.shiftn S n)
 Definition ConvStep.shiftn = 
   Let Thesis = (\T:Term \S:Term -> n:Nat ->
       ConvStep (Term.shiftn T n) (Term.shiftn S n)) ->
@@ -520,22 +525,15 @@ Definition ConvSymmStep.substn = {\T:Term} {\S: Term} ->
 	 ConvSymmStep.back (Term.substn T n2 N2) (Term.substn S n2 N2)
 	 		   (ConvStep.substn bstep n2 N2))
 
-Inductive List : A:U -> U =
-  nil  : List A,
-  cons : A -> List A -> List A
+;===========================================
+;  Type Checking
+;===========================================
 
 Inductive VarList : U =
   nil  : VarList,
   cons : vt:VarType -> T:Term -> Gamma:VarList -> VarList
 
-Definition VarList.append = \Gamma:VarList ->
-  VarList.rec (\_:VarList -> VarList) Gamma
-     (\vt0:VarType \T0:Term \_:VarList \rec:VarList ->
-      VarList.cons vt0 T0 rec)
-Definition VarList.len =
-  VarList.rec (\_:VarList -> Nat) Nat.0
-     (\vt0:VarType \T0:Term \_:VarList \rec:Nat -> Nat.s rec)
-
+; The type checking rules of CC
 Inductive CCTypeCheck : VarList -> Term -> Term -> U =
   ax   : CCTypeCheck VarList.nil Term.* Term.[],
   var  : {Gamma:VarList} -> {vt:VarType} -> {T : Term} ->
@@ -565,6 +563,7 @@ Inductive CCTypeCheck : VarList -> Term -> Term -> U =
 	 {S : Term} -> ConvSymmStep T S ->
 	 CCTypeCheck Gamma M S
 
+; Type Checking rules for a VarList Gamma.
 Inductive VarListTypeCheck : VarList -> U =
   nil  : VarListTypeCheck VarList.nil,
   cons : {vt:VarType} -> {T:Term} -> {Gamma:VarList} ->
@@ -622,6 +621,7 @@ Definition CCTypeCheck.gammatc =
      \S:Term \_:ConvSymmStep T S ->
      rec)
 
+; delete the first n entries from a VarList
 Definition VarList.deleten =
   Nat.rec (\n:Nat -> VarList -> VarList)
     (\Gamma:VarList -> Gamma)
@@ -629,6 +629,7 @@ Definition VarList.deleten =
      VarList.rec (\Gamma:VarList -> VarList) VarList.nil
         (\vt1:VarType \T1:Term \Gamma:VarList \_:VarList -> delrec Gamma))
     
+; Insert a variable at position n in a VarList
 Definition VarList.insertn =
   Nat.rec (\n:Nat -> VarType -> Term -> VarList -> VarList)
     VarList.cons
@@ -644,7 +645,14 @@ Definition deletenil =
      (I.r VarList.nil)
      (\n:Nat \_:I (VarList.deleten n VarList.nil) VarList.nil ->
       I.r VarList.nil)
+TypeCheck deletenil : n:Nat -> I (VarList.deleten n VarList.nil) VarList.nil
 
+; Lemma: Typecheck is preserved if we insert a variable in the middle of Gamma
+; and adapt the numbering accordingly.
+; Gamma |- M : N   and  (deleten n Gamma) |- T0 : */[]  implies
+; (insertn n T0 Gamma) |- (shiftn n M) : (shiftn n N)
+;
+; Proof is by induction over "Gamma |- M : N"
 Definition CCTypeCheck.weakn =
   \vt:VarType \T0:Term ->
   CCTypeCheck.rec ({\Gamma:VarList} {\M:Term} {\N:Term}
@@ -973,7 +981,570 @@ Definition Term.isUniv = Term.rec (\_:Term -> Bool)
   (\_:VarType \_:Nat -> Bool.ff)
   (\_:VarType -> Bool.tt)
 
+;=================================
+; ConvStep*
+;=================================
 
+Inductive ConvStep* : Term -> Term -> U =
+  id  : t:Term -> ConvStep* t t,
+  cons: t:Term -> t':Term -> ConvStep t t' -> t'':Term -> ConvStep* t' t'' ->
+        ConvStep* t t''
+
+Definition ConvStep*.app =
+  ConvStep*.rec (\t:Term \t':Term \_:ConvStep* t t' ->
+  	        t'':Term -> ConvStep* t' t'' -> ConvStep* t t'')
+    (\t:Term \t'':Term \step2:ConvStep* t t'' -> step2)
+    (\t:Term \t':Term \step0:ConvStep t t' \t'':Term \step1:ConvStep* t' t''
+     \Hyp:(t''':Term -> ConvStep* t'' t''' -> ConvStep* t' t''')
+     \t''':Term \step2:ConvStep* t'' t''' ->
+     ConvStep*.cons step0 (Hyp t''' step2))
+
+Definition ConvStep*.lift =
+  \f:(Term -> Term)
+  \liftstep:(t:Term -> t':Term -> ConvStep t t' -> ConvStep (f t) (f t')) ->
+  Let Thesis = (\t:Term \t':Term \_:ConvStep* t t' -> ConvStep* (f t) (f t')) ->
+  ConvStep*.rec Thesis
+    (\t:Term -> ConvStep*.id (f t))
+    (\t:Term \t':Term \step:ConvStep t t'
+     \t'':Term \path:ConvStep* t' t'' \Hyp:Thesis path ->
+     ConvStep*.cons (liftstep step) Hyp)
+  
+Definition ConvStep*.lam1 =
+  \vt:VarType \t:Term \t':Term \path: ConvStep* t t' \m:Term ->
+  ConvStep*.lift (\t:Term -> Term.lam vt t m)
+  		 (\t:Term \t':Term \st:ConvStep t t' -> ConvStep.lam1 vt st m)
+		 path
+Definition ConvStep*.lam2 =
+  \vt:VarType \t:Term ->
+  ConvStep*.lift (\m:Term -> Term.lam vt t m)
+  		 (\m:Term \m':Term \st:ConvStep m m' -> ConvStep.lam2 vt st t)
+Definition ConvStep*.pi1 =
+  \vt:VarType \t:Term \t':Term \path: ConvStep* t t' \m:Term ->
+  ConvStep*.lift (\t:Term -> Term.pi vt t m)
+  		 (\t:Term \t':Term \st:ConvStep t t' -> ConvStep.pi1 vt st m)
+		 path
+Definition ConvStep*.pi2 =
+  \vt:VarType \t:Term ->
+  ConvStep*.lift (\m:Term -> Term.pi vt t m)
+  		 (\m:Term \m':Term \st:ConvStep m m' -> ConvStep.pi2 vt st t)
+Definition ConvStep*.app1 =
+  \t:Term \t':Term \path: ConvStep* t t' \m:Term ->
+  ConvStep*.lift (\t:Term -> Term.app t m)
+  		 (\t:Term \t':Term \st:ConvStep t t' -> ConvStep.app1 st m)
+		 path
+Definition ConvStep*.app2 =
+  \t:Term ->
+  ConvStep*.lift (\m:Term -> Term.app t m)
+  		 (\m:Term \m':Term \st:ConvStep m m' -> ConvStep.app2 t st)
+Definition ConvStep*.shiftn =
+  \t:Term \t':Term \path:ConvStep* t t' \n:Nat ->
+  ConvStep*.lift (\m:Term -> Term.shiftn m n)
+  		 (\m:Term \m':Term \st:ConvStep m m' -> ConvStep.shiftn st n)
+		 path
+
+Definition ConvStep*.substn.2 = \N:Term \N':Term \step:ConvStep N N'
+  Let Thesis = (\M:Term -> n:Nat ->
+      ConvStep* (Term.substn M n N) (Term.substn M n N')) ->
+  Term.rec Thesis
+    (\vt:VarType \t:Term \HypT:Thesis t \m:Term \HypM:Thesis m
+     \n:Nat ->
+     ConvStep*.app (ConvStep*.lam1 vt (HypT n) (Term.substn m (Nat.s n) N)) 
+     		   (ConvStep*.lam2 vt (Term.substn t n N') (HypM (Nat.s n))))
+    (\vt:VarType \t:Term \HypT:Thesis t \m:Term \HypM:Thesis m
+     \n:Nat ->
+     ConvStep*.app (ConvStep*.pi1 vt (HypT n) (Term.substn m (Nat.s n) N)) 
+     		   (ConvStep*.pi2 vt (Term.substn t n N') (HypM (Nat.s n))))
+    (\t:Term \HypT:Thesis t \m:Term \HypM:Thesis m \n:Nat ->
+     ConvStep*.app (ConvStep*.app1 (HypT n) (Term.substn m n N)) 
+     		   (ConvStep*.app2 (Term.substn t n N') (HypM n)))
+    (\vt:VarType \i:Nat \n:Nat ->
+     Let Aux = (\n:Nat \i:Nat ->
+          ConvStep* (Term.var.substn vt N n i) (Term.var.substn vt N' n i)) ->
+     Nat.rec (\n:Nat -> i:Nat -> Aux n i)
+        (Nat.rec (\i:Nat -> Aux Nat.0 i)
+	   (ConvStep*.cons step (ConvStep*.id N'))
+           (\i:Nat \_:Aux Nat.0 i -> ConvStep*.id (Term.var vt i)))
+        (\n:Nat \Hyp:(i:Nat -> Aux n i) ->
+          Nat.rec (\i:Nat -> Aux (Nat.s n) i)
+             (ConvStep*.id (Term.var vt Nat.0))
+             (\i:Nat \_:(Aux (Nat.s n) i) ->
+	      ConvStep*.shiftn (Hyp i) Nat.0))
+     n i)
+    (\vt:VarType \n:Nat -> ConvStep*.id (Term.univ vt))
+
+;=================================
+; ConvStep and TypeCheck
+;=================================
+
+; ConvStep Induction by Type
+Definition ConvStep.lam.case =
+  \vt:VarType \M0:Term \M1:Term \Thesis:(N:Term -> U)
+  \case1: (N0:Term -> ConvStep M0 N0 -> Thesis (Term.lam vt N0 M1))
+  \case2: (N1:Term -> ConvStep M1 N1 -> Thesis (Term.lam vt M0 N1))
+  \N:Term \step: (ConvStep (Term.lam vt M0 M1) N) ->
+  ConvStep.rec (\M:Term \N:Term \cv:ConvStep M N ->
+                I (Term.lam vt M0 M1) M -> Thesis N)
+    ;beta
+    (\vt':VarType \M11:Term \M12:Term \M2:Term ->
+     \eq:I (Term.lam vt M0 M1) (Term.app (Term.lam vt' M11 M12) M2) ->
+     F.rec (\_:F -> Thesis (Term.subst M12 M2))
+	(I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+    ;lam1
+    (\vt':VarType \M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:(I (Term.lam vt M0 M1) M0' -> Thesis N0)
+     \M1':Term
+     \eq:I (Term.lam vt M0 M1) (Term.lam vt' M0' M1') ->
+     I.subst eq (\x:Term -> Thesis (Term.lam (Term.vt x) N0 (Term.arg2 x)))
+       (case1 N0 (I.rsubst eq (\x:Term -> ConvStep (Term.arg1 x) N0) step)))
+    ;lam2
+    (\vt':VarType \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:(I (Term.lam vt M0 M1) M1' -> Thesis N1)
+     \M0':Term
+     \eq:I (Term.lam vt M0 M1) (Term.lam vt' M0' M1') ->
+     I.subst eq (\x:Term -> Thesis (Term.lam (Term.vt x) (Term.arg1 x) N1))
+       (case2 N1 (I.rsubst eq (\x:Term -> ConvStep (Term.arg2 x) N1) step)))
+    ;pi1
+    (\vt':VarType \M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:(I (Term.lam vt M0 M1) M0' -> Thesis N0)
+     \M1':Term
+     \eq:I (Term.lam vt M0 M1) (Term.pi vt' M0' M1') ->
+     F.rec (\_:F -> Thesis (Term.pi vt' N0 M1'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+    ;pi2
+    (\vt':VarType \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:(I (Term.lam vt M0 M1) M1' -> Thesis N1)
+     \M0':Term
+     \eq:I (Term.lam vt M0 M1) (Term.pi vt' M0' M1') ->
+     F.rec (\_:F -> Thesis (Term.pi vt' M0' N1))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+    ;app1
+    (\M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:(I (Term.lam vt M0 M1) M0' -> Thesis N0)
+     \M1':Term
+     \eq:I (Term.lam vt M0 M1) (Term.app M0' M1') ->
+     F.rec (\_:F -> Thesis (Term.app N0 M1'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+    ;app2
+    (\M0':Term \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:(I (Term.lam vt M0 M1) M1' -> Thesis N1)
+     \eq:I (Term.lam vt M0 M1) (Term.app M0' M1') ->
+     F.rec (\_:F -> Thesis (Term.app M0' N1))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isLam x) T F) T.tt))
+    step
+    (I.r (Term.lam vt M0 M1))
+TypeCheck ConvStep.lam.case :
+  vt:VarType -> M0:Term -> M1:Term -> Thesis:(N:Term -> U) ->
+  case1: (N0:Term -> ConvStep M0 N0 -> Thesis (Term.lam vt N0 M1)) ->
+  case2: (N1:Term -> ConvStep M1 N1 -> Thesis (Term.lam vt M0 N1)) ->
+  N:Term -> step: (ConvStep (Term.lam vt M0 M1) N) -> Thesis N
+
+
+Definition ConvStep.pi.case =
+  \vt:VarType \M0:Term \M1:Term \Thesis:(N:Term -> U)
+  \case1: (N0:Term -> ConvStep M0 N0 -> Thesis (Term.pi vt N0 M1))
+  \case2: (N1:Term -> ConvStep M1 N1 -> Thesis (Term.pi vt M0 N1))
+  \N:Term \step: (ConvStep (Term.pi vt M0 M1) N) ->
+  ConvStep.rec (\M:Term \N:Term \cv:ConvStep M N ->
+                I (Term.pi vt M0 M1) M -> Thesis N)
+    ;beta
+    (\vt':VarType \M11:Term \M12:Term \M2:Term ->
+     \eq:I (Term.pi vt M0 M1) (Term.app (Term.lam vt' M11 M12) M2) ->
+     F.rec (\_:F -> Thesis (Term.subst M12 M2))
+	(I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+    ;lam1
+    (\vt':VarType \M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:(I (Term.pi vt M0 M1) M0' -> Thesis N0)
+     \M1':Term
+     \eq:I (Term.pi vt M0 M1) (Term.lam vt' M0' M1') ->
+     F.rec (\_:F -> Thesis (Term.lam vt' N0 M1'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+    ;lam2
+    (\vt':VarType \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:(I (Term.pi vt M0 M1) M1' -> Thesis N1)
+     \M0':Term
+     \eq:I (Term.pi vt M0 M1) (Term.lam vt' M0' M1') ->
+     F.rec (\_:F -> Thesis (Term.lam vt' M0' N1))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+    ;pi1
+    (\vt':VarType \M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:(I (Term.pi vt M0 M1) M0' -> Thesis N0)
+     \M1':Term
+     \eq:I (Term.pi vt M0 M1) (Term.pi vt' M0' M1') ->
+     I.subst eq (\x:Term -> Thesis (Term.pi (Term.vt x) N0 (Term.arg2 x)))
+       (case1 N0 (I.rsubst eq (\x:Term -> ConvStep (Term.arg1 x) N0) step)))
+    ;pi2
+    (\vt':VarType \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:(I (Term.pi vt M0 M1) M1' -> Thesis N1)
+     \M0':Term
+     \eq:I (Term.pi vt M0 M1) (Term.pi vt' M0' M1') ->
+     I.subst eq (\x:Term -> Thesis (Term.pi (Term.vt x) (Term.arg1 x) N1))
+       (case2 N1 (I.rsubst eq (\x:Term -> ConvStep (Term.arg2 x) N1) step)))
+    ;app1
+    (\M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:(I (Term.pi vt M0 M1) M0' -> Thesis N0)
+     \M1':Term
+     \eq:I (Term.pi vt M0 M1) (Term.app M0' M1') ->
+     F.rec (\_:F -> Thesis (Term.app N0 M1'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+    ;app2
+    (\M0':Term \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:(I (Term.pi vt M0 M1) M1' -> Thesis N1)
+     \eq:I (Term.pi vt M0 M1) (Term.app M0' M1') ->
+     F.rec (\_:F -> Thesis (Term.app M0' N1))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isPi x) T F) T.tt))
+    step
+    (I.r (Term.pi vt M0 M1))
+TypeCheck ConvStep.pi.case :
+  vt:VarType -> M0:Term -> M1:Term -> Thesis:(N:Term -> U) ->
+  case1: (N0:Term -> ConvStep M0 N0 -> Thesis (Term.pi vt N0 M1)) ->
+  case2: (N1:Term -> ConvStep M1 N1 -> Thesis (Term.pi vt M0 N1)) ->
+  N:Term -> step: (ConvStep (Term.pi vt M0 M1) N) -> Thesis N
+
+Definition ConvStep.app.case =
+  \M0:Term \M1:Term \Thesis:(N:Term -> U)
+  \casebeta: (vt:VarType -> M11:Term -> M12:Term ->
+  	      I M0 (Term.lam vt M11 M12) ->
+              Thesis (Term.subst M12 M1))
+  \case1: (N0:Term -> ConvStep M0 N0 -> Thesis (Term.app N0 M1))
+  \case2: (N1:Term -> ConvStep M1 N1 -> Thesis (Term.app M0 N1))
+  \N:Term \step: (ConvStep (Term.app M0 M1) N) ->
+  ConvStep.rec (\M:Term \N:Term \cv:ConvStep M N ->
+                I (Term.app M0 M1) M -> Thesis N)
+    ;beta
+    (\vt':VarType \M11:Term \M12:Term \M2:Term ->
+     \eq:I (Term.app M0 M1) (Term.app (Term.lam vt' M11 M12) M2) ->
+     I.subst eq (\x:Term -> Thesis (Term.subst M12 (Term.arg2 x)))
+       (casebeta vt' M11 M12 (I.cong Term.arg1 eq)))
+    ;lam1
+    (\vt':VarType \M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:(I (Term.app M0 M1) M0' -> Thesis N0)
+     \M1':Term
+     \eq:I (Term.app M0 M1) (Term.lam vt' M0' M1') ->
+     F.rec (\_:F -> Thesis (Term.lam vt' N0 M1'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+    ;lam2
+    (\vt':VarType \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:(I (Term.app M0 M1) M1' -> Thesis N1)
+     \M0':Term
+     \eq:I (Term.app M0 M1) (Term.lam vt' M0' M1') ->
+     F.rec (\_:F -> Thesis (Term.lam vt' M0' N1))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+    ;pi1
+    (\vt':VarType \M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:(I (Term.app M0 M1) M0' -> Thesis N0)
+     \M1':Term
+     \eq:I (Term.app M0 M1) (Term.pi vt' M0' M1') ->
+     F.rec (\_:F -> Thesis (Term.pi vt' N0 M1'))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+    ;pi2
+    (\vt':VarType \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:(I (Term.app M0 M1) M1' -> Thesis N1)
+     \M0':Term
+     \eq:I (Term.app M0 M1) (Term.pi vt' M0' M1') ->
+     F.rec (\_:F -> Thesis (Term.pi vt' M0' N1))
+	  (I.subst eq (\x:Term -> Bool.ite (Term.isApp x) T F) T.tt))
+    ;app1
+    (\M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:(I (Term.app M0 M1) M0' -> Thesis N0)
+     \M1':Term
+     \eq:I (Term.app M0 M1) (Term.app M0' M1') ->
+     I.subst eq (\x:Term -> Thesis (Term.app N0 (Term.arg2 x)))
+       (case1 N0 (I.rsubst eq (\x:Term -> ConvStep (Term.arg1 x) N0) step)))
+    ;app2
+    (\M0':Term \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:(I (Term.app M0 M1) M1' -> Thesis N1)
+     \eq:I (Term.app M0 M1) (Term.app M0' M1') ->
+     I.subst eq (\x:Term -> Thesis (Term.app (Term.arg1 x) N1))
+       (case2 N1 (I.rsubst eq (\x:Term -> ConvStep (Term.arg2 x) N1) step)))
+    step
+    (I.r (Term.app M0 M1))
+TypeCheck ConvStep.app.case :
+  M0:Term -> M1:Term -> Thesis:(N:Term -> U) ->
+  casebeta: (vt:VarType -> M11:Term -> M12:Term ->
+  	     I M0 (Term.lam vt M11 M12) ->
+             Thesis (Term.subst M12 M1)) ->
+  case1: (N0:Term -> ConvStep M0 N0 -> Thesis (Term.app N0 M1)) ->
+  case2: (N1:Term -> ConvStep M1 N1 -> Thesis (Term.app M0 N1)) ->
+  N:Term -> step: (ConvStep (Term.app M0 M1) N) -> Thesis N
+
+Definition ConvStep.var.case =
+  \vt:VarType \n:Nat ->
+  ConvStep.rec (\M:Term \N:Term \cv:ConvStep M N -> Bool.ite (Term.isVar M) F T)
+    ;beta
+    (\vt':VarType \M11:Term \M12:Term \M2:Term -> T.tt)
+    ;lam1
+    (\vt':VarType \M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:Bool.ite (Term.isVar M0') F T
+     \M1':Term -> T.tt)
+    ;lam2
+    (\vt':VarType \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:Bool.ite (Term.isVar M1') F T
+     \M0':Term -> T.tt)
+    ;pi1
+    (\vt':VarType \M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:Bool.ite (Term.isVar M0') F T
+     \M1':Term -> T.tt)
+    ;pi2
+    (\vt':VarType \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:Bool.ite (Term.isVar M1') F T
+     \M0':Term -> T.tt)
+    ;app1
+    (\M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:Bool.ite (Term.isVar M0') F T \M1':Term -> T.tt)
+    ;app2
+    (\M0':Term \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:Bool.ite (Term.isVar M1') F T -> T.tt)
+    (Term.var vt n)
+TypeCheck ConvStep.var.case :
+  vt:VarType -> n:Nat -> N:Term -> ConvStep (Term.var vt n) N -> F
+Definition ConvStep.univ.case =
+  \vt:VarType ->
+  ConvStep.rec (\M:Term \N:Term \cv:ConvStep M N -> Bool.ite (Term.isUniv M) F T)
+    ;beta
+    (\vt':VarType \M11:Term \M12:Term \M2:Term -> T.tt)
+    ;lam1
+    (\vt':VarType \M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:Bool.ite (Term.isUniv M0') F T
+     \M1':Term -> T.tt)
+    ;lam2
+    (\vt':VarType \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:Bool.ite (Term.isUniv M1') F T
+     \M0':Term -> T.tt)
+    ;pi1
+    (\vt':VarType \M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:Bool.ite (Term.isUniv M0') F T
+     \M1':Term -> T.tt)
+    ;pi2
+    (\vt':VarType \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:Bool.ite (Term.isUniv M1') F T
+     \M0':Term -> T.tt)
+    ;app1
+    (\M0':Term \N0:Term \step:ConvStep M0' N0
+     \_:Bool.ite (Term.isUniv M0') F T \M1':Term -> T.tt)
+    ;app2
+    (\M0':Term \M1':Term \N1:Term \step:ConvStep M1' N1
+     \_:Bool.ite (Term.isUniv M1') F T -> T.tt)
+    (Term.univ vt)
+
+Definition ConvStep.unshiftn.rec =
+  \Thesis:(N:Term -> U)
+  \M:Term \n:Nat
+  \case:(N:Term -> ConvStep M N -> Thesis (Term.shiftn N n))
+  \Ns:Term \step:ConvStep (Term.shiftn M n) Ns
+  Let SigmaType = (\M:Term \n:Nat \Ns:Term \N:Term ->
+                   * (ConvStep M N) (I (Term.shiftn N n) Ns))
+  Let Th = (\M:Term -> n:Nat -> Ns:Term ->
+            ConvStep (Term.shiftn M n) Ns ->
+	    Sigma (SigmaType M n Ns)) ->
+  Let sigma = Term.rec Th
+    (\vt:VarType \M1:Term \Hyp1:Th M1 \M2:Term \Hyp2:Th M2
+     \n:Nat ->
+     ConvStep.lam.case vt (Term.shiftn M1 n) (Term.shiftn M2 (Nat.s n))
+        (\Ns:Term -> Sigma (SigmaType (Term.lam vt M1 M2) n Ns))
+	(\Ns1:Term \step:ConvStep (Term.shiftn M1 n) Ns1 ->
+	 Let sigma = (Hyp1 n Ns1 step) ->
+	 Sigma.mk (SigmaType (Term.lam vt M1 M2) n (Term.lam vt Ns1 (Term.shiftn M2 (Nat.s n))))
+	     (Term.lam vt (Sigma.1 sigma) M2)
+	     (*.mk (ConvStep.lam1 vt (*.1 (Sigma.2 sigma)) M2)
+	           (I.cong (\x:Term -> Term.lam vt x (Term.shiftn M2 (Nat.s n)))
+		           (*.2 (Sigma.2 sigma)))))
+	(\Ns2:Term \step:ConvStep (Term.shiftn M2 (Nat.s n)) Ns2 ->
+	 Let sigma = (Hyp2 (Nat.s n) Ns2 step) ->
+	 Sigma.mk (SigmaType (Term.lam vt M1 M2) n (Term.lam vt (Term.shiftn M1 n) Ns2))
+	     (Term.lam vt M1 (Sigma.1 sigma))
+	     (*.mk (ConvStep.lam2 vt (*.1 (Sigma.2 sigma)) M1)
+	           (I.cong (\x:Term -> Term.lam vt (Term.shiftn M1 n) x)
+		           (*.2 (Sigma.2 sigma))))))
+    (\vt:VarType \M1:Term \Hyp1:Th M1 \M2:Term \Hyp2:Th M2
+     \n:Nat ->
+     ConvStep.pi.case vt (Term.shiftn M1 n) (Term.shiftn M2 (Nat.s n))
+        (\Ns:Term -> Sigma (SigmaType (Term.pi vt M1 M2) n Ns))
+	(\Ns1:Term \step:ConvStep (Term.shiftn M1 n) Ns1 ->
+	 Let sigma = (Hyp1 n Ns1 step) ->
+	 Sigma.mk (SigmaType (Term.pi vt M1 M2) n (Term.pi vt Ns1 (Term.shiftn M2 (Nat.s n))))
+	     (Term.pi vt (Sigma.1 sigma) M2)
+	     (*.mk (ConvStep.pi1 vt (*.1 (Sigma.2 sigma)) M2)
+	           (I.cong (\x:Term -> Term.pi vt x (Term.shiftn M2 (Nat.s n)))
+		           (*.2 (Sigma.2 sigma)))))
+	(\Ns2:Term \step:ConvStep (Term.shiftn M2 (Nat.s n)) Ns2 ->
+	 Let sigma = (Hyp2 (Nat.s n) Ns2 step) ->
+	 Sigma.mk (SigmaType (Term.pi vt M1 M2) n (Term.pi vt (Term.shiftn M1 n) Ns2))
+	     (Term.pi vt M1 (Sigma.1 sigma))
+	     (*.mk (ConvStep.pi2 vt (*.1 (Sigma.2 sigma)) M1)
+	           (I.cong (\x:Term -> Term.pi vt (Term.shiftn M1 n) x)
+		           (*.2 (Sigma.2 sigma))))))
+    (\M1:Term \Hyp1:Th M1 \M2:Term \Hyp2:Th M2
+     \n:Nat ->
+     ConvStep.app.case (Term.shiftn M1 n) (Term.shiftn M2 n)
+        (\Ns:Term -> Sigma (SigmaType (Term.app M1 M2) n Ns))
+	(\vt:VarType \M11s:Term \M12s:Term
+	 \eq:I (Term.shiftn M1 n) (Term.lam vt M11s M12s) ->
+	 I.subst eq (\x:Term -> Bool.ite (Term.isLam x)
+	      (Sigma (SigmaType (Term.app M1 M2) n (Term.subst (Term.arg2 x) (Term.shiftn M2 n))))
+	      T)
+	 (Let Th2 =
+	   (\M1:Term -> Bool.ite (Term.isLam (Term.shiftn M1 n))
+	      (Sigma (SigmaType (Term.app M1 M2) n (Term.subst (Term.arg2 (Term.shiftn M1 n)) (Term.shiftn M2 n))))
+	      T) ->
+	  Term.rec Th2
+	   (\vt:VarType \M11:Term \_:Th2 M11 \M12:Term \_:Th2 M12 ->
+	    Sigma.mk (SigmaType (Term.app (Term.lam vt M11 M12) M2) n (Term.subst (Term.shiftn M12 (Nat.s n)) (Term.shiftn M2 n)))
+	     (Term.subst M12 M2)
+	     (*.mk (ConvStep.beta vt M11 M12 M2)
+	     	   (I.symm (Term.subst.shiftn M2 n M12 Nat.0))))
+	   (\vt:VarType \M11:Term \_:Th2 M11 \M12:Term \_:Th2 M12 ->T.tt)
+	   (\M11:Term \_:Th2 M11 \M12:Term \_:Th2 M12 -> T.tt)
+	   (\vt:VarType \n:Nat -> T.tt)
+	   (\vt:VarType -> T.tt)
+	   M1))
+	(\Ns1:Term \step:ConvStep (Term.shiftn M1 n) Ns1 ->
+	 Let sigma = (Hyp1 n Ns1 step) ->
+	 Sigma.mk (SigmaType (Term.app M1 M2) n (Term.app Ns1 (Term.shiftn M2 n)))
+	     (Term.app (Sigma.1 sigma) M2)
+	     (*.mk (ConvStep.app1 (*.1 (Sigma.2 sigma)) M2)
+	           (I.cong (\x:Term -> Term.app x (Term.shiftn M2 n))
+		           (*.2 (Sigma.2 sigma)))))
+	(\Ns2:Term \step:ConvStep (Term.shiftn M2 n) Ns2 ->
+	 Let sigma = (Hyp2 n Ns2 step) ->
+	 Sigma.mk (SigmaType (Term.app M1 M2) n (Term.app (Term.shiftn M1 n) Ns2))
+	     (Term.app M1 (Sigma.1 sigma))
+	     (*.mk (ConvStep.app2 M1 (*.1 (Sigma.2 sigma)))
+	           (I.cong (\x:Term -> Term.app (Term.shiftn M1 n) x)
+		           (*.2 (Sigma.2 sigma))))))
+    (\vt:VarType \i:Nat
+     \n:Nat ->
+     \Ns:Term \step: ConvStep (Term.shiftn (Term.var vt i) n) Ns ->
+     F.rec (\_:F -> Sigma (SigmaType (Term.var vt i) n Ns))
+       (ConvStep.var.case step))
+    (\vt:VarType
+     \n:Nat ->
+     \Ns:Term \step: ConvStep (Term.shiftn (Term.univ vt) n) Ns ->
+     F.rec (\_:F -> Sigma (SigmaType (Term.univ vt) n Ns))
+       (ConvStep.univ.case step)) M n Ns step ->
+  I.subst (*.2 (Sigma.2 sigma))
+    (\x:Term -> Thesis x)
+    (case (Sigma.1 sigma) (*.1 (Sigma.2 sigma)))
+TypeCheck ConvStep.unshiftn.rec :
+  Thesis:(N:Term -> U) ->
+  M:Term -> n:Nat -> 
+  case:(N:Term -> ConvStep M N -> Thesis (Term.shiftn N n)) ->
+  Ns:Term -> step:ConvStep (Term.shiftn M n) Ns ->
+  Thesis Ns
+
+Assume CCTypeCheck.Pi.Univ :
+  Gamma:VarList -> vt:VarType -> S1:Term -> S2:Term -> vt1:VarType ->
+  CCTypeCheck Gamma (Term.pi vt S1 S2) (Term.univ vt1) ->
+  CCTypeCheck Gamma S1 (Term.univ vt)
+Assume ConvStep.TC.Gamma :
+  M1:Term -> M2:Term -> ConvStep M1 M2 ->
+  Gamma:VarList -> vt:VarType -> CCTypeCheck Gamma M2 (Term.univ vt) ->
+  S1:Term -> S2:Term ->
+  CCTypeCheck (VarList.cons vt M1 Gamma) S1 S2 ->
+  CCTypeCheck (VarList.cons vt M2 Gamma) S1 S2
+
+Definition CCTypeCheck.convback* =
+  \Gamma:VarList \S1:Term \S2': Term -> \tc:CCTypeCheck Gamma S1 S2'
+  \S2:Term \step:ConvStep* S2 S2'->
+  ConvStep*.rec (\S2:Term \S2':Term \_:ConvStep* S2 S2' ->
+  		 CCTypeCheck Gamma S1 S2' -> CCTypeCheck Gamma S1 S2)
+    (\S2:Term \tc:CCTypeCheck Gamma S1 S2 -> tc)
+    (\S2:Term \S2':Term \step:ConvStep S2 S2'
+     \S2'':Term \_:ConvStep* S2' S2''
+     \Hyp: (CCTypeCheck Gamma S1 S2'' -> CCTypeCheck Gamma S1 S2')
+     \tc:CCTypeCheck Gamma S1 S2'' ->
+     CCTypeCheck.conv (Hyp tc) (ConvSymmStep.back step))
+    step
+    tc
+TypeCheck CCTypeCheck.convback* :
+  Gamma:VarList -> S1:Term -> S2': Term -> CCTypeCheck Gamma S1 S2' ->
+  S2:Term -> ConvStep* S2 S2' -> CCTypeCheck Gamma S1 S2
+
+; Lemma: CCTypeCheck Gamma M T0 -> ConvStep M N -> CCTypeCheck Gamma N T0
+Definition ConvStep.TC =
+  Let Thesis = (\Gamma:VarList \M:Term \T0:Term ->
+                N:Term -> ConvStep M N -> CCTypeCheck Gamma N T0) ->
+  CCTypeCheck.rec (\Gamma:VarList \M:Term \T0:Term \_:CCTypeCheck Gamma M T0 ->
+                   Thesis Gamma M T0)
+     ;ax
+     (\N:Term \step:ConvStep Term.* N ->
+      F.rec (\_:F -> CCTypeCheck VarList.nil N Term.[])
+        (ConvStep.univ.case step))
+     ; var
+     (\Gamma:VarList \vt1:VarType \T1:Term
+      \prf:CCTypeCheck Gamma T1 (Term.univ vt1)
+      \Hyp:Thesis Gamma T1 (Term.univ vt1) ->
+      \N:Term \step:ConvStep (Term.var vt1 Nat.0) N ->
+      F.rec (\_:F -> CCTypeCheck (VarList.cons vt1 T1 Gamma) N (Term.shiftvar T1))
+        (ConvStep.var.case step))
+     ; weak
+     (\Gamma:VarList \vt1:VarType \T1:Term
+      \prf1:CCTypeCheck Gamma T1 (Term.univ vt1)
+      \Hyp1:Thesis Gamma T1 (Term.univ vt1)
+      \M1:Term \S1:Term
+      \prf2:CCTypeCheck Gamma M1 S1
+      \Hyp2:Thesis Gamma M1 S1 ->
+      ConvStep.unshiftn.rec
+        (\Ns: Term -> CCTypeCheck (VarList.cons vt1 T1 Gamma) Ns (Term.shiftvar S1))
+        M1 Nat.0
+	(\N: Term \step: ConvStep M1 N ->
+	 CCTypeCheck.weak prf1 (Hyp2 N step)))
+     ; pi
+     (\Gamma:VarList \vt1:VarType \T1:Term
+      \prf1:CCTypeCheck Gamma T1 (Term.univ vt1)
+      \Hyp1:Thesis Gamma T1 (Term.univ vt1)
+      \vt2:VarType \S:Term
+      \prf2:CCTypeCheck (VarList.cons vt1 T1 Gamma) S (Term.univ vt2)
+      \Hyp2:Thesis (VarList.cons vt1 T1 Gamma) S (Term.univ vt2) ->
+      ConvStep.pi.case vt1 T1 S
+         (\N:Term -> CCTypeCheck Gamma N (Term.univ vt2))
+	 (\N1:Term \step: ConvStep T1 N1 ->
+	  CCTypeCheck.pi (Hyp1 N1 step)
+	    (ConvStep.TC.Gamma step (Hyp1 N1 step) prf2))
+	 (\N2:Term \step: ConvStep S N2 ->
+	  CCTypeCheck.pi prf1 (Hyp2 N2 step)))
+      ; lam
+     (\Gamma:VarList \vt1:VarType \T1:Term \M:Term \S:Term
+      \prf1:CCTypeCheck (VarList.cons vt1 T1 Gamma) M S
+      \Hyp1:Thesis (VarList.cons vt1 T1 Gamma) M S
+      \vt2:VarType
+      \prf2:CCTypeCheck Gamma (Term.pi vt1 T1 S) (Term.univ vt2)
+      \Hyp2:Thesis Gamma (Term.pi vt1 T1 S) (Term.univ vt2) ->
+      ConvStep.lam.case vt1 T1 M
+         (\N:Term -> CCTypeCheck Gamma N (Term.pi vt1 T1 S))
+	 (\N1:Term \step: ConvStep T1 N1 ->
+	  CCTypeCheck.conv
+	    (CCTypeCheck.lam
+	      (ConvStep.TC.Gamma step (CCTypeCheck.Pi.Univ (Hyp2 (Term.pi vt1 N1 S) (ConvStep.pi1 vt1 step S))) prf1)
+              (Hyp2 (Term.pi vt1 N1 S) (ConvStep.pi1 vt1 step S)))
+	    (ConvSymmStep.back (ConvStep.pi1 vt1 step S)))
+	 (\N2:Term \step: ConvStep M N2 ->
+	  CCTypeCheck.lam (Hyp1 N2 step) prf2))
+     ; app
+     (\Gamma:VarList \M1:Term \vt1:VarType \T1:Term \S:Term
+      \prf1:CCTypeCheck Gamma M1 (Term.pi vt1 T1 S)
+      \Hyp1:Thesis Gamma M1 (Term.pi vt1 T1 S)
+      \M2:Term
+      \prf2:CCTypeCheck Gamma M2 T1
+      \Hyp2:Thesis Gamma M2 T1 ->
+      ConvStep.app.case M1 M2 (\N:Term -> CCTypeCheck Gamma N (Term.subst S M2))
+         (\vt:VarType \M11:Term \M12:Term
+	  \_:I M1 (Term.lam vt M11 M12) ->
+	  Assume CCTypeCheck Gamma (Term.subst M12 M2) (Term.subst S M2))
+	 (\N1:Term \step:ConvStep M1 N1 ->
+	  CCTypeCheck.app (Hyp1 N1 step) prf2)
+	 (\N2:Term \step:ConvStep M2 N2 ->
+	  CCTypeCheck.convback*
+	    (CCTypeCheck.app prf1 (Hyp2 N2 step))
+	    (ConvStep*.substn.2 step S Nat.0)))
+     ; conv
+     (\Gamma:VarList \M:Term \S1:Term
+      \prf1:CCTypeCheck Gamma M S1
+      \Hyp1:Thesis Gamma M S1
+      \S2:Term
+      \prf2:ConvSymmStep S1 S2
+      \N:Term \step: ConvStep M N ->
+      CCTypeCheck.conv (Hyp1 N step) prf2)
+    
 ;=================================
 ; Strong Normalizer
 ;=================================
@@ -993,80 +1564,7 @@ Definition Term.classifyLam =
 	   (\vt:VarType \i:Nat -> T.tt)
 	   (\vt:VarType -> T.tt)
 
-Inductive ConvStep : Term -> Term -> U =
-  beta : vt:VarType -> T:Term -> M:Term -> N:Term ->
-         ConvStep (Term.app (Term.lam vt T M) N) (Term.subst M N),
-  lam1 : vt:VarType -> {T1:Term} -> {T2:Term} -> ConvStep T1 T2 -> M:Term ->
-         ConvStep (Term.lam vt T1 M) (Term.lam vt T2 M),
-  lam2 : vt:VarType -> {M1:Term} -> {M2:Term} -> ConvStep M1 M2 -> T:Term ->
-         ConvStep (Term.lam vt T M1) (Term.lam vt T M2),
-  pi1  : vt:VarType -> {T1:Term} -> {T2:Term} -> ConvStep T1 T2 -> M:Term ->
-         ConvStep (Term.pi vt T1 M) (Term.pi vt T2 M),
-  pi2  : vt:VarType -> {M1:Term} -> {M2:Term} -> ConvStep M1 M2 -> T:Term ->
-         ConvStep (Term.pi vt T M1) (Term.pi vt T M2),
-  app1 : {M1:Term} -> {M2:Term} -> ConvStep M1 M2 -> N:Term ->
-         ConvStep (Term.app M1 N) (Term.app M2 N),
-  app2 : M:Term -> {N1:Term} -> {N2:Term} -> ConvStep N1 N2 ->
-         ConvStep (Term.app M N1) (Term.app M N2)
-
-Definition ConvStep.shiftn = 
-  Let Thesis = (\T:Term \S:Term -> n:Nat ->
-      ConvStep (Term.shiftn T n) (Term.shiftn S n)) ->
-  ConvStep.rec (\T:Term \S: Term \step : ConvStep T S -> Thesis T S)
-    (\vt:VarType \T:Term \M:Term \N:Term \n:Nat ->
-     I.rsubst (Term.subst.shift M N n)
-	      (\x: Term ->
-	       ConvStep (Term.shiftn (Term.app (Term.lam vt T M) N) n) x)
-     (ConvStep.beta vt (Term.shiftn T n) (Term.shiftn M (Nat.s n))
-		    (Term.shiftn N n)))
-    (\vt:VarType \T1:Term \T2:Term \step:ConvStep T1 T2 \hyp:Thesis T1 T2
-     \M:Term \n:Nat ->
-     ConvStep.lam1 vt (hyp n) (Term.shiftn M (Nat.s n)))
-    (\vt:VarType \M1:Term \M2:Term \step:ConvStep M1 M2 \hyp:Thesis M1 M2
-     \T:Term \n:Nat ->
-     ConvStep.lam2 vt (hyp (Nat.s n)) (Term.shiftn T n))
-    (\vt:VarType \T1:Term \T2:Term \step:ConvStep T1 T2 \hyp:Thesis T1 T2
-     \M:Term \n:Nat ->
-     ConvStep.pi1 vt (hyp n) (Term.shiftn M (Nat.s n)))
-    (\vt:VarType \M1:Term \M2:Term \step:ConvStep M1 M2 \hyp:Thesis M1 M2
-     \T:Term \n:Nat ->
-     ConvStep.pi2 vt (hyp (Nat.s n)) (Term.shiftn T n))
-    (\T1:Term \T2:Term \step:ConvStep T1 T2 \hyp:Thesis T1 T2
-     \M:Term \n:Nat ->
-     ConvStep.app1 (hyp n) (Term.shiftn M n))
-    (\T:Term \M1:Term \M2:Term \step:ConvStep M1 M2 \hyp:Thesis M1 M2
-     \n:Nat ->
-     ConvStep.app2 (Term.shiftn T n) (hyp n))
-
-Definition ConvStep.substn =
-  Let Thesis = (\T:Term \S:Term -> n2:Nat -> N2:Term ->
-      ConvStep (Term.substn T n2 N2) (Term.substn S n2 N2)) ->
-  ConvStep.rec ({\T:Term} {\S: Term} \step : ConvStep T S -> Thesis T S)
-    (\vt:VarType \T:Term \M:Term \N:Term \n2:Nat \N2:Term ->
-     I.subst (Term.subst.substn.commutes M N n2 N2)
-	     (\x: Term ->
-	      ConvStep (Term.substn (Term.app (Term.lam vt T M) N) n2 N2) x)
-     (ConvStep.beta vt (Term.substn T n2 N2)
-     		    (Term.substn M (Nat.s n2) N2) (Term.substn N n2 N2)))
-    (\vt:VarType \T1:Term \T2:Term \step:ConvStep T1 T2 \hyp:Thesis T1 T2
-     \M:Term \n2:Nat \N2:Term ->
-     ConvStep.lam1 vt (hyp n2 N2) (Term.substn M (Nat.s n2) N2))
-    (\vt:VarType \M1:Term \M2:Term \step:ConvStep M1 M2 \hyp:Thesis M1 M2
-     \T:Term \n2:Nat \N2:Term ->
-     ConvStep.lam2 vt (hyp (Nat.s n2) N2) (Term.substn T n2 N2))
-    (\vt:VarType \T1:Term \T2:Term \step:ConvStep T1 T2 \hyp:Thesis T1 T2
-     \M:Term \n2:Nat \N2:Term ->
-     ConvStep.pi1 vt (hyp n2 N2) (Term.substn M (Nat.s n2) N2))
-    (\vt:VarType \M1:Term \M2:Term \step:ConvStep M1 M2 \hyp:Thesis M1 M2
-     \T:Term \n2:Nat \N2:Term ->
-     ConvStep.pi2 vt (hyp (Nat.s n2) N2) (Term.substn T n2 N2))
-    (\T1:Term \T2:Term \step:ConvStep T1 T2 \hyp:Thesis T1 T2
-     \M:Term \n2:Nat \N2:Term ->
-     ConvStep.app1 (hyp n2 N2) (Term.substn M n2 N2))
-    (\T:Term \M1:Term \M2:Term \step:ConvStep M1 M2 \hyp:Thesis M1 M2
-     \n2:Nat \N2:Term ->
-     ConvStep.app2 (Term.substn T n2 N2) (hyp n2 N2))
-
+; SN t -- holds if all conversion sequences are finite
 Inductive SN : Term -> U =
   def   : M:Term -> (M':Term -> ConvStep M M' -> SN M') -> SN M
 
@@ -1076,9 +1574,11 @@ Definition SN.destruct =
     (\t:Term \f:(t':Term -> ConvStep t t' -> SN t')
      \_:(t':Term -> step:ConvStep t t' -> Thesis (f step)) -> f)
 
+; True if "t" is normalized (no conversion step posssible)
 Inductive Normalized : t:Term -> U =
   def : (t':Term -> ConvStep t t' -> F) -> Normalized t
 
+; Normalized t -> SN t
 Definition Normalized.SN = \t:Term ->
   Normalized.rec (\n:Normalized t -> SN t)
    (\f:(t':Term -> ConvStep t t' -> F) ->
@@ -1114,8 +1614,9 @@ Definition Normalized.* =
 
 Definition SN.* = Normalized.SN (Normalized.*)
 
+; SN t -> SN (Term.arg1 t)
 Definition SN.arg1 =
-  Let Thesis = (\t:Term -> \snt:SN t -> SN (Term.arg1 t)) ->
+  Let Thesis = (\t:Term -> \_:SN t -> SN (Term.arg1 t)) ->
   SN.rec Thesis
     (Let Th2 = (\t:Term -> f:(t':Term -> ConvStep t t' -> SN t') ->
 		Hyp:(t':Term -> step:ConvStep t t' -> Thesis (f step)) ->
@@ -1145,6 +1646,7 @@ Definition SN.arg1 =
 	\_:(t':Term -> step:ConvStep (Term.univ vt) t' -> Thesis (f step)) ->
 	SN.*))
 
+; SN t -> SN (Term.arg2 t)
 Definition SN.arg2 =
   Let Thesis = (\t:Term -> \snt:SN t -> SN (Term.arg2 t)) ->
   SN.rec Thesis
@@ -1181,6 +1683,7 @@ Definition SN.arg3.type = \t:Term ->
      (Bool.ite (Term.isLam (Term.arg1 t))
 	 (SN (Term.subst (Term.arg2 (Term.arg1 t)) (Term.arg2 t))) T) T
 
+; SN (app (lam t1 t2) t3) -> SN (subst t2 t3)
 Definition SN.arg3 =
   Let Thesis = (\t:Term -> SN t -> SN.arg3.type t) ->
   Term.rec Thesis
@@ -1307,113 +1810,34 @@ Definition SN.step =
     (\vt:VarType ->
      Norm (Normalized.mk (Term.univ vt) Normalized.* Normalized.* T.tt))
 
-Definition SN.normalized.step =
+TypeCheck SN.step : (t:Term -> + (Normalized t) (Sigma (ConvStep t)))
+
+Definition SN.normalize.step =
   \t:Term \Hyp:(t':Term -> ConvStep t t' -> Sigma Normalized) ->
   +.rec (\_: + (Normalized t) (Sigma (ConvStep t)) -> Sigma Normalized)
         (\n:Normalized t -> Sigma.mk Normalized n)
 	(\step:Sigma (ConvStep t) -> Hyp (Sigma.2 step))
 
-Definition SN.normalized.aux =
+Definition SN.normalize.aux =
   SN.rec (\t:Term \snt:SN t -> Sigma Normalized)
     (\t:Term \f:(t':Term -> ConvStep t t' -> SN t')
      \Hyp:(t':Term -> step:ConvStep t t' -> Sigma Normalized) ->
-     SN.normalized.step t Hyp (SN.step t))
-Definition SN.normalized = \t:Term \snt:SN t -> Sigma.1 (SN.normalized.aux snt)
+     SN.normalize.step t Hyp (SN.step t))
+Definition SN.normalize = \t:Term \snt:SN t -> Sigma.1 (SN.normalize.aux snt)
+TypeCheck SN.normalize : t:Term -> SN t -> Term
 
-Inductive ConvStep* : Term -> Term -> U =
-  id  : t:Term -> ConvStep* t t,
-  cons: t:Term -> t':Term -> ConvStep t t' -> t'':Term -> ConvStep* t' t'' ->
-        ConvStep* t t''
-
-Definition ConvStep*.app =
-  ConvStep*.rec (\t:Term \t':Term \_:ConvStep* t t' ->
-  	        t'':Term -> ConvStep* t' t'' -> ConvStep* t t'')
-    (\t:Term \t'':Term \step2:ConvStep* t t'' -> step2)
-    (\t:Term \t':Term \step0:ConvStep t t' \t'':Term \step1:ConvStep* t' t''
-     \Hyp:(t''':Term -> ConvStep* t'' t''' -> ConvStep* t' t''')
-     \t''':Term \step2:ConvStep* t'' t''' ->
-     ConvStep*.cons step0 (Hyp t''' step2))
-
-Definition ConvStep*.lift =
-  \f:(Term -> Term)
-  \liftstep:(t:Term -> t':Term -> ConvStep t t' -> ConvStep (f t) (f t')) ->
-  Let Thesis = (\t:Term \t':Term \_:ConvStep* t t' -> ConvStep* (f t) (f t')) ->
-  ConvStep*.rec Thesis
-    (\t:Term -> ConvStep*.id (f t))
-    (\t:Term \t':Term \step:ConvStep t t'
-     \t'':Term \path:ConvStep* t' t'' \Hyp:Thesis path ->
-     ConvStep*.cons (liftstep step) Hyp)
-  
-Definition ConvStep*.lam1 =
-  \vt:VarType \t:Term \t':Term \path: ConvStep* t t' \m:Term ->
-  ConvStep*.lift (\t:Term -> Term.lam vt t m)
-  		 (\t:Term \t':Term \st:ConvStep t t' -> ConvStep.lam1 vt st m)
-		 path
-Definition ConvStep*.lam2 =
-  \vt:VarType \t:Term ->
-  ConvStep*.lift (\m:Term -> Term.lam vt t m)
-  		 (\m:Term \m':Term \st:ConvStep m m' -> ConvStep.lam2 vt st t)
-Definition ConvStep*.pi1 =
-  \vt:VarType \t:Term \t':Term \path: ConvStep* t t' \m:Term ->
-  ConvStep*.lift (\t:Term -> Term.pi vt t m)
-  		 (\t:Term \t':Term \st:ConvStep t t' -> ConvStep.pi1 vt st m)
-		 path
-Definition ConvStep*.pi2 =
-  \vt:VarType \t:Term ->
-  ConvStep*.lift (\m:Term -> Term.pi vt t m)
-  		 (\m:Term \m':Term \st:ConvStep m m' -> ConvStep.pi2 vt st t)
-Definition ConvStep*.app1 =
-  \t:Term \t':Term \path: ConvStep* t t' \m:Term ->
-  ConvStep*.lift (\t:Term -> Term.app t m)
-  		 (\t:Term \t':Term \st:ConvStep t t' -> ConvStep.app1 st m)
-		 path
-Definition ConvStep*.app2 =
-  \t:Term ->
-  ConvStep*.lift (\m:Term -> Term.app t m)
-  		 (\m:Term \m':Term \st:ConvStep m m' -> ConvStep.app2 t st)
-Definition ConvStep*.shiftn =
-  \t:Term \t':Term \path:ConvStep* t t' \n:Nat ->
-  ConvStep*.lift (\m:Term -> Term.shiftn m n)
-  		 (\m:Term \m':Term \st:ConvStep m m' -> ConvStep.shiftn st n)
-		 path
-
-Definition ConvStep*.substn.2 = \N:Term \N':Term \step:ConvStep N N'
-  Let Thesis = (\M:Term -> n:Nat ->
-      ConvStep* (Term.substn M n N) (Term.substn M n N')) ->
-  Term.rec Thesis
-    (\vt:VarType \t:Term \HypT:Thesis t \m:Term \HypM:Thesis m
-     \n:Nat ->
-     ConvStep*.app (ConvStep*.lam1 vt (HypT n) (Term.substn m (Nat.s n) N)) 
-     		   (ConvStep*.lam2 vt (Term.substn t n N') (HypM (Nat.s n))))
-    (\vt:VarType \t:Term \HypT:Thesis t \m:Term \HypM:Thesis m
-     \n:Nat ->
-     ConvStep*.app (ConvStep*.pi1 vt (HypT n) (Term.substn m (Nat.s n) N)) 
-     		   (ConvStep*.pi2 vt (Term.substn t n N') (HypM (Nat.s n))))
-    (\t:Term \HypT:Thesis t \m:Term \HypM:Thesis m \n:Nat ->
-     ConvStep*.app (ConvStep*.app1 (HypT n) (Term.substn m n N)) 
-     		   (ConvStep*.app2 (Term.substn t n N') (HypM n)))
-    (\vt:VarType \i:Nat \n:Nat ->
-     Let Aux = (\n:Nat \i:Nat ->
-          ConvStep* (Term.var.substn vt N n i) (Term.var.substn vt N' n i)) ->
-     Nat.rec (\n:Nat -> i:Nat -> Aux n i)
-        (Nat.rec (\i:Nat -> Aux Nat.0 i)
-	   (ConvStep*.cons step (ConvStep*.id N'))
-           (\i:Nat \_:Aux Nat.0 i -> ConvStep*.id (Term.var vt i)))
-        (\n:Nat \Hyp:(i:Nat -> Aux n i) ->
-          Nat.rec (\i:Nat -> Aux (Nat.s n) i)
-             (ConvStep*.id (Term.var vt Nat.0))
-             (\i:Nat \_:(Aux (Nat.s n) i) ->
-	      ConvStep*.shiftn (Hyp i) Nat.0))
-     n i)
-    (\vt:VarType \n:Nat -> ConvStep*.id (Term.univ vt))
+Definition SN.normalize.isNormalized = \t:Term \snt:SN t ->
+   Sigma.2 (SN.normalize.aux snt)
+TypeCheck SN.normalize.isNormalized :
+   t:Term -> sn:SN t -> Normalized (SN.normalize sn)
 
 Definition SN.steps =
-  Let Thesis = (\t:Term \snt:SN t -> ConvStep* t (SN.normalized snt)) ->
+  Let Thesis = (\t:Term \snt:SN t -> ConvStep* t (SN.normalize snt)) ->
   SN.rec Thesis
     (\t:Term \f:(t':Term -> ConvStep t t' -> SN t')
      \Hyp:(t':Term -> step:ConvStep t t' -> Thesis (f step)) ->
-     Let step.aux = SN.normalized.step t
-     	 (\t':Term \step:ConvStep t t' -> SN.normalized.aux (f t' step)) ->
+     Let step.aux = SN.normalize.step t
+     	 (\t':Term \step:ConvStep t t' -> SN.normalize.aux (f t' step)) ->
      Let Th2 = (\stept:+ (Normalized t) (Sigma (ConvStep t))  ->
        ConvStep* t (Sigma.1 (step.aux stept))) ->
      +.rec Th2
@@ -1421,6 +1845,7 @@ Definition SN.steps =
 	(\step:Sigma (ConvStep t) ->
 	  ConvStep*.cons (Sigma.2 step) (Hyp (Sigma.2 step)))
 	(SN.step t))
+TypeCheck SN.steps : t : Term -> sn:SN t -> ConvStep* t (SN.normalize sn)
 
 Definition ConvStep.confluent.beta.lam1 =
   \vt:VarType \t:Term \m:Term \n:Term \m':Term
@@ -1914,47 +2339,123 @@ Definition SN.confluent =
        step2
        (I.r (Term.app m1 n1)))
 
-Inductive Normalize : Term -> Term -> U =
-  lam   : vt:VarType -> {M:Term} -> {M':Term} -> Normalize M M' ->
-  	  {N:Term} -> {N':Term} -> Normalize N N' ->
-	  Normalize (Term.lam vt M N) (Term.lam vt M' N'),
-  pi    : vt:VarType -> {M:Term} -> {M':Term} -> Normalize M M' ->
-  	  {N:Term} -> {N':Term} -> Normalize N N' ->
-	  Normalize (Term.pi vt M N) (Term.pi vt M' N'),
-  applam: {M:Term} -> {vt:VarType} -> {M1:Term} -> {M2:Term} ->
-  	  Normalize M (Term.lam vt M1 M2) ->
-	  {N:Term} -> {N':Term} -> Normalize N N' ->
-	  {MN':Term} -> Normalize (Term.subst M2 N') MN' ->
-	  Normalize (Term.app M N) MN',
-  app   : {M:Term} -> {M':Term} -> Normalize M M' -> NotLam M' ->
-  	  {N:Term} -> {N':Term} -> Normalize N N' ->
-	  Normalize (Term.app M N) (Term.app M' N'),
-  var   : vt:VarType -> n:Nat -> Normalize (Term.var vt n) (Term.var vt n),
-  univ  : vt:VarType -> Normalize (Term.univ vt) (Term.univ vt)
+TypeCheck SN.confluent : t: Term -> t1:Term -> ConvStep t t1 ->
+        t2:Term -> ConvStep t t2 ->
+ 	Sigma (\t':Term -> * (ConvStep* t1 t') (ConvStep* t2 t'))
 
-;Inductive SN : Term -> U =
-;  sn : {t:Term} -> {t':Term} -> Normalize t t' -> SN t
-;Definition SN.normalized =
-;  SN.rec ({\t:Term}\sn:SN t -> Term)
-;    (\t:Term \t':Term \n:Normalize t t' -> t')
-;Definition SN.destruct =
-;  SN.rec ({\t:Term}\sn:SN t -> Normalize t (SN.normalized sn))
-;    (\t:Term \t':Term \n:Normalize t t' -> n)
-;Definition SN.sn.destruct.eq =
-;  SN.rec ({\t:Term}\sn:SN t -> I (SN.sn (SN.destruct sn)) sn)
-;    (\t:Term \t':Term \n:Normalize t t' -> I.r (SN.sn n))
-Definition SN = \t:Term -> Sigma (Normalize t)
-Definition SN.sn = {\t:Term} {\t':Term} -> Sigma.mk (Normalize t) t'
-Definition SN.rec = \C:({t:Term} -> sn:SN t -> U1)
-  \case:(t:Term -> t':Term -> n:Normalize t t' -> C (SN.sn n))
-  {\t:Term} \sn:SN t ->
-  Sigma.rec (\sig:Sigma (Normalize t) -> C sig)
-    (\t':Term \n:Normalize t t' -> case t t' n) sn
-Definition SN.normalized = Sigma.1
-Definition SN.destruct = Sigma.2
-Definition SN.sn.destruct.eq =
-  SN.rec ({\t:Term}\sn:SN t -> I (SN.sn (SN.destruct sn)) sn)
-    (\t:Term \t':Term \n:Normalize t t' -> I.r (SN.sn n))
+Definition Normalize.SN = \t:Term \sn: SN t ->
+  Normalized.SN (SN.normalize.isNormalized sn)
+TypeCheck Normalize.SN : t:Term -> sn: SN t -> SN (SN.normalize sn)
+
+Definition Normalized.ConvStep*.Id =
+  \t: Term \n:Normalized t \t':Term \c: ConvStep* t t' ->
+  ConvStep*.rec (\t:Term \t':Term \_:ConvStep* t t' ->
+                 n:Normalized t -> I t t')
+    (\t:Term \n:Normalized t -> I.r t)
+    (\t:Term \t2:Term \step1:ConvStep t t2 \t':Term \step2:ConvStep* t2 t'
+     \_: (Normalized t2 -> I t2 t') ->
+     Normalized.rec (\n:Normalized t -> I t t')
+      (\f:(t2:Term -> ConvStep t t2 -> F) ->
+       F.rec (\_:F -> I t t') (f step1)))
+    c n
+
+Definition Normalize.Normalized = \t:Term \n:Normalized t ->
+  Normalized.ConvStep*.Id n (SN.steps (Normalized.SN n))
+TypeCheck Normalize.Normalized : t:Term -> n:Normalized t ->
+  I t (SN.normalize (Normalized.SN n))
+
+
+;===========================================
+;  Term classification
+;===========================================
+
+Inductive Class : U =
+  []     : Class,
+  kind   : Class,
+  type   : Class,
+  constr : Class,
+  obj    : Class
+
+; Definition 2.3
+Inductive Classified : Gamma:VarList -> t:Term -> Term -> Class -> U =
+  kind  : CCTypeCheck Gamma t Term.[] -> Classified Gamma t Term.[] Class.kind,
+  type  : CCTypeCheck Gamma t Term.*  -> Classified Gamma t Term.* Class.type,
+  constr: A:Term -> CCTypeCheck Gamma t A -> CCTypeCheck Gamma A Term.[] ->
+	  Classified Gamma t A Class.constr,
+  obj   : A:Term -> CCTypeCheck Gamma t A -> CCTypeCheck Gamma A Term.* ->
+          Classified Gamma t A Class.obj
+
+Definition Class.constr2type =
+  Class.rec (\_:Class -> Class)
+    Class.[] Class.kind Class.type Class.type Class.[]
+Definition Class.type2constr =
+  Class.rec (\_:Class -> Class)
+    Class.[] Class.[] Class.constr Class.constr Class.obj
+Definition Class.constrobj =
+  VarType.rec (\_:VarType -> Class) Class.constr Class.obj
+Definition Class.kindtype =
+  VarType.rec (\_:VarType -> Class) Class.kind Class.type
+Definition Class.boxkind =
+  VarType.rec (\_:VarType -> Class) Class.[] Class.kind
+
+; Classification Lemma
+; Term.classify:  maps a term to its candidate class
+;   Univ.[]   -> []
+;   Univ.*    -> kind
+;   Var.[] x  -> constr
+;   Var.*     -> obj
+;   app A B   -> class of A
+;   lam A B   -> obj if class of B == obj else constr
+;   pi  A B   -> kind if class of B == kind else type
+Definition Term.classify =
+  Term.rec (\t:Term -> Class)
+    (\vt:VarType \M:Term \_:Class \N:Term \Nc:Class ->  ; lam
+        Class.type2constr Nc)
+    (\vt:VarType \M:Term \_:Class \N:Term \Nc:Class ->  ; pi
+        Class.constr2type Nc)
+    (\M:Term \Mc:Class \N:Term \_:Class -> Mc)          ; app
+    (\vt:VarType \n:Nat -> Class.constrobj vt)          ; var
+    Class.boxkind                                       ; univ
+
+; Lemma: Term.shiftn doesn't change class
+Definition Term.shiftn.classify =
+  Term.rec (\M:Term -> n:Nat ->
+            I (Term.classify (Term.shiftn M n)) (Term.classify M))
+    (\vt:VarType
+     \M:Term
+     \_:(n:Nat -> I (Term.classify (Term.shiftn M n)) (Term.classify M))
+     \N:Term
+     \Hyp:(n:Nat -> I (Term.classify (Term.shiftn N n)) (Term.classify N))
+     \n:Nat -> I.cong Class.type2constr (Hyp (Nat.s n)))
+    (\vt:VarType
+     \M:Term
+     \_:(n:Nat -> I (Term.classify (Term.shiftn M n)) (Term.classify M))
+     \N:Term
+     \Hyp:(n:Nat -> I (Term.classify (Term.shiftn N n)) (Term.classify N))
+     \n:Nat -> I.cong Class.constr2type (Hyp (Nat.s n)))
+    (\M:Term
+     \Hyp:(n:Nat -> I (Term.classify (Term.shiftn M n)) (Term.classify M))
+     \N:Term
+     \_:(n:Nat -> I (Term.classify (Term.shiftn N n)) (Term.classify N))
+     \n:Nat -> Hyp n)
+    (\vt:VarType \i:Nat \n:Nat -> I.r (Class.constrobj vt))
+    (\vt:VarType \n:Nat -> I.r (Class.boxkind vt))
+
+Assume Class.classification.1 :
+  Gamma:VarList -> t:Term -> A:Term -> CCTypeCheck Gamma t A ->
+  Classified Gamma t A (Term.classify t)
+
+Assume Class.classification.2 :
+  Gamma:VarList -> t:Term -> A:Term -> Classified Gamma t A class ->
+  Match class (Term.classify t)
+
+Inductive Base : Term -> U =
+  pi   : {vt:VarType} -> {M:Term} -> {N:Term} -> SN (Term.pi vt M N) ->
+	 Base (Term.pi vt M N),
+  app  : {M:Term} -> Base M -> {N:Term} -> SN N -> Base (Term.app M N),
+  var  : vt:VarType -> n:Nat -> Base (Term.var vt n),
+  univ : vt:VarType -> Base (Term.univ vt)
+
 
 ; Reduce key reduct, if applicable.
 Definition SN.redk =
@@ -1977,632 +2478,11 @@ Definition SN.redk.arg =
     (\vt:VarType \n:Nat -> Term.var vt n)
     (\vt:VarType -> Term.univ vt)
 
-Definition Normalize.arg1 =
-  Let Type = (\t:Term -> SN t) ->
-  Normalize.rec (\t:Term \t':Term \_:Normalize t t' -> Type (Term.arg1 t))
-    (\vt:VarType
-     \M1:Term \M1':Term \n1:Normalize M1 M1' \_:Type (Term.arg1 M1)
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \_:Type (Term.arg1 M2) ->
-     SN.sn n1)
-    (\vt:VarType
-     \M1:Term \M1':Term \n1:Normalize M1 M1' \_:Type (Term.arg1 M1)
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \_:Type (Term.arg1 M2) ->
-     SN.sn n1)
-    (\M1:Term \vt:VarType \M11':Term \M12':Term
-     \n1:Normalize M1 (Term.lam vt M11' M12') \_:Type (Term.arg1 M1)
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \_:Type (Term.arg1 M2)
-     \M':Term \n3:Normalize (Term.subst M12' M2') M'
-     \_:Type (Term.arg1 (Term.subst M12' M2')) ->
-     SN.sn n1)
-    (\M1:Term \M1':Term \n1:Normalize M1 M1' \_:Type (Term.arg1 M1)
-     \nl:NotLam M1'
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \_:Type (Term.arg1 M2) ->
-     SN.sn n1)
-    (\vt:VarType\n:Nat -> SN.sn (Normalize.univ VarType.*))
-    (\vt:VarType -> SN.sn (Normalize.univ VarType.*))
-
-Definition Normalize.arg2 =
-  Let Type = SN ->
-  Normalize.rec (\t:Term \t':Term \_:Normalize t t' -> Type (Term.arg2 t))
-    (\vt:VarType
-     \M1:Term \M1':Term \n1:Normalize M1 M1' \_:Type (Term.arg2 M1)
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \_:Type (Term.arg2 M2) ->
-     SN.sn n2)
-    (\vt:VarType
-     \M1:Term \M1':Term \n1:Normalize M1 M1' \_:Type (Term.arg2 M1)
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \_:Type (Term.arg2 M2) ->
-     SN.sn n2)
-    (\M1:Term \vt:VarType \M11':Term \M12':Term
-     \n1:Normalize M1 (Term.lam vt M11' M12') \_:Type (Term.arg2 M1)
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \_:Type (Term.arg2 M2)
-     \M':Term \n3:Normalize (Term.subst M12' M2') M'
-     \_:Type (Term.arg2 (Term.subst M12' M2')) ->
-     SN.sn n2)
-    (\M1:Term \M1':Term \n1:Normalize M1 M1' \_:Type (Term.arg2 M1)
-     \nl:NotLam M1'
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \_:Type (Term.arg2 M2) ->
-     SN.sn n2)
-    (\vt:VarType\n:Nat -> SN.sn (Normalize.univ VarType.*))
-    (\vt:VarType -> SN.sn (Normalize.univ VarType.*))
-
-Definition Bool.cases = {\A1:U} {\B1:U} \f1:(A1 -> B1)
-	                {\A2:U} {\B2:U} \f2:(A2 -> B2) ->
-  Bool.rec (\b:Bool -> Bool.ite b A1 A2 -> Bool.ite b B1 B2) f1 f2
-TypeCheck Bool.cases :
-  A1:U -> B1:U -> (A1->B1) -> A2:U -> B2:U -> (A2->B2) ->
-  b:Bool -> (Bool.ite b A1 A2) -> (Bool.ite b B1 B2)
-Definition Bool.case = \b:Bool \A:U -> Bool.ite b A T
-Definition Bool.case.cong = {\A:U} {\B:U} \f:(A -> B) ->
-  Bool.cases f T (\x:T -> x)
-TypeCheck Bool.case.cong : A:U -> B:U -> (A->B) ->
-  b:Bool -> (Bool.case b A) -> (Bool.case b B)
-Definition Bool.case.in = {\A1:U} {\B:U} \f1:(A1 -> B) {\A2:U} \f2:(A2 -> B) ->
-  Bool.rec (\b:Bool -> Bool.ite b A1 A2 -> B) f1 f2
-
-Definition Normalize.arg3 =
-  Let Type = ({\t:Term} {\t':Term} \n:Normalize t t' ->
-    Let t1' = SN.normalized (Normalize.arg1 n) ->
-    Let t2' = SN.normalized (Normalize.arg2 n) ->
-    Bool.case (Term.isApp t)
-      (Bool.case (Term.isLam t1') (SN (Term.subst (Term.arg2 t1') t2')))) ->
-  Normalize.rec Type
-    (\vt:VarType
-     \M1:Term \M1':Term \n1:Normalize M1 M1' \_:Type n1
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \_:Type n2 -> T.tt)
-    (\vt:VarType
-     \M1:Term \M1':Term \n1:Normalize M1 M1' \_:Type n1
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \_:Type n2 -> T.tt)
-    (\M1:Term \vt:VarType \M11':Term \M12':Term
-     \n1:Normalize M1 (Term.lam vt M11' M12') \_:Type n1
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \_:Type n2
-     \M':Term \n3:Normalize (Term.subst M12' M2') M' \_:Type n3 -> SN.sn n3)
-    (\M1:Term \M1':Term \n1:Normalize M1 M1' \_:Type n1 \nl:NotLam M1'
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \_:Type n2 ->
-     Bool.case.cong (F.rec (\_:F -> SN (Term.subst (Term.arg2 M1') M2')))
-       (Term.isLam M1') nl)
-    (\vt:VarType\n:Nat -> T.tt)
-    (\vt:VarType -> T.tt)
-
-Definition SN.arg1 = {\t:Term} \sn:SN t -> Normalize.arg1 (SN.destruct sn)
-Definition SN.arg2 = {\t:Term} \sn:SN t -> Normalize.arg2 (SN.destruct sn)
-Definition SN.arg3 = {\t:Term} \sn:SN t -> Normalize.arg3 (SN.destruct sn)
-
-Definition Normalize.case.app =
-  {\M1:Term} \n1:SN M1 {\M2:Term} \n2:SN M2
-  Let M1' = SN.normalized n1
-  Let Type3 = Term.subst (Term.arg2 M1') (SN.normalized n2) ->
-  Bool.rec (\isLam:Bool ->
-  	    class: Bool.ite isLam (Term.eqLam.type M1') (NotLam M1') ->
-	    n3:Bool.ite isLam (SN Type3) T ->
-	    SN (Term.app M1 M2))
-    (\eqLam:Term.eqLam.type M1'
-     \n3:SN Type3 ->
-     Let n1' = I.rsubst eqLam (Normalize M1) (SN.destruct n1) ->
-     SN.sn (Normalize.applam n1' (SN.destruct n2) (SN.destruct n3)))
-    (\nl:NotLam M1'
-     \n3:T ->
-     SN.sn (Normalize.app (SN.destruct n1) nl (SN.destruct n2)))
-  
-
-Definition Normalize.casex = \t':Term ->
-  Let Thesis = (\t:Term -> n:Normalize t t' -> SN t) ->
-  Term.rec Thesis
-    (\vt:VarType \M1:Term \_:Thesis M1 \M2:Term \_:Thesis M2
-     \n:Normalize (Term.lam vt M1 M2) t' ->
-     SN.sn (Normalize.lam vt (SN.destruct (Normalize.arg1 n))
-			     (SN.destruct (Normalize.arg2 n))))
-    (\vt:VarType \M1:Term \_:Thesis M1 \M2:Term \_:Thesis M2
-     \n:Normalize (Term.pi vt M1 M2) t' ->
-     SN.sn (Normalize.pi vt (SN.destruct (Normalize.arg1 n))
-			    (SN.destruct (Normalize.arg2 n))))
-    (\M1:Term \_:Thesis M1 \M2:Term \_:Thesis M2
-     \n:Normalize (Term.app M1 M2) t' ->
-     Let M1' = Sigma.1 (Normalize.arg1 n) ->
-     Normalize.case.app (Normalize.arg1 n) (Normalize.arg2 n)
-     	(Term.isLam M1') (Term.classifyLam M1') (Normalize.arg3 n))
-    (\vt:VarType \i:Nat \n:Normalize (Term.var vt i) t' ->
-     SN.sn (Normalize.var vt i))
-    (\vt:VarType \n:Normalize (Term.univ vt) t' ->
-     SN.sn (Normalize.univ vt))
-Definition Normalize.case = {\t:Term} {\t':Term} -> Normalize.casex t' t
-Definition SN.case = {\t:Term} \sn:SN t -> Normalize.case (SN.destruct sn)
-
-Definition NotLam.eq = \t:Term ->
-  Bool.rec (\b:Bool -> nl1:Bool.ite b F T -> nl2:Bool.ite b F T -> I nl1 nl2)
-    (\nl1:F -> F.rec (\nl2:F -> I nl1 nl2))
-    (T.rec (\nl1:T -> nl2:T -> I nl1 nl2) (T.rec (I T.tt) (I.r T.tt)))
-    (Term.isLam t)
-
-Definition Normalize.case.eq =
-  Let Thesis = ({\t:Term} {\t':Term} \n:Normalize t t' ->
-      	        I (Normalize.case n) (SN.sn n)) ->
-  Normalize.rec Thesis
-    (\vt:VarType
-     \M1:Term \M1':Term \n1:Normalize M1 M1' \HypM1:Thesis n1
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \HypM2:Thesis n2 ->
-     I.r (SN.sn (Normalize.lam vt n1 n2)))
-    (\vt:VarType
-     \M1:Term \M1':Term \n1:Normalize M1 M1' \HypM1:Thesis n1
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \HypM2:Thesis n2 ->
-     I.r (SN.sn (Normalize.pi vt n1 n2)))
-    (\M1:Term \vt:VarType \M11':Term \M12':Term
-     \n1:Normalize M1 (Term.lam vt M11' M12') \HypM1:Thesis n1
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \HypM2:Thesis n2
-     \M':Term \n3:Normalize (Term.subst M12' M2') M' \HypM3: Thesis n3 ->
-     I.r (SN.sn (Normalize.applam n1 n2 n3)))
-    (\M1:Term \M1':Term \n1:Normalize M1 M1' \HypM1:Thesis n1
-     \nl:NotLam M1'
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \HypM2:Thesis n2
-     Let n = (Normalize.app n1 nl n2) ->
-     Let M3 = Term.subst (Term.arg2 M1') M2' ->
-     Let nl' = (\x:Bool \eq:I (Term.isLam M1') x ->
-          I.subst eq (\x:Bool -> Bool.ite x (Term.eqLam.type M1')
-					    (NotLam M1'))
-			      (Term.classifyLam M1')) ->
-     Bool.rec (\x:Bool -> I (Term.isLam M1') x -> Thesis n)
-     	(\eq:I (Term.isLam M1') Bool.tt ->
-	 F.rec (\_:F -> Thesis n)
-	   (I.subst eq (\x:Bool -> (Bool.ite x F T)) nl))
-	(\eq:I (Term.isLam M1') Bool.ff ->
-	 I.rsubst eq (\x:Bool ->
-	          eq2:I (Term.isLam M1') x ->
-		  I (Normalize.case.app (SN.sn n1) (SN.sn n2) x
-     	             (nl' eq2)
-     	             (I.subst eq2 (\x:Bool -> Bool.ite x (SN M3) T)
-			      (Normalize.arg3 n)))
-		    (SN.sn n))
-	    (\eq2:I (Term.isLam M1') Bool.ff ->
-	     (I.cong (\x:NotLam M1' -> SN.sn (Normalize.app n1 x n2))
-		     (NotLam.eq M1' (nl' eq2) nl)))
-	    (I.r (Term.isLam M1')))
-        (Term.isLam M1')
-	(I.r (Term.isLam M1')))
-    (\vt:VarType \n:Nat -> I.r (SN.sn (Normalize.var vt n)))
-    (\vt:VarType -> I.r (SN.sn (Normalize.univ vt)))
-Definition SN.case.eq = {\t:Term} \sn:SN t ->
-  I.subst (SN.sn.destruct.eq sn)
-     (\x:SN t -> I (SN.case x) x)
-     (Normalize.case.eq (SN.destruct sn))
-TypeCheck SN.case.eq : {t:Term} -> sn:SN t -> I (SN.case sn) sn
-
-Definition Normalize.unique =
-  Let Thesis = ({\t:Term} {\t':Term} \n:Normalize t t' ->
-      	        sn:SN t -> I (SN.sn n) sn) ->
-  Normalize.rec Thesis
-    (\vt:VarType
-     \M1:Term \M1':Term \n1:Normalize M1 M1' \HypM1:Thesis n1
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \HypM2:Thesis n2
-     \sn:SN (Term.lam vt M1 M2) ->
-     I.trans (I.cong2 (\sn1:SN M1 \sn2:SN M2 ->
-     	       SN.sn (Normalize.lam vt (SN.destruct sn1) (SN.destruct sn2)))
-	      (HypM1 (SN.arg1 sn)) (HypM2 (SN.arg2 sn)))
-	     (SN.case.eq sn))
-    (\vt:VarType
-     \M1:Term \M1':Term \n1:Normalize M1 M1' \HypM1:Thesis n1
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \HypM2:Thesis n2
-     \sn:SN (Term.pi vt M1 M2) ->
-     I.trans (I.cong2 (\sn1:SN M1 \sn2:SN M2 ->
-     	       SN.sn (Normalize.pi vt (SN.destruct sn1) (SN.destruct sn2)))
-	      (HypM1 (SN.arg1 sn)) (HypM2 (SN.arg2 sn)))
-	     (SN.case.eq sn))
-    (\M1:Term \vt:VarType \M11':Term \M12':Term
-     \n1:Normalize M1 (Term.lam vt M11' M12') \HypM1:Thesis n1
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \HypM2:Thesis n2
-     Let M3 = Term.subst M12' M2'
-     \M':Term \n3:Normalize M3 M' \HypM3: Thesis n3 ->
-     \sn:SN (Term.app M1 M2) ->
-     Let n = (Normalize.applam n1 n2 n3) ->
-     Let sn3type = (\sn1:SN M1 \sn2:SN M2 ->
-		  Bool.ite (Term.isLam (SN.normalized sn1))
-			   (SN (Term.subst (Term.arg2 (SN.normalized sn1))
-					   (SN.normalized sn2)))
-			   T)
-     Let sn3subst = (\sn1:SN M1 \eq1: I (SN.sn n1) sn1
-     	             \sn2:SN M2 \eq2: I (SN.sn n2) sn2 ->
-		I.subst2 (I.symm eq1) (I.symm eq2)
-			  (\sn1:SN M1 \sn2:SN M2 -> sn3type sn1 sn2)) ->
-     Let Th2 = (\sn1:SN M1 \sn2:SN M2 \sn3:sn3type sn1 sn2
-	Let M1' = SN.normalized sn1 ->
-	I (SN.sn n) (Normalize.case.app sn1 sn2 (Term.isLam M1')
-	                        (Term.classifyLam M1') sn3)) ->
-     I.trans				
-     (I.rec (SN.sn n1) (\sn1:SN M1 \eq1:I (SN.sn n1) sn1 ->
-     	                sn2:SN M2 -> eq2:I (SN.sn n2) sn2 ->
-			sn3:sn3type sn1 sn2 ->
-			eq3:I (SN.sn n3) (sn3subst eq1 eq2 sn3) ->
-     	    	     	Th2 sn1 sn2 sn3)
-       (I.rec (SN.sn n2) (\sn2:SN M2 \eq2:I (SN.sn n2) sn2 ->
-			  sn3:sn3type (SN.sn n1) sn2 ->
-			  eq3:I (SN.sn n3) (sn3subst (I.r (SN.sn n1)) eq2 sn3)->
-     	    	     	  Th2 (SN.sn n1) sn2 sn3)
-	  (I.rec (SN.sn n3) (\sn3:SN M3 \eq3:I (SN.sn n3) sn3 ->
-		      	     Th2 (SN.sn n1) (SN.sn n2) sn3)
-	     (I.r (SN.sn n))))
-       (HypM1 (SN.arg1 sn))
-       (HypM2 (SN.arg2 sn))
-       (SN.arg3 sn)
-       (HypM3 (sn3subst (HypM1 (SN.arg1 sn)) (HypM2 (SN.arg2 sn))
-       	      		(SN.arg3 sn))))
-     (SN.case.eq sn))
-    (\M1:Term \M1':Term \n1:Normalize M1 M1' \HypM1:Thesis n1
-     \nl:NotLam M1'
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \HypM2:Thesis n2
-     \sn:SN (Term.app M1 M2) ->
-     Let n = (Normalize.app n1 nl n2) ->
-     Let nlsubst = (\sn1:SN M1 \eq1: I (SN.sn n1) sn1 ->
-		I.rsubst eq1
-			 (\sn1:SN M1 -> NotLam (SN.normalized sn1))) ->
-     Let sn3type = (\sn1:SN M1 \sn2:SN M2 ->
-		  Bool.ite (Term.isLam (SN.normalized sn1))
-			   (SN (Term.subst (Term.arg2 (SN.normalized sn1))
-					   (SN.normalized sn2)))
-			   T)
-     Let nl' = (\sn1:SN M1 -> Let snM1' = SN.normalized sn1 ->
-         \x:Bool \eq: I (Term.isLam snM1') x ->
-     	 I.subst eq (\x:Bool ->
-	 	 Bool.ite x (Term.eqLam.type snM1') (NotLam snM1'))
-		 (Term.classifyLam snM1'))
-     Let arg3 = (Let snM1' = SN.normalized (SN.arg1 sn) ->
-     	         Let snM2' = SN.normalized (SN.arg2 sn) ->
-         \x:Bool \eq: I (Term.isLam snM1') x ->
-     	 I.subst eq (\x:Bool ->
-	 	 Bool.ite x (SN (Term.subst (Term.arg2 snM1') snM2')) T)
-		 (SN.arg3 sn))
-     Let Th2 = (\sn1:SN M1 \nl': NotLam (SN.normalized sn1) \sn2:SN M2  ->
-	I (SN.sn n) (SN.sn (Normalize.app (SN.destruct sn1) nl' (SN.destruct sn2)))) ->
-     Let nl2eq = Bool.rec (\x:Bool -> Bool.ite x F T -> I x Bool.ff)
-       (F.rec (\_:F -> I Bool.tt Bool.ff)) (\t:T -> I.r Bool.ff) ->
-     I.trans
-     (I.rec Bool.ff (\x:Bool \_:I Bool.ff x ->
-     	    	     eq:I (Term.isLam (SN.normalized (SN.arg1 sn))) x ->
-     	    	     I (SN.sn n) (Normalize.case.app (SN.arg1 sn) (SN.arg2 sn)
-			     		     x (nl' (SN.arg1 sn) eq) (arg3 eq)))
-      (I.rec (SN.sn n1) (\sn1:SN M1 \eq1:I (SN.sn n1) sn1 ->
-      	                eq3:I (Term.isLam (SN.normalized sn1)) Bool.ff ->
-     	    	        Th2 sn1 (nl' sn1 eq3) (SN.arg2 sn))
-	(\eq3: I (Term.isLam M1') Bool.ff ->
-	 I.rec (SN.sn n2) (\sn2:SN M2 \eq2:I (SN.sn n2) sn2 ->
-			   Th2 (SN.sn n1) (nl' (SN.sn n1) eq3) sn2)
-	   (I.cong (\nl:NotLam M1' -> (SN.sn (Normalize.app n1 nl n2)))
-	       (NotLam.eq M1' nl (nl' (SN.sn n1) eq3)))
-	   (HypM2 (SN.arg2 sn)))
-	(HypM1 (SN.arg1 sn)))
-      (I.subst (HypM1 (SN.arg1 sn))
-         (\x:SN M1 -> I Bool.ff (Term.isLam (SN.normalized x)))
-	 (I.symm (nl2eq (Term.isLam M1') nl)))
-      (I.r (Term.isLam (SN.normalized (SN.arg1 sn)))))
-     (SN.case.eq sn))
-    (\vt:VarType \i:Nat \sn:SN (Term.var vt i) -> SN.case.eq sn)
-    (\vt:VarType \sn:SN (Term.univ vt) -> SN.case.eq sn)
-
-Definition SN.unique = \t:Term \sn1:SN t \sn2:SN t ->
-  Normalize.unique (SN.destruct sn1) sn2
-
-Definition Normalize.idempotent =
-  Normalize.rec (\M:Term \M':Term \_:Normalize M M' -> Normalize M' M')
-    (\vt:VarType
-     \M1:Term \M1':Term \n1:Normalize M1 M1' \HypM1:Normalize M1' M1'
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \HypM2:Normalize M2' M2' ->
-     Normalize.lam vt HypM1 HypM2)
-    (\vt:VarType
-     \M1:Term \M1':Term \n1:Normalize M1 M1' \HypM1:Normalize M1' M1'
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \HypM2:Normalize M2' M2' ->
-     Normalize.pi vt HypM1 HypM2)
-    (\M1:Term \vt:VarType \M11':Term \M12':Term
-     \n1:Normalize M1 (Term.lam vt M11' M12')
-     \HypM1:Normalize (Term.lam vt M11' M12') (Term.lam vt M11' M12')
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \HypM2:Normalize M2' M2'
-     \M':Term
-     \n3:Normalize (Term.subst M12' M2') M' \HypM3: Normalize M' M' ->
-     HypM3)
-    (\M1:Term \M1':Term \n1:Normalize M1 M1' \HypM1:Normalize M1' M1'
-     \nl:NotLam M1'
-     \M2:Term \M2':Term \n2:Normalize M2 M2' \HypM2:Normalize M2' M2' ->
-     Normalize.app HypM1 nl HypM2)
-    (\vt:VarType \n:Nat -> Normalize.var vt n)
-    (\vt:VarType -> Normalize.univ vt)  
-
-Definition Normalize.result.app = \sn1:Term \sn2:Term ->
-  Bool.rec (\x:Bool -> Bool.ite x (SN (Term.subst (Term.arg2 sn1) sn2)) T ->
-     	    Term)
-	(\sn3:SN (Term.subst (Term.arg2 sn1) sn2) -> SN.normalized sn3)
-	(\_:T -> Term.app sn1 sn2)
-
-Definition Normalize.result =
-  Let sn3type = (\t:Term \sn1:Term \sn2:Term ->
-		Bool.ite (Term.isApp t)
-		  (Bool.ite (Term.isLam sn1)
-		    (SN (Term.subst (Term.arg2 sn1) sn2)) T) T) ->
-  Let Thesis = (\t:Term -> sn1:Term -> sn2:Term -> sn3type t sn1 sn2 -> Term) ->
-  Term.rec Thesis
-    (\vt:VarType \t1:Term \_:Thesis t1 \t2:Term \_:Thesis t2 ->
-     \sn1:Term \sn2:Term \sn3:T ->
-     Term.lam vt sn1 sn2)
-    (\vt:VarType \t1:Term \_:Thesis t1 \t2:Term \_:Thesis t2 ->
-     \sn1:Term \sn2:Term \sn3:T ->
-     Term.pi vt sn1 sn2)
-    (\t1:Term \_:Thesis t1 \t2:Term \_:Thesis t2 -> 
-     \sn1:Term \sn2:Term \sn3:sn3type (Term.app t1 t2) sn1 sn2 ->
-     Normalize.result.app sn1 sn2 (Term.isLam sn1) sn3)
-    (\vt:VarType \i:Nat \sn1:Term \sn2:Term \sn3:T -> Term.var vt i)
-    (\vt:VarType \sn1:Term \sn2:Term \sn3:T -> Term.univ vt)
-
-Definition Normalize.result.eq =
-  Let Thesis = (\t:Term -> \t':Term -> \n:Normalize t t' ->
-                I (Normalize.result t (SN.normalized (Normalize.arg1 n))
-		  		    (SN.normalized (Normalize.arg2 n))
-				    (Normalize.arg3 n))
-		  t') ->
-  Normalize.rec Thesis
-    (\vt:VarType \t1:Term \t1':Term \n1:Normalize t1 t1' \_:Thesis n1
-     \t2:Term \t2':Term \n2:Normalize t2 t2' \_:Thesis n2 ->
-     I.r (Term.lam vt t1' t2'))
-    (\vt:VarType \t1:Term \t1':Term \n1:Normalize t1 t1' \_:Thesis n1
-     \t2:Term \t2':Term \n2:Normalize t2 t2' \_:Thesis n2 ->
-     I.r (Term.pi vt t1' t2'))
-    (\t1:Term \vt:VarType \t11':Term \t12':Term
-     \n1:Normalize t1 (Term.lam vt t11' t12') \_:Thesis n1
-     \t2:Term \t2':Term \n2:Normalize t2 t2' \_:Thesis n2
-     \t':Term \n3:Normalize (Term.subst t12' t2') t' \_:Thesis n3 ->
-     I.r t')
-    (\t1:Term \t1':Term \n1:Normalize t1 t1' \_:Thesis n1
-     \nl:NotLam t1'
-     \t2:Term \t2':Term \n2:Normalize t2 t2' \_:Thesis n2
-     Let sn3 = (\x:Bool \nl:Bool.ite x F T ->
-     	 (Bool.case.cong (F.rec (\_:F -> SN (Term.subst (Term.arg2 t1') t2')))
-            x nl)) ->
-     Bool.rec (\x:Bool -> nl:Bool.ite x F T ->
-               I (Normalize.result.app t1' t2' x (sn3 x nl))
-		 (Term.app t1' t2'))
-       (F.rec (\f:F -> I (Normalize.result.app t1' t2' Bool.tt (sn3 Bool.tt f))
-       	      	         (Term.app t1' t2')))
-       (\t:T -> I.r (Term.app t1' t2'))
-       (Term.isLam t1')
-       nl)
-    (\vt:VarType \i:Nat -> I.r (Term.var vt i))
-    (\vt:VarType -> I.r (Term.univ vt))
-
-Definition Normalize.subst.up.aux =
-  \M:Term \M':Term \nM:Normalize M M' ->
-  \N:Term \N':Term \nN:Normalize N N' ->
-  \n:Nat \snMN:SN (Term.substn M n N) \snMN':SN (Term.substn M' n N') ->
-  \eq1:I (SN.normalized (SN.arg1 snMN)) (SN.normalized (SN.arg1 snMN')) ->
-  \eq2:I (SN.normalized (SN.arg2 snMN)) (SN.normalized (SN.arg2 snMN')) ->
-  \eq3: Bool.ite (Term.isApp (Term.substn M n N))
-    (Bool.ite (Term.isLam (SN.normalized (SN.arg1 snMN)))
-      (I (SN.normalized (SN.arg3 snMN)) (SN.normalized (SN.arg3 snMN')))
-      T) T ->
-  I.trans (I.trans (I.symm (Normalize.result.eq (SN.destruct snmN)))
-    
-  	  (I.cong3 (\x:Term \y:Term \z:Term ->
-	            B
-	  	    \z: Bool.ite (Term.isApp (Term.substn M n N))
-		    	  (Bool.ite (Term.isLam x)) 
-	  	    (
-  	  
-  I (SN.normalized snMN) (SN.normalized snMN')
-
-  
-Definition Normalize.subst.up =
-  Let Thesis = (\MN:Term \M'':Term \nMN:Normalize MN M'' ->
-     M:Term -> M':Term -> nM: Normalize M M' ->
-     N:Term -> N':Term -> nN: Normalize N N' ->
-     n: Nat -> I (Term.substn M n N) MN ->
-     sn':SN (Term.substn M' n N') -> I M'' (SN.normalized sn'))
-  Normalize.rec Thesis
-    ;lam
-    (\vt:VarType \MN1:Term \MN1':Term \n1:Normalize MN1 MN1' \Hyp1:Thesis n1
-     \MN2:Term \MN2':Term \n2:Normalize MN2 MN2' \Hyp2:Thesis n2
-     \M:Term \M':Term \nM: Normalize M M' ->
-     \N:Term \N':Term \nN: Normalize N N'
-     Let Th2 = (\M:Term -> \M':Term -> \_:Normalize M M' ->
-     	n:Nat -> I (Term.substn M n N) (Term.lam vt MN1 MN2) ->
-	Normalize (Term.substn M' n N') (Term.lam vt MN1' MN2')) ->
-     Normalize.rec Th2
-       ;lam
-       (\vtM:VarType \M1:Term \M1':Term \nM1:Normalize M1 M1' \_:Th2 nM1
-        \M2:Term \M2':Term \nM2:Normalize M2 M2' \_:Th2 nM2
-	\n:Nat
-	\eq: I (Term.substn (Term.lam vtM M1 M2) n N) (Term.lam vt MN1 MN2) ->
-	I.subst (I.cong Term.vt eq)
-	  (\x:VarType -> Normalize (Term.substn (Term.lam vtM M1' M2') n N)
-				   (Term.lam x MN1 MN2))
-	(Normalize.lam vtM
-	  (Hyp1 nM1 nN n (I.cong Term.arg1 eq))
-	  (Hyp2 nM2 nN (Nat.s n) (I.cong Term.arg2 eq)))))
-    ;pi
-    (\vt:VarType \M1:Term \M1':Term \nM1:Normalize M1 M1' \Hyp1:Thesis nM1
-     \M2:Term \M2':Term \nM2:Normalize M2 M2' \Hyp2:Thesis nM2
-     \n:Nat \M'':Term
-     \nMN':Normalize (Term.substn (Term.pi vt M1' M2') n N') M'' ->
-     Let snMN'' = SN.case (SN.sn nMN') ->
-     Let nMN = (Normalize.pi vt (Hyp1 n (SN.destruct (SN.arg1 snMN'')))
-     		   	     (Hyp2 (Nat.s n) (SN.destruct (SN.arg2 snMN'')))) ->
-     I.subst (SN.case.eq (SN.sn nMN'))
-        (\x:SN (Term.substn (Term.pi vt M1' M2') n N') ->
-	  Normalize (Term.substn (Term.pi vt M1 M2) n N)
-	  	    (SN.normalized x))
-	nMN)
-    ;applam
-    (\M1:Term \vt:VarType \M11':Term \M12':Term
-     \nM1:Normalize M1 (Term.lam vt M11' M12') \Hyp1:Thesis nM1
-     \M2:Term \M2':Term \nM2:Normalize M2 M2' \Hyp2:Thesis nM2
-     Let M3 = Term.subst M12' M2'
-     \M':Term \nM3:Normalize M3 M' \Hyp3 Thesis nM3
-     \n:Nat \M'':Term
-     \nMN':Normalize (Term.substn M' n N') M'' ->
-     Let snMN'' = SN.case (SN.sn nMN') ->
-     Let nMN = (Normalize.applam vt
-     	 (Hyp1 n (Normalize.lam (
-
-Definition Normalize.subst.down = {\N:Term} ->
- Let Thesis = (\M:Term \M':Term -> \nM: Normalize M M' ->
-      	        n:Nat -> {M'':Term} ->
-   		Normalize (Term.substn M n N) M'' ->
-   		Normalize (Term.substn M' n N) M'') ->
-  Normalize.rec Thesis
-    ;lam
-    (\vt:VarType \M1:Term \M1':Term \nM1:Normalize M1 M1' \Hyp1:Thesis nM1
-     \M2:Term \M2':Term \nM2:Normalize M2 M2' \Hyp2:Thesis nM2
-     \n:Nat \M'':Term
-     \nMN:Normalize (Term.substn (Term.lam vt M1 M2) n N) M'' ->
-     Let snMN = SN.case (SN.sn nMN) ->
-     Let nMN' = (Normalize.lam vt (Hyp1 n (SN.destruct (SN.arg1 snMN)))
-     		   	      (Hyp2 (Nat.s n) (SN.destruct (SN.arg2 snMN)))) ->
-     I.subst (SN.case.eq (SN.sn nMN))
-        (\x:SN (Term.substn (Term.lam vt M1 M2) n N) ->
-	  Normalize (Term.substn (Term.lam vt M1' M2') n N)
-	  	    (SN.normalized x))
-	nMN')
-    ;pi
-    (\vt:VarType \M1:Term \M1':Term \nM1:Normalize M1 M1' \Hyp1:Thesis nM1
-     \M2:Term \M2':Term \nM2:Normalize M2 M2' \Hyp2:Thesis nM2
-     \n:Nat \M'':Term
-     \nMN:Normalize (Term.substn (Term.pi vt M1 M2) n N) M'' ->
-     Let snMN = SN.case (SN.sn nMN) ->
-     Let nMN' = (Normalize.pi vt (Hyp1 n (SN.destruct (SN.arg1 snMN)))
-     		   	     (Hyp2 (Nat.s n) (SN.destruct (SN.arg2 snMN)))) ->
-     I.subst (SN.case.eq (SN.sn nMN))
-        (\x:SN (Term.substn (Term.pi vt M1 M2) n N) ->
-	  Normalize (Term.substn (Term.pi vt M1' M2') n N)
-	  	    (SN.normalized x))
-	nMN')
-    ;applam
-    (\M1:Term \vt:VarType \M11':Term \M12':Term
-     \nM1:Normalize M1 (Term.lam vt M11' M12') \Hyp1:Thesis nM1
-     \M2:Term \M2':Term \nM2:Normalize M2 M2' \Hyp2:Thesis nM2
-     Let M3 = Term.subst M12' M2'
-     \M':Term \nM3:Normalize M3 M' \Hyp3:Thesis nM3
-     \n:Nat \M'':Term
-     \nMN:Normalize (Term.substn (Term.app M1 M2) n N) M'' ->
-     Let MN1 = SN.normalized (Normalize.arg1 nMN)
-     Let MN2 = SN.normalized (Normalize.arg2 nMN) ->
-     Let M'N = Term.substn M' n N ->
-     Bool.rec (\x:Bool -> 
-     	       nl:Bool.ite x (Term.eqLam.type MN1) (NotLam MN1) ->
-	       sn3:Bool.ite x (SN (Term.subst (Term.arg2 MN1) MN2)) T ->
-	       I (Normalize.case.app (Normalize.arg1 nMN) (Normalize.arg2 nMN)
-				     x nl sn3)
-		 (SN.sn nMN) ->
-     	       Normalize M'N M'')
-       (\eq:Term.eqLam.type MN1 ->
-        \sn3:SN (Term.subst (Term.arg2 MN1) (MN2))
-	\eqsn:I (Normalize.case.app (Normalize.arg1 nMN) (Normalize.arg2 nMN)
-				    Bool.tt eq sn3)
-		(SN.sn nMN)
-        Let nMN1 = I.rsubst eq (\x:Term -> Normalize (Term.substn M1 n N) x)
-	    	   	       (SN.destruct (Normalize.arg1 nMN)) ->
-;	I.subst eqsn (\x:SN (Term.substn (Term.app M1 M2) n N) ->
-;		Normalize M'N (SN.normalized x))
-	Hyp3 n (Normalize.applam (Hyp1 n nMN1)
-	       			 (Hyp2 n (SN.destruct (Normalize.arg2 nMN)))
-			  	 (SN.destruct sn3)))
-       (\nl:NotLam MN1 \t:T
-	\eqsn:I (Normalize.case.app (Normalize.arg1 nMN) (Normalize.arg2 nMN)
-				    Bool.ff nl t)
-		(SN.sn nMN) ->
-	I.subst eqsn (\x:SN (Term.substn (Term.app M1 M2) n N) ->
-		Normalize M'N (SN.normalized x))
-        (Normalize.app (Hyp1 n (SN.destruct (Normalize.arg1 nMN))) nl
-		       (Hyp2 n (SN.destruct (Normalize.arg2 nMN)))))
-       (Term.isLam MN1)
-       (Term.classifyLam MN1)
-       (Normalize.arg3 nMN)
-       (Normalize.case.eq nMN))
-    ;app
-    (\M1:Term \vt:VarType \M11':Term \M12':Term
-     \nM1:Normalize M1 (Term.lam vt M11' M12') \Hyp1:Thesis nM1
-     \M2:Term \M2':Term \nM2:Normalize M2 M2' \Hyp2:Thesis nM2
-     Let M3 = Term.subst M12' M2'
-     \M':Term \nM3:Normalize M3 M' \Hyp3:Thesis nM3
-     \n:Nat \M'':Term
-     \nMN:Normalize (Term.substn (Term.app M1 M2) n N) M'' ->
-     Let MN1 = SN.normalized (Normalize.arg1 nMN)
-     Let MN2 = SN.normalized (Normalize.arg2 nMN) ->
-     Let M'N' = Term.substn (Term.app (Term.lam vt M11' M12') M2') n N' ->
-     Bool.rec (\x:Bool -> 
-     	       nl:Bool.ite x (Term.eqLam.type MN1) (NotLam MN1) ->
-	       sn3:Bool.ite x (SN (Term.subst (Term.arg2 MN1) MN2)) T ->
-	       I (Normalize.case.app (Normalize.arg1 nMN) (Normalize.arg2 nMN)
-				     x nl sn3)
-		 (SN.sn nMN) ->
-     	       Normalize M'N' M'')
-       (\eq:Term.eqLam.type MN1 ->
-        \sn3:SN (Term.subst (Term.arg2 MN1) (MN2))
-	\eqsn:I (Normalize.case.app (Normalize.arg1 nMN) (Normalize.arg2 nMN)
-				    Bool.tt eq sn3)
-		(SN.sn nMN)
-        Let nMN1 = I.rsubst eq (\x:Term -> Normalize (Term.substn M1 n N) x)
-	    	   	       (SN.destruct (Normalize.arg1 nMN)) ->
-	I.subst eqsn (\x:SN (Term.substn (Term.app M1 M2) n N) ->
-		Normalize M'N' (SN.normalized x))
-	(Normalize.applam (Hyp1 n nMN1) (Hyp2 n (SN.destruct (Normalize.arg2 nMN)))
-			  (SN.destruct sn3)))
-       (\nl:NotLam MN1 \t:T
-	\eqsn:I (Normalize.case.app (Normalize.arg1 nMN) (Normalize.arg2 nMN)
-				    Bool.ff nl t)
-		(SN.sn nMN) ->
-	I.subst eqsn (\x:SN (Term.substn (Term.app M1 M2) n N) ->
-		Normalize M'N' (SN.normalized x))
-        (Normalize.app (Hyp1 n (SN.destruct (Normalize.arg1 nMN))) nl
-		       (Hyp2 n (SN.destruct (Normalize.arg2 nMN)))))
-       (Term.isLam MN1)
-       (Term.classifyLam MN1)
-       (Normalize.arg3 nMN)
-       (Normalize.case.eq nMN))
-
-Definition Normalize.redk.eq =
-  Let Thesis = (\t:Term -> SN t -> a:Term -> SN a ->
-                t':Term -> Normalize (SN.redk (Term.app t a)) t' ->
-		Normalize (Term.app t a) t') ->
-  Term.rec Thesis
-     (\vt:VarType \m:Term \Hyp1:Thesis m \n:Term \Hyp2:Thesis n ->
-      \snt:SN (Term.lam vt m n) \a:Term \sna:SN a ->
-      \t':Term \norm:Normalize (Term.subst n a) t' ->
-      ; SN.arg2 snt: n ---> n',   sna: a ---> a'
-      ; snt: lam vt m n ---> lam vt m' n'
-      ; Term.subst n a ---> t'  ->  Term.subst n' a' ---> t'
-      ;Let result = Normalize.applam snt sna
-      ;            (SN.subst (SN.arg2 snt) sna (SN.sn norm))
-      Assume Normalize (Term.app (Term.lam vt m n) a) t')
-     (\vt:VarType \m:Term \Hyp1:Thesis m \n:Term \Hyp2:Thesis n ->
-      \_:SN (Term.pi vt m n) \a:Term \_:SN a ->
-      \t':Term \n:Normalize (Term.app (Term.pi vt m n) a) t' -> n)
-     (\m:Term \Hyp1:Thesis m \n:Term \Hyp2:Thesis n ->
-      \snt:SN (Term.app m n) \a:Term \sna:SN a ->
-      \t':Term \norm:Normalize (Term.app (SN.redk (Term.app m n)) a) t' ->
-      Let H = Hyp1 (SN.arg1 snt) n (SN.arg2 snt)
-		   (SN.destruct (Normalize.arg1 norm)) ->
-      Let t1' = SN.normalized (Normalize.arg1 norm) ->
-      ; H : Normalize (Term.app m n) t1'
-      Let result = Normalize.case.app (SN.sn H) (Normalize.arg2 norm)
-          (Term.isLam t1') (Term.classifyLam t1') (Normalize.arg3 norm) ->
-      I.subst (Assume I (SN.normalized result) t')
-         (\x:Term -> Normalize (Term.app (Term.app m n) a) x)
-	 (SN.destruct result))
-     (\vt:VarType \i:Nat ->
-      \snt:SN (Term.var vt i) \a:Term \sna:SN a ->
-      \t':Term \n:Normalize (Term.app (Term.var vt i) a) t' -> n)
-     (\vt:VarType ->
-      \snt:SN (Term.univ vt) \a:Term \sna:SN a ->
-      \t':Term \n:Normalize (Term.app (Term.univ vt) a) t' -> n)
-      
-Definition SN.app.redk = \t:Term \snt:SN t \a:Term \sna:SN a
-  \sn:SN (SN.redk (Term.app t a)) ->
-  SN.sn (Normalize.redk.eq snt sna (SN.destruct sn))
-
-Inductive Base : Term -> U =
-  pi   : {vt:VarType} -> {M:Term} -> {N:Term} -> SN (Term.pi vt M N) ->
-	 Base (Term.pi vt M N),
-  app  : {M:Term} -> Base M -> {N:Term} -> SN N -> Base (Term.app M N),
-  var  : vt:VarType -> n:Nat -> Base (Term.var vt n),
-  univ : vt:VarType -> Base (Term.univ vt)
-
 Definition pow = \X : U -> (X -> U)
 Inductive SAT : X : (pow Term) -> U =
   def : (t:Term -> X t -> SN t) ->
-        ({t:Term} -> Base t -> X t) ->
-        ({t:Term} -> SN t -> X (SN.redk t) -> X t) -> SAT X
+        (t:Term -> Base t -> X t) ->
+        (t:Term -> SN t -> X (SN.redk t) -> X t) -> SAT X
 Definition SAT.sn = {\X:(pow Term)} ->
   SAT.rec X (\_:SAT X -> t:Term -> X t -> SN t)
     (\x:(t:Term -> X t -> SN t)
@@ -2619,115 +2499,141 @@ Definition SAT.red = {\X:(pow Term)} ->
      \_:({t:Term} -> Base t -> X t)
      \x:({t:Term} -> SN t -> X (SN.redk t) -> X t) -> x)
 
-Definition Function = \dom : pow Term -> \rng : pow Term
-  \t:Term -> (a:Term -> dom a -> rng (Term.app t a))
-Definition Intersect = \A : U -> \sets : (A -> pow Term)
-  \t:Term -> (a:A -> sets a t)
+Inductive Kind : t:Term -> U =
+  mk : Gamma:VarList -> A:Term -> Classified Gamma t A Class.kind -> Kind t
 
-Definition Function.closed =
-  {\dom:pow Term} -> \sdom:SAT dom -> {\rng:pow Term} -> \srng:SAT rng ->
-  SAT.def (Function dom rng)
-    (\t:Term -> \xt:(a:Term -> dom a -> rng (Term.app t a)) ->
-     SN.arg1 (SAT.sn srng (Term.app t Term.*)
-			  (xt Term.* ((SAT.base sdom) (Base.univ VarType.*)))))
-    (\t:Term \bt:Base t \a:Term \doma: dom a ->
-     SAT.base srng (Base.app bt (SAT.sn sdom a doma)))
-    (\t:Term \snt:SN t \xredk:(a:Term -> dom a -> rng (Term.app (SN.redk t) a))
-     \a:Term \doma: dom a ->
-     Let Thesis = (\t:Term -> SN t ->
-        rngred:rng (Term.app (SN.redk t) a) -> rng (Term.app t a)) ->
-     Term.rec (\t:Term -> Thesis t)
-        (\vt:VarType \M:Term \_:Thesis M \N:Term \_:Thesis N ->
-	 \_:SN (Term.lam vt M N)
-	 \rngred:(rng (Term.app (Term.lam vt M N) a)) ->
-	 rngred)
-        (\vt:VarType \M:Term \_:Thesis M \N:Term \_:Thesis N ->
-	 \_:SN (Term.pi vt M N)
-	 \rngred:rng (Term.app (SN.redk (Term.pi vt M N)) a) ->
-	 rngred)
-        (\M:Term \Hyp:Thesis M \N:Term \_:Thesis N ->
-	 \snt:SN (Term.app M N)
-	 \rngred:rng (Term.app (SN.redk (Term.app M N)) a) ->
-	 SAT.red srng
-	 	 (SN.app.redk snt (SAT.sn sdom a doma)
-		    (SAT.sn srng (Term.app (SN.redk (Term.app M N)) a) rngred))
-		 rngred)
-	(\vt:VarType \i:Nat ->
-	 \_:SN (Term.var vt i) ->
-	 \rngred:rng (Term.app (SN.redk (Term.var vt i)) a) ->
-	 rngred)
-        (\vt:VarType ->
-	 \_:SN (Term.univ vt) ->
-	 \rngred:rng (Term.app (SN.redk (Term.univ vt)) a) ->
-	 rngred)
-	t snt (xredk a doma))
+Assume Kind.rec2 : C:(\t:Term -> U1)
+       C Term.*
+       (M: Term -> Kind M -> C M ->
+        N: Term -> Kind N -> C N -> C (Term.pi M N)) ->
+       (M: Term -> Type M -> N: Term -> Kind N -> C N -> C (Term.pi M N)) ->
+       t:Term -> Kind t -> C t
 
-TypeCheck Function.closed :
-  {dom:pow Term} -> sdom:SAT dom -> {rng:pow Term} -> srng:SAT rng ->
-  SAT (Function dom rng)
+Inductive Vuniv : U =
+  sat : Vuniv
+  func: dom:Vuniv -> ran:Vuniv -> Vuniv
+
+Definition VV =
+  Kind.rec2 (\t:Term -> Vuniv)
+    Vuniv.sat
+    (\B:Term \_: Kind B \vB: Vuniv
+     \C:Term \_: Kind C \vC: Vuniv -> Vuniv.func vB vC)
+    (\B:Term \_: Type B \vB: Vuniv
+     \C:Term \_: Kind C \vC: Vuniv -> vC)
+
+Inductive SET : U =
+  mk: (Term -> Bool) -> SET
+Inductive FUN : A:U -> B:U -> U =
+  mk: f:(A->B) -> FUN A B
+Definition SAT* =
+  Vuniv.rec (\_:Vuniv -> U2)
+    pow Term 
+    (\dom: Vuniv  \dom*:U \ran:Vuniv \ran*:U -> FUN dom* ran*)
+
+Definition Eval = n:Nat -> SAT*
+Definition constructorvaluation = \eval:(Nat -> SAT*) \Gamma:VarList
+  VarList.rec
+    eval
 
 
-Inductive Class : U =
-  []     : Class,
-  kind   : Class,
-  prop   : Class,
-  constr : Class,
-  obj    : Class
+evalxi (Term.univ vt) = SN
+evalxi (Term.app P Q) = (evalxi P) (evalxi Q)
 
-Definition Class.constr2prop =
-  Class.rec (\_:Class -> Class)
-    Class.[] Class.kind Class.prop Class.prop Class.prop
-Definition Class.prop2constr =
-  Class.rec (\_:Class -> Class)
-    Class.[] Class.constr Class.constr Class.constr Class.obj
-Definition Class.constrobj =
-  VarType.rec (\_:VarType -> Class) Class.constr Class.obj
-Definition Class.kindprop =
-  VarType.rec (\_:VarType -> Class) Class.kind Class.prop
-Definition Class.boxkind =
-  VarType.rec (\_:VarType -> Class) Class.[] Class.kind
+Assume Lemma : goodevalxi Xi Gamma ->
+  * (Classified Gamma Q A Class.constr -> inV A (evalxi xi Q))
+    (Classified Gamma Q Term.[] Class.kind -> SAT (evalxi xi Q))
 
-Definition Term.classify =
-  Term.rec (\t:Term -> Class)
-    (\vt:VarType \M:Term \_:Class \N:Term \Nc:Class ->  ; lam
-        Class.prop2constr Nc)
-    (\vt:VarType \M:Term \_:Class \N:Term \Nc:Class ->  ; pi
-        Class.constr2prop Nc)
-    (\M:Term \Mc:Class \N:Term \_:Class -> Mc)          ; app
-    (\vt:VarType \n:Nat -> Class.constrobj vt)          ; var
-    Class.boxkind                                       ; univ
+  sat : X : pow Term -> SAT X -> SAT* sat
+  func: dom:Vuniv -> ran : Vuniv ->
+        f : (SAT* dom -> SAT* ran) -> SAT* (func dom ran)
 
-Definition Term.shiftn.classify =
-  Term.rec (\M:Term -> n:Nat ->
-            I (Term.classify (Term.shiftn M n)) (Term.classify M))
-    (\vt:VarType
-     \M:Term
-     \_:(n:Nat -> I (Term.classify (Term.shiftn M n)) (Term.classify M))
-     \N:Term
-     \Hyp:(n:Nat -> I (Term.classify (Term.shiftn N n)) (Term.classify N))
-     \n:Nat -> I.cong Class.prop2constr (Hyp (Nat.s n)))
-    (\vt:VarType
-     \M:Term
-     \_:(n:Nat -> I (Term.classify (Term.shiftn M n)) (Term.classify M))
-     \N:Term
-     \Hyp:(n:Nat -> I (Term.classify (Term.shiftn N n)) (Term.classify N))
-     \n:Nat -> I.cong Class.constr2prop (Hyp (Nat.s n)))
-    (\M:Term
-     \Hyp:(n:Nat -> I (Term.classify (Term.shiftn M n)) (Term.classify M))
-     \N:Term
-     \_:(n:Nat -> I (Term.classify (Term.shiftn N n)) (Term.classify N))
-     \n:Nat -> Hyp n)
-    (\vt:VarType \i:Nat \n:Nat -> I.r (Class.constrobj vt))
-    (\vt:VarType \n:Nat -> I.r (Class.boxkind vt))
 
+Definition Class.classification.1 =
+  CCTypeCheck.rec (\Gamma:VarList \t:Term \A:Term
+                   \_:CCTypeCheck Gamma t A -> Classified Gamma t A (Term.classify t))
+    ; ax
+    (Classified.kind CCTypeCheck.ax)
+    ; var
+    (\Gamma:VarList \vt:VarType \A:Term ->
+     \tcA: CCTypeCheck Gamma A (Term.univ vt) ->
+     \Hyp: Classified Gamma A (Term.univ vt) (Term.classify A) ->
+     VarType.rec (\vt:VarType -> tcA: CCTypeCheck Gamma A (Term.univ vt) ->
+                  Classified (VarList.cons vt A Gamma) (Term.var vt Nat.0) (Term.shiftvar A) (Class.constrobj vt))
+	(\tcA: CCTypeCheck Gamma A Term.[] ->
+	 Classified.constr (CCTypeCheck.var tcA) (CCTypeCheck.weak tcA tcA))
+	(\tcA: CCTypeCheck Gamma A Term.* ->
+	 Classified.obj (CCTypeCheck.var tcA) (CCTypeCheck.weak tcA tcA))
+	vt tcA)
+    ; weak
+    (\Gamma:VarList \vt:VarType \A:Term ->
+     \tcA: CCTypeCheck Gamma A (Term.univ vt) ->
+     \Hyp1: Classified Gamma A (Term.univ vt) (Term.classify A) ->
+     \t:Term \B:Term \tct: CCTypeCheck Gamma t B
+     \Hyp2: Classified Gamma t B (Term.classify t) ->
+     Let Gamma' = (VarList.cons vt A Gamma) ->
+     Let t' = (Term.shiftvar t) ->
+     Classified.rec Gamma t (\B':Term \c:Class \_:Classified Gamma t B' c ->
+          I B' B -> I c (Term.classify t') ->
+          Classified Gamma' t' (Term.shiftvar B) (Term.classify t'))
+       ;kind
+       (\cl1:CCTypeCheck Gamma t Term.[] -> \eq1: I Term.[] B ->
+        \eq2:I Class.kind (Term.classify t') ->
+	I.subst2 eq1 eq2 (\B:Term \c:Class -> Classified Gamma' t' (Term.shiftvar B) c)
+           (Classified.kind (CCTypeCheck.weak tcA cl1)))
+       ;type
+       (\cl1:CCTypeCheck Gamma t Term.* -> \eq1: I Term.* B ->
+        \eq2:I Class.type (Term.classify t') ->
+	I.subst2 eq1 eq2 (\B:Term \c:Class -> Classified Gamma' t' (Term.shiftvar B) c)
+           (Classified.type (CCTypeCheck.weak tcA cl1)))
+       ;constr
+       (\B':Term \cl1:CCTypeCheck Gamma t B' \cl2:CCTypeCheck Gamma B' Term.[]
+        \eq1: I B' B ->
+        \eq2:I Class.constr (Term.classify t') ->
+	I.subst2 eq1 eq2 (\B:Term \c:Class -> Classified Gamma' t' (Term.shiftvar B) c)
+           (Classified.constr (CCTypeCheck.weak tcA cl1) (CCTypeCheck.weak tcA cl2)))
+       ;obj
+       (\B':Term \cl1:CCTypeCheck Gamma t B' \cl2:CCTypeCheck Gamma B' Term.*
+        \eq1: I B' B ->
+        \eq2:I Class.obj (Term.classify t') ->
+	I.subst2 eq1 eq2 (\B:Term \c:Class -> Classified Gamma' t' (Term.shiftvar B) c)
+           (Classified.obj (CCTypeCheck.weak tcA cl1) (CCTypeCheck.weak tcA cl2)))
+       Hyp2 (I.r B) (I.symm (Term.shiftn.classify t Nat.0)))
+    ; pi
+    (\Gamma:VarList \vt:VarType \A:Term ->
+     \tcA: CCTypeCheck Gamma A (Term.univ vt) ->
+     \Hyp1: Classified Gamma A (Term.univ vt) (Term.classify A) ->
+     \vt2:VarType \B:Term
+     \tct: CCTypeCheck (VarList.cons vt  A Gamma) B (Term.univ vt2)
+     \Hyp2: Classified (VarList.cons vt  A Gamma) B (Term.univ vt2) (Term.classify t) ->
+     )
+    
+
+Definition Class.classification =
+TypeCheck Class.classification.k :
+   t:Term -> Classified t Class.Kind -> I (Term.classify t) Class.Kind
+TypeCheck Class.classfication.1 =
+   t:Term -> Classified t Class.kind -> Classified t Class.type -> F
+TypeCheck Class.classfication.2 =
+   t:Term -> Classified t Class.constr -> Classified t Class.obj -> F
+   
+
+
+
+
+; Definition 2.3
 Inductive TypedClass : Gamma:VarList -> S:Term -> A:Term -> Class -> U =
   kind  : CCTypeCheck Gamma S Term.[] -> TypedClass Gamma S A Class.kind,
-  prop  : CCTypeCheck Gamma S A -> CCTypeCheck Gamma A Term.[] ->
-  	  CCTypeCheck Gamma S Term.*  -> TypedClass Gamma S A Class.prop,
+  type  : CCTypeCheck Gamma S A -> CCTypeCheck Gamma A Term.[] ->
+  	  CCTypeCheck Gamma S Term.*  -> TypedClass Gamma S A Class.type,
   constr: CCTypeCheck Gamma S A ->
           CCTypeCheck Gamma A Term.[] -> TypedClass Gamma S A Class.constr,
   obj   : CCTypeCheck Gamma S A ->
           CCTypeCheck Gamma A Term.* -> TypedClass Gamma S A Class.obj
+
+
+; Classification Lemma
+Definition Class.classfication.1 =
+   \t:Term \A:Term
 
 Definition CCTypeCheck.constraints = \Gamma:VarList ->
   Term.rec (\S:Term -> U)
@@ -2807,11 +2713,11 @@ Definition Term.classify.type.correct =
 	  TypedClass.kind (VarList.cons vt T0 Gamma)
 	  		  (Term.shiftvar M) (Term.shiftvar S)
 	                  (CCTypeCheck.weak prf prf3))
-	 ; prop
+	 ; type
 	 (\prf3: CCTypeCheck Gamma M S
 	  \prf4: CCTypeCheck Gamma S Term.[] ->
 	  \prf5: CCTypeCheck Gamma M Term.* ->
-	  TypedClass.prop (VarList.cons vt T0 Gamma)
+	  TypedClass.type (VarList.cons vt T0 Gamma)
 	  		  (Term.shiftvar M) (Term.shiftvar S)
 	                  (CCTypeCheck.weak prf prf3)
 			  (CCTypeCheck.weak prf prf4)
@@ -2839,17 +2745,17 @@ Definition Term.classify.type.correct =
      \prf2: CCTypeCheck (VarList.cons vt1 T1 Gamma) S (Term.univ vt2)
      \Hyp: TypedClass (VarList.cons vt1 T1 Gamma)
      	   	      S (Term.univ vt2) (Term.classify S) ->
-     I.rsubst (Assume I (Class.constr2prop (Term.classify S))
-     	      	      	(Class.kindprop vt2))
+     I.rsubst (Assume I (Class.constr2type (Term.classify S))
+     	      	      	(Class.kindtype vt2))
 	       (\x:Class -> TypedClass Gamma (Term.pi vt1 T1 S) (Term.univ vt2) x)
      (VarType.rec (\vt:VarType ->
      		  Gamma:VarList -> M:Term ->
 		  CCTypeCheck Gamma M (Term.univ vt) ->
-                  TypedClass Gamma M (Term.univ vt) (Class.kindprop vt))
+                  TypedClass Gamma M (Term.univ vt) (Class.kindtype vt))
 	(\Gamma:VarList \M:Term ->
          TypedClass.kind Gamma M Term.[])
 	(\Gamma:VarList \M:Term \prf: CCTypeCheck Gamma M Term.* ->
-	 TypedClass.prop Gamma M Term.* prf
+	 TypedClass.type Gamma M Term.* prf
 	                 (CCTypeCheck.ax2 Gamma
 			    (CCTypeCheck.gammatc Gamma M Term.* prf)) prf)
 	vt2 Gamma (Term.pi vt1 T1 S) (CCTypeCheck.pi prf1 prf2)))
@@ -2860,8 +2766,8 @@ Definition Term.classify.type.correct =
      \vt2: VarType ->
      \prf2: CCTypeCheck Gamma (Term.pi vt1 T1 S) (Term.univ vt2)
      \Hyp: TypedClass Gamma (Term.pi vt1 T1 S) (Term.univ vt2)
-     	   	      (Class.constr2prop (Term.classify S)) ->
-     I.rsubst  (Assume I (Class.prop2constr (Term.classify M)) (Class.constrobj vt2))
+     	   	      (Class.constr2type (Term.classify S)) ->
+     I.rsubst  (Assume I (Class.type2constr (Term.classify M)) (Class.constrobj vt2))
 	       (\x:Class -> TypedClass Gamma (Term.lam vt1 T1 M)
 	       		    	       	     (Term.pi vt1 T1 S) x)
      (VarType.rec (\vt:VarType ->
@@ -2886,11 +2792,11 @@ Definition Term.classify.type.correct =
 	 ; kind
 	 (\prf3: CCTypeCheck Gamma M Term.[] ->
 	  Assume TypedClass Gamma (Term.app M N) SN Class.kind)
-	 ; prop
+	 ; type
 	 (\prf3: CCTypeCheck Gamma M (Term.pi vt1 T1 S) ->
 	  \prf4: CCTypeCheck Gamma (Term.pi vt1 T1 S) Term.[] ->
 	  \prf5: CCTypeCheck Gamma M Term.* ->
-	  Assume TypedClass Gamma (Term.app M N) SN Class.prop)
+	  Assume TypedClass Gamma (Term.app M N) SN Class.type)
 	 ; constr
 	 (\prf3: CCTypeCheck Gamma M (Term.pi vt1 T1 S)
 	  \prf4: CCTypeCheck Gamma (Term.pi vt1 T1 S) Term.[] ->
@@ -2906,7 +2812,7 @@ Definition Term.classify.type.correct =
 	     (CCTypeCheck.weak prf prf4))
 	 (Term.classify M)))
      Class.rec (
-     I.rsubst  (Assume I (Class.prop2constr (Term.classify M)) (Class.constrobj vt2))
+     I.rsubst  (Assume I (Class.type2constr (Term.classify M)) (Class.constrobj vt2))
 	       (\x:Class -> TypedClass Gamma (Term.lam vt1 T1 M) x)
      (VarType.rec (\vt:VarType ->
      		  {Gamma:VarList} -> {M:Term} -> {A:Term} ->
@@ -2936,16 +2842,16 @@ Definition Term.casepi = \C:(t:Term -> U1)
       (\vt:VarType \n:Nat -> F.rec (\_:F -> C (Term.var vt n)))
       (\vt:VarType -> F.rec (\_:F -> C (Term.univ vt)))
 
-Inductive KindOrProp : Gamma:VarList -> S:Term -> U =
-  kind: CCTypeCheck Gamma S Term.[] -> KindOrProp Gamma S,
-  prop: CCTypeCheck Gamma S Term.*  -> KindOrProp Gamma S
+Inductive KindOrType : Gamma:VarList -> S:Term -> U =
+  kind: CCTypeCheck Gamma S Term.[] -> KindOrType Gamma S,
+  type: CCTypeCheck Gamma S Term.*  -> KindOrType Gamma S
 
 
 
 Definition PiRangeCorrectType = \Gamma:VarList ->
   Term.casepi (\_:Term -> U)
               (\vt0:VarType \T0:Term \S0:Term ->
-	         KindOrProp (VarList.cons vt0 T0 Gamma) S0)
+	         KindOrType (VarList.cons vt0 T0 Gamma) S0)
 
 Definition PiRangeCorrect = 
   CCTypeCheck.rec
@@ -2967,17 +2873,17 @@ Definition PiRangeCorrect =
         PiRangeCorrectType (VarList.cons vt T0 Gamma) (Term.shiftvar M))
         (\vt1:VarType \T1:Term \S1:Term
 	 \S:Term \_:CCTypeCheck Gamma (Term.pi vt1 T1 S1) S ->
-	 KindOrProp.rec (VarList.cons vt1 T1 Gamma) S1
-	    (\_:KindOrProp (VarList.cons vt1 T1 Gamma) S1 ->
-	     KindOrProp (VarList.cons vt1 (Term.shiftvar T1) (VarList.cons vt T0 Gamma)) (Term.shiftn S1 Nat.1))
+	 KindOrType.rec (VarList.cons vt1 T1 Gamma) S1
+	    (\_:KindOrType (VarList.cons vt1 T1 Gamma) S1 ->
+	     KindOrType (VarList.cons vt1 (Term.shiftvar T1) (VarList.cons vt T0 Gamma)) (Term.shiftn S1 Nat.1))
 	    (\prf2:CCTypeCheck (VarList.cons vt1 T1 Gamma) S1 Term.[] ->
-	     KindOrProp.kind (VarList.cons vt1 (Term.shiftvar T1)
+	     KindOrType.kind (VarList.cons vt1 (Term.shiftvar T1)
 	     		     		   (VarList.cons vt T0 Gamma))
 	     		     (Term.shiftn S1 Nat.1)
 	         	     (CCTypeCheck.weakn vt T0 prf2
 		                 Nat.1 prf))
 	    (\prf2:CCTypeCheck (VarList.cons vt1 T1 Gamma) S1 Term.* ->
-	     KindOrProp.prop (VarList.cons vt1 (Term.shiftvar T1)
+	     KindOrType.type (VarList.cons vt1 (Term.shiftvar T1)
 	     		     		   (VarList.cons vt T0 Gamma))
 	     		     (Term.shiftn S1 Nat.1)
 	         	     (CCTypeCheck.weakn vt T0 prf2
@@ -3115,6 +3021,291 @@ Definition Term.classify =
      \S:Term \_:ConvSymmStep T S -> rec)
     
 
+
+
+
+
+
+
+Definition Normalize.subst.up.aux =
+  \M:Term \M':Term \nM:Normalize M M' ->
+  \N:Term \N':Term \nN:Normalize N N' ->
+  \n:Nat \snMN:SN (Term.substn M n N) \snMN':SN (Term.substn M' n N') ->
+  \eq1:I (SN.normalize (SN.arg1 snMN)) (SN.normalize (SN.arg1 snMN')) ->
+  \eq2:I (SN.normalize (SN.arg2 snMN)) (SN.normalize (SN.arg2 snMN')) ->
+  \eq3: Bool.ite (Term.isApp (Term.substn M n N))
+    (Bool.ite (Term.isLam (SN.normalize (SN.arg1 snMN)))
+      (I (SN.normalize (SN.arg3 snMN)) (SN.normalize (SN.arg3 snMN')))
+      T) T ->
+  I.trans (I.trans (I.symm (Normalize.result.eq (SN.destruct snmN)))
+    
+  	  (I.cong3 (\x:Term \y:Term \z:Term ->
+	            B
+	  	    \z: Bool.ite (Term.isApp (Term.substn M n N))
+		    	  (Bool.ite (Term.isLam x)) 
+	  	    (
+  	  
+  I (SN.normalize snMN) (SN.normalize snMN')
+
+  
+Definition Normalize.subst.up =
+  Let Thesis = (\MN:Term \M'':Term \nMN:Normalize MN M'' ->
+     M:Term -> M':Term -> nM: Normalize M M' ->
+     N:Term -> N':Term -> nN: Normalize N N' ->
+     n: Nat -> I (Term.substn M n N) MN ->
+     sn':SN (Term.substn M' n N') -> I M'' (SN.normalize sn'))
+  Normalize.rec Thesis
+    ;lam
+    (\vt:VarType \MN1:Term \MN1':Term \n1:Normalize MN1 MN1' \Hyp1:Thesis n1
+     \MN2:Term \MN2':Term \n2:Normalize MN2 MN2' \Hyp2:Thesis n2
+     \M:Term \M':Term \nM: Normalize M M' ->
+     \N:Term \N':Term \nN: Normalize N N'
+     Let Th2 = (\M:Term -> \M':Term -> \_:Normalize M M' ->
+     	n:Nat -> I (Term.substn M n N) (Term.lam vt MN1 MN2) ->
+	Normalize (Term.substn M' n N') (Term.lam vt MN1' MN2')) ->
+     Normalize.rec Th2
+       ;lam
+       (\vtM:VarType \M1:Term \M1':Term \nM1:Normalize M1 M1' \_:Th2 nM1
+        \M2:Term \M2':Term \nM2:Normalize M2 M2' \_:Th2 nM2
+	\n:Nat
+	\eq: I (Term.substn (Term.lam vtM M1 M2) n N) (Term.lam vt MN1 MN2) ->
+	I.subst (I.cong Term.vt eq)
+	  (\x:VarType -> Normalize (Term.substn (Term.lam vtM M1' M2') n N)
+				   (Term.lam x MN1 MN2))
+	(Normalize.lam vtM
+	  (Hyp1 nM1 nN n (I.cong Term.arg1 eq))
+	  (Hyp2 nM2 nN (Nat.s n) (I.cong Term.arg2 eq)))))
+    ;pi
+    (\vt:VarType \M1:Term \M1':Term \nM1:Normalize M1 M1' \Hyp1:Thesis nM1
+     \M2:Term \M2':Term \nM2:Normalize M2 M2' \Hyp2:Thesis nM2
+     \n:Nat \M'':Term
+     \nMN':Normalize (Term.substn (Term.pi vt M1' M2') n N') M'' ->
+     Let snMN'' = SN.case (SN.sn nMN') ->
+     Let nMN = (Normalize.pi vt (Hyp1 n (SN.destruct (SN.arg1 snMN'')))
+     		   	     (Hyp2 (Nat.s n) (SN.destruct (SN.arg2 snMN'')))) ->
+     I.subst (SN.case.eq (SN.sn nMN'))
+        (\x:SN (Term.substn (Term.pi vt M1' M2') n N') ->
+	  Normalize (Term.substn (Term.pi vt M1 M2) n N)
+	  	    (SN.normalize x))
+	nMN)
+    ;applam
+    (\M1:Term \vt:VarType \M11':Term \M12':Term
+     \nM1:Normalize M1 (Term.lam vt M11' M12') \Hyp1:Thesis nM1
+     \M2:Term \M2':Term \nM2:Normalize M2 M2' \Hyp2:Thesis nM2
+     Let M3 = Term.subst M12' M2'
+     \M':Term \nM3:Normalize M3 M' \Hyp3 Thesis nM3
+     \n:Nat \M'':Term
+     \nMN':Normalize (Term.substn M' n N') M'' ->
+     Let snMN'' = SN.case (SN.sn nMN') ->
+     Let nMN = (Normalize.applam vt
+     	 (Hyp1 n (Normalize.lam (
+
+Definition Normalize.subst.down = {\N:Term} ->
+ Let Thesis = (\M:Term \M':Term -> \nM: Normalize M M' ->
+      	        n:Nat -> {M'':Term} ->
+   		Normalize (Term.substn M n N) M'' ->
+   		Normalize (Term.substn M' n N) M'') ->
+  Normalize.rec Thesis
+    ;lam
+    (\vt:VarType \M1:Term \M1':Term \nM1:Normalize M1 M1' \Hyp1:Thesis nM1
+     \M2:Term \M2':Term \nM2:Normalize M2 M2' \Hyp2:Thesis nM2
+     \n:Nat \M'':Term
+     \nMN:Normalize (Term.substn (Term.lam vt M1 M2) n N) M'' ->
+     Let snMN = SN.case (SN.sn nMN) ->
+     Let nMN' = (Normalize.lam vt (Hyp1 n (SN.destruct (SN.arg1 snMN)))
+     		   	      (Hyp2 (Nat.s n) (SN.destruct (SN.arg2 snMN)))) ->
+     I.subst (SN.case.eq (SN.sn nMN))
+        (\x:SN (Term.substn (Term.lam vt M1 M2) n N) ->
+	  Normalize (Term.substn (Term.lam vt M1' M2') n N)
+	  	    (SN.normalize x))
+	nMN')
+    ;pi
+    (\vt:VarType \M1:Term \M1':Term \nM1:Normalize M1 M1' \Hyp1:Thesis nM1
+     \M2:Term \M2':Term \nM2:Normalize M2 M2' \Hyp2:Thesis nM2
+     \n:Nat \M'':Term
+     \nMN:Normalize (Term.substn (Term.pi vt M1 M2) n N) M'' ->
+     Let snMN = SN.case (SN.sn nMN) ->
+     Let nMN' = (Normalize.pi vt (Hyp1 n (SN.destruct (SN.arg1 snMN)))
+     		   	     (Hyp2 (Nat.s n) (SN.destruct (SN.arg2 snMN)))) ->
+     I.subst (SN.case.eq (SN.sn nMN))
+        (\x:SN (Term.substn (Term.pi vt M1 M2) n N) ->
+	  Normalize (Term.substn (Term.pi vt M1' M2') n N)
+	  	    (SN.normalize x))
+	nMN')
+    ;applam
+    (\M1:Term \vt:VarType \M11':Term \M12':Term
+     \nM1:Normalize M1 (Term.lam vt M11' M12') \Hyp1:Thesis nM1
+     \M2:Term \M2':Term \nM2:Normalize M2 M2' \Hyp2:Thesis nM2
+     Let M3 = Term.subst M12' M2'
+     \M':Term \nM3:Normalize M3 M' \Hyp3:Thesis nM3
+     \n:Nat \M'':Term
+     \nMN:Normalize (Term.substn (Term.app M1 M2) n N) M'' ->
+     Let MN1 = SN.normalize (Normalize.arg1 nMN)
+     Let MN2 = SN.normalize (Normalize.arg2 nMN) ->
+     Let M'N = Term.substn M' n N ->
+     Bool.rec (\x:Bool -> 
+     	       nl:Bool.ite x (Term.eqLam.type MN1) (NotLam MN1) ->
+	       sn3:Bool.ite x (SN (Term.subst (Term.arg2 MN1) MN2)) T ->
+	       I (Normalize.case.app (Normalize.arg1 nMN) (Normalize.arg2 nMN)
+				     x nl sn3)
+		 (SN.sn nMN) ->
+     	       Normalize M'N M'')
+       (\eq:Term.eqLam.type MN1 ->
+        \sn3:SN (Term.subst (Term.arg2 MN1) (MN2))
+	\eqsn:I (Normalize.case.app (Normalize.arg1 nMN) (Normalize.arg2 nMN)
+				    Bool.tt eq sn3)
+		(SN.sn nMN)
+        Let nMN1 = I.rsubst eq (\x:Term -> Normalize (Term.substn M1 n N) x)
+	    	   	       (SN.destruct (Normalize.arg1 nMN)) ->
+;	I.subst eqsn (\x:SN (Term.substn (Term.app M1 M2) n N) ->
+;		Normalize M'N (SN.normalize x))
+	Hyp3 n (Normalize.applam (Hyp1 n nMN1)
+	       			 (Hyp2 n (SN.destruct (Normalize.arg2 nMN)))
+			  	 (SN.destruct sn3)))
+       (\nl:NotLam MN1 \t:T
+	\eqsn:I (Normalize.case.app (Normalize.arg1 nMN) (Normalize.arg2 nMN)
+				    Bool.ff nl t)
+		(SN.sn nMN) ->
+	I.subst eqsn (\x:SN (Term.substn (Term.app M1 M2) n N) ->
+		Normalize M'N (SN.normalize x))
+        (Normalize.app (Hyp1 n (SN.destruct (Normalize.arg1 nMN))) nl
+		       (Hyp2 n (SN.destruct (Normalize.arg2 nMN)))))
+       (Term.isLam MN1)
+       (Term.classifyLam MN1)
+       (Normalize.arg3 nMN)
+       (Normalize.case.eq nMN))
+    ;app
+    (\M1:Term \vt:VarType \M11':Term \M12':Term
+     \nM1:Normalize M1 (Term.lam vt M11' M12') \Hyp1:Thesis nM1
+     \M2:Term \M2':Term \nM2:Normalize M2 M2' \Hyp2:Thesis nM2
+     Let M3 = Term.subst M12' M2'
+     \M':Term \nM3:Normalize M3 M' \Hyp3:Thesis nM3
+     \n:Nat \M'':Term
+     \nMN:Normalize (Term.substn (Term.app M1 M2) n N) M'' ->
+     Let MN1 = SN.normalize (Normalize.arg1 nMN)
+     Let MN2 = SN.normalize (Normalize.arg2 nMN) ->
+     Let M'N' = Term.substn (Term.app (Term.lam vt M11' M12') M2') n N' ->
+     Bool.rec (\x:Bool -> 
+     	       nl:Bool.ite x (Term.eqLam.type MN1) (NotLam MN1) ->
+	       sn3:Bool.ite x (SN (Term.subst (Term.arg2 MN1) MN2)) T ->
+	       I (Normalize.case.app (Normalize.arg1 nMN) (Normalize.arg2 nMN)
+				     x nl sn3)
+		 (SN.sn nMN) ->
+     	       Normalize M'N' M'')
+       (\eq:Term.eqLam.type MN1 ->
+        \sn3:SN (Term.subst (Term.arg2 MN1) (MN2))
+	\eqsn:I (Normalize.case.app (Normalize.arg1 nMN) (Normalize.arg2 nMN)
+				    Bool.tt eq sn3)
+		(SN.sn nMN)
+        Let nMN1 = I.rsubst eq (\x:Term -> Normalize (Term.substn M1 n N) x)
+	    	   	       (SN.destruct (Normalize.arg1 nMN)) ->
+	I.subst eqsn (\x:SN (Term.substn (Term.app M1 M2) n N) ->
+		Normalize M'N' (SN.normalize x))
+	(Normalize.applam (Hyp1 n nMN1) (Hyp2 n (SN.destruct (Normalize.arg2 nMN)))
+			  (SN.destruct sn3)))
+       (\nl:NotLam MN1 \t:T
+	\eqsn:I (Normalize.case.app (Normalize.arg1 nMN) (Normalize.arg2 nMN)
+				    Bool.ff nl t)
+		(SN.sn nMN) ->
+	I.subst eqsn (\x:SN (Term.substn (Term.app M1 M2) n N) ->
+		Normalize M'N' (SN.normalize x))
+        (Normalize.app (Hyp1 n (SN.destruct (Normalize.arg1 nMN))) nl
+		       (Hyp2 n (SN.destruct (Normalize.arg2 nMN)))))
+       (Term.isLam MN1)
+       (Term.classifyLam MN1)
+       (Normalize.arg3 nMN)
+       (Normalize.case.eq nMN))
+
+Definition Normalize.redk.eq =
+  Let Thesis = (\t:Term -> SN t -> a:Term -> SN a ->
+                t':Term -> Normalize (SN.redk (Term.app t a)) t' ->
+		Normalize (Term.app t a) t') ->
+  Term.rec Thesis
+     (\vt:VarType \m:Term \Hyp1:Thesis m \n:Term \Hyp2:Thesis n ->
+      \snt:SN (Term.lam vt m n) \a:Term \sna:SN a ->
+      \t':Term \norm:Normalize (Term.subst n a) t' ->
+      ; SN.arg2 snt: n ---> n',   sna: a ---> a'
+      ; snt: lam vt m n ---> lam vt m' n'
+      ; Term.subst n a ---> t'  ->  Term.subst n' a' ---> t'
+      ;Let result = Normalize.applam snt sna
+      ;            (SN.subst (SN.arg2 snt) sna (SN.sn norm))
+      Assume Normalize (Term.app (Term.lam vt m n) a) t')
+     (\vt:VarType \m:Term \Hyp1:Thesis m \n:Term \Hyp2:Thesis n ->
+      \_:SN (Term.pi vt m n) \a:Term \_:SN a ->
+      \t':Term \n:Normalize (Term.app (Term.pi vt m n) a) t' -> n)
+     (\m:Term \Hyp1:Thesis m \n:Term \Hyp2:Thesis n ->
+      \snt:SN (Term.app m n) \a:Term \sna:SN a ->
+      \t':Term \norm:Normalize (Term.app (SN.redk (Term.app m n)) a) t' ->
+      Let H = Hyp1 (SN.arg1 snt) n (SN.arg2 snt)
+		   (SN.destruct (Normalize.arg1 norm)) ->
+      Let t1' = SN.normalize (Normalize.arg1 norm) ->
+      ; H : Normalize (Term.app m n) t1'
+      Let result = Normalize.case.app (SN.sn H) (Normalize.arg2 norm)
+          (Term.isLam t1') (Term.classifyLam t1') (Normalize.arg3 norm) ->
+      I.subst (Assume I (SN.normalize result) t')
+         (\x:Term -> Normalize (Term.app (Term.app m n) a) x)
+	 (SN.destruct result))
+     (\vt:VarType \i:Nat ->
+      \snt:SN (Term.var vt i) \a:Term \sna:SN a ->
+      \t':Term \n:Normalize (Term.app (Term.var vt i) a) t' -> n)
+     (\vt:VarType ->
+      \snt:SN (Term.univ vt) \a:Term \sna:SN a ->
+      \t':Term \n:Normalize (Term.app (Term.univ vt) a) t' -> n)
+      
+Definition SN.app.redk = \t:Term \snt:SN t \a:Term \sna:SN a
+  \sn:SN (SN.redk (Term.app t a)) ->
+  SN.sn (Normalize.redk.eq snt sna (SN.destruct sn))
+
+
+Definition Function = \dom : pow Term -> \rng : pow Term
+  \t:Term -> (a:Term -> dom a -> rng (Term.app t a))
+Definition Intersect = \A : U -> \sets : (A -> pow Term)
+  \t:Term -> (a:A -> sets a t)
+
+Definition Function.closed =
+  {\dom:pow Term} -> \sdom:SAT dom -> {\rng:pow Term} -> \srng:SAT rng ->
+  SAT.def (Function dom rng)
+    (\t:Term -> \xt:(a:Term -> dom a -> rng (Term.app t a)) ->
+     SN.arg1 (SAT.sn srng (Term.app t Term.*)
+			  (xt Term.* ((SAT.base sdom) (Base.univ VarType.*)))))
+    (\t:Term \bt:Base t \a:Term \doma: dom a ->
+     SAT.base srng (Base.app bt (SAT.sn sdom a doma)))
+    (\t:Term \snt:SN t \xredk:(a:Term -> dom a -> rng (Term.app (SN.redk t) a))
+     \a:Term \doma: dom a ->
+     Let Thesis = (\t:Term -> SN t ->
+        rngred:rng (Term.app (SN.redk t) a) -> rng (Term.app t a)) ->
+     Term.rec (\t:Term -> Thesis t)
+        (\vt:VarType \M:Term \_:Thesis M \N:Term \_:Thesis N ->
+	 \_:SN (Term.lam vt M N)
+	 \rngred:(rng (Term.app (Term.lam vt M N) a)) ->
+	 rngred)
+        (\vt:VarType \M:Term \_:Thesis M \N:Term \_:Thesis N ->
+	 \_:SN (Term.pi vt M N)
+	 \rngred:rng (Term.app (SN.redk (Term.pi vt M N)) a) ->
+	 rngred)
+        (\M:Term \Hyp:Thesis M \N:Term \_:Thesis N ->
+	 \snt:SN (Term.app M N)
+	 \rngred:rng (Term.app (SN.redk (Term.app M N)) a) ->
+	 SAT.red srng
+	 	 (SN.app.redk snt (SAT.sn sdom a doma)
+		    (SAT.sn srng (Term.app (SN.redk (Term.app M N)) a) rngred))
+		 rngred)
+	(\vt:VarType \i:Nat ->
+	 \_:SN (Term.var vt i) ->
+	 \rngred:rng (Term.app (SN.redk (Term.var vt i)) a) ->
+	 rngred)
+        (\vt:VarType ->
+	 \_:SN (Term.univ vt) ->
+	 \rngred:rng (Term.app (SN.redk (Term.univ vt)) a) ->
+	 rngred)
+	t snt (xredk a doma))
+
+TypeCheck Function.closed :
+  {dom:pow Term} -> sdom:SAT dom -> {rng:pow Term} -> srng:SAT rng ->
+  SAT (Function dom rng)
+
+
+
 Inductive NotLam : Term -> U =
   pi    : vt:VarType -> M:Term -> N:Term -> NotLam (Term.pi vt M N),
   app   : M:Term -> N:Term -> NotLam (Term.app M N),
@@ -3233,7 +3424,7 @@ Definition Normalize.redk =
      I.subst (SN.case.eq (SN.sn nMN'))
         (\x:SN (Term.substn (Term.pi vt M1' M2') n N') ->
 	  Normalize (Term.substn (Term.pi vt M1 M2) n N)
-	  	    (SN.normalized x))
+	  	    (SN.normalize x))
 	nMN)
     ;app
     (\M1:Term \M1':Term \nM1:Normalize M1 M1' \Hyp1:Thesis nM1
@@ -3246,7 +3437,7 @@ Definition Normalize.redk =
      I.subst (SN.case.eq (SN.sn nMN'))
         (\x:SN (Term.substn (Term.pi vt M1' M2') n N') ->
 	  Normalize (Term.substn (Term.pi vt M1 M2) n N)
-	  	    (SN.normalized x))
+	  	    (SN.normalize x))
 	nMN)
    
 	
