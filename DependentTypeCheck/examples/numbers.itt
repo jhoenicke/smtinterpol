@@ -108,13 +108,11 @@ TypeCheck Nat.plus.symmassoc : a:Nat -> b:Nat -> c:Nat -> d:Nat ->
            (Nat.plus (Nat.plus a c) (Nat.plus b d))
 
 Definition Nat.mul2.distr = \a:Nat ->
-  Nat.rec
-    (\b:Nat -> I (Nat.plus (Nat.mul2 a) (Nat.mul2 b))
-                   (Nat.mul2 (Nat.plus a b)))
+  Let Thesis = (\b:Nat -> I (Nat.plus (Nat.mul2 a) (Nat.mul2 b))
+                            (Nat.mul2 (Nat.plus a b))) ->
+  Nat.rec Thesis
     (I.r (Nat.mul2 a))
-    (\b:Nat \Hyp:I (Nat.plus (Nat.mul2 a) (Nat.mul2 b))
-                        (Nat.mul2 (Nat.plus a b)) ->
-      (I.cong (\x:Nat -> Nat.succ (Nat.succ x)) Hyp))
+    (\b:Nat \Hyp:Thesis b -> (I.cong (\x:Nat -> Nat.succ (Nat.succ x)) Hyp))
 TypeCheck Nat.mul2.distr : a:Nat -> b:Nat ->
   I (Nat.plus (Nat.mul2 a) (Nat.mul2 b)) (Nat.mul2 (Nat.plus a b))
 
@@ -225,8 +223,10 @@ Definition Bin.strip0 =
       (\x:Bin \r:Bin -> Bin.1 r)
 
 Definition bin2nat =
-   Bin.rec (\x:Bin -> Nat) Nat.0 (\b:Bin \r:Nat -> Nat.mul2 r)
-                            (\b:Bin \r:Nat -> Nat.succ (Nat.mul2 r))
+   Bin.rec (\x:Bin -> Nat)
+     Nat.0
+     (\b:Bin \r:Nat -> Nat.mul2 r)
+     (\b:Bin \r:Nat -> Nat.succ (Nat.mul2 r))
 
 Definition Bin.succ.correct =
    Bin.rec (\b:Bin -> I (bin2nat (Bin.succ b)) (Nat.succ (bin2nat b)))
@@ -236,72 +236,20 @@ Definition Bin.succ.correct =
    (\b:Bin \Hyp:I (bin2nat (Bin.succ b)) (Nat.succ (bin2nat b)) ->
       I.cong Nat.mul2 Hyp)
 
-
-Inductive BinI : a:Bin -> b:Bin -> U =
-   embed : I (bin2nat a) (bin2nat b) -> BinI a b
-
-Definition BinI.r = \a:Bin -> BinI.embed a a (I.r (bin2nat a))
-Definition BinI.id   = \a:Bin \b:Bin ->
-   BinI.rec a b (\id:BinI a b -> I (bin2nat a) (bin2nat b))
-      (\id:I (bin2nat a) (bin2nat b) -> id)
-Definition BinI.trans = \a:Bin \b:Bin
-   \eq1:BinI a b \c:Bin \eq2:BinI b c ->
-   BinI.embed a c (I.trans (BinI.id eq1) (BinI.id eq2))
-Definition BinI.ext0 = \a:Bin \b:Bin \eq:BinI a b ->
-   BinI.embed (Bin.0 a) (Bin.0 b)
-     (I.cong Nat.mul2 (BinI.id eq))
-Definition BinI.ext1 = \a:Bin \b:Bin \eq:BinI a b ->
-   BinI.embed (Bin.1 a) (Bin.1 b)
-     (I.cong (\x:Nat -> Nat.succ (Nat.mul2 x)) (BinI.id eq))
- 
-Definition Bin.strip0.aux.eq =
-   Bin.rec (\a:Bin -> BinI (Bin.strip0.aux a) (Bin.0 a))
-     (BinI.embed Bin.nil (Bin.0 Bin.nil) (I.r Nat.0))
-     (\a:Bin \r:BinI (Bin.strip0.aux a) (Bin.0 a) ->
-      BinI.r (Bin.0 (Bin.0 a)))
-     (\a:Bin \r:BinI (Bin.strip0.aux a) (Bin.0 a) ->
-      BinI.r (Bin.0 (Bin.1 a)))
-
-Definition Bin.strip0.eq =
-   Bin.rec (\a:Bin -> BinI (Bin.strip0 a) a)
-     (BinI.embed Bin.nil Bin.nil (I.r Nat.0))
-     (\a:Bin \Hyp:BinI (Bin.strip0 a) a ->
-       BinI.trans (Bin.strip0.aux.eq (Bin.strip0 a))
-		   (BinI.ext0 (Bin.strip0 a) a Hyp))
-     (\a:Bin \Hyp:BinI (Bin.strip0 a) a ->
-       BinI.ext1 (Bin.strip0 a) a Hyp)
-
-TypeCheck Bin.strip0.eq : a:Bin -> BinI (Bin.strip0 a) a
-
 Definition Nat.addcarry = \n:Nat ->
    Carry.rec (\x:Carry -> Nat) n (Nat.succ n)
 
-Definition Bin.addcarry.correct =
-   Bin.rec (\x:Bin -> c:Carry -> I (bin2nat (Bin.addcarry x c))
-                                 (Nat.addcarry (bin2nat x) c))
-         (Carry.rec (\c:Carry -> I (bin2nat (Bin.addcarry Bin.nil c))
-                                 (Nat.addcarry (bin2nat Bin.nil) c))
-                  (I.r Nat.0) (I.r (Nat.succ Nat.0)))
-         (\a:Bin \r:(c:Carry -> I (bin2nat (Bin.addcarry a c))
-                                 (Nat.addcarry (bin2nat a) c)) ->
-          Carry.rec (\c:Carry -> I (bin2nat (Bin.addcarry (Bin.0 a) c))
-                                 (Nat.addcarry (bin2nat (Bin.0 a)) c))
-	     (I.r (Nat.mul2 (bin2nat a)))
-	     (I.r (Nat.succ (Nat.mul2 (bin2nat a)))))
-         (\a:Bin \r:(c:Carry -> I (bin2nat (Bin.addcarry a c))
-                                 (Nat.addcarry (bin2nat a) c)) ->
-          Carry.rec (\c:Carry -> I (bin2nat (Bin.addcarry (Bin.1 a) c))
-                                 (Nat.addcarry (bin2nat (Bin.1 a)) c))
-	     (I.r (Nat.succ (Nat.mul2 (bin2nat a))))
-	     (I.cong Nat.mul2 (r Carry.1)))
-
+Definition Bin.addcarry.correct = \b:Bin ->
+   Carry.rec (\c:Carry -> I (bin2nat (Bin.addcarry b c)) (Nat.addcarry (bin2nat b) c))
+     (I.r (bin2nat b))
+     (Bin.succ.correct b)
 TypeCheck Bin.addcarry.correct : a:Bin -> c:Carry ->
    I (bin2nat (Bin.addcarry a c)) (Nat.addcarry (bin2nat a) c)
 
 
 Definition nat2bin = Nat.rec (\n:Nat -> Bin) 
    Bin.nil 
-   (\n:Nat \r:Bin -> Bin.addcarry r Carry.1)
+   (\n:Nat -> Bin.succ)
 
 Definition nat2bin.correct.1 = Nat.rec (\n:Nat -> I (bin2nat (nat2bin n)) n)
    (I.r Nat.0)
@@ -531,8 +479,7 @@ Definition Nat.mul2.mul10.Lemma =
    (I.r Nat.0)
    (\n:Nat \Hyp:I (Nat.mul10 (Nat.mul2 n)) (Nat.mul2 (Nat.mul10 n)) ->
      ; 10*2*(n+1) = 10*2*n + 20 ={HYP} 2*10*n + 20 = 2*10*(n+1)
-     I.cong (\x:Nat -> Nat.plus x (Nat.mul10 (Nat.mul2 (Nat.succ Nat.0))))
-            Hyp)
+     I.cong (\x:Nat -> Nat.add10 (Nat.add10 x)) Hyp)
 
 ; Lemma: Bin.plus b 2*c+1 = (Bin.plus b (2*c+0)) + 1
 Definition Bin.mul2.add1.lemma = Bin.rec
