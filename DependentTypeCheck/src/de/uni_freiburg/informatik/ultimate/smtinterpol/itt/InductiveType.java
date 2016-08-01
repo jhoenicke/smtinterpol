@@ -9,11 +9,12 @@ public class InductiveType extends Term {
 	Constructor[] mConstrs;
 	RecOperator mRecOperator;
 	Term[] mParams;
+	UniverseTerm mUniv;
 	
 	public InductiveType(String name, Term type) {
 		super(type);
 		mName = name;
-		mParams = splitParams(type);
+		splitParams(type);
 		mNumShared = -1;
 		mConstrs = null;
 	}
@@ -29,7 +30,7 @@ public class InductiveType extends Term {
 		mRecOperator = new RecOperator(this);
 	}
 
-	private static Term[] splitParams(Term type) {
+	private void splitParams(Term type) {
 		ArrayDeque<Term> params = new ArrayDeque<Term>();
 		type = type.evaluateHead();
 		while (type instanceof PiTerm) {
@@ -37,9 +38,10 @@ public class InductiveType extends Term {
 			params.addLast(pi.mDomain.evaluate());
 			type = pi.mRange.evaluateHead();
 		}
-		if (type != Term.universe(0))
+		if (!(type instanceof UniverseTerm))
 			throw new IllegalArgumentException("Typecheck: Illegal Inductive Type");
-		return params.toArray(new Term[params.size()]);
+		mParams = params.toArray(new Term[params.size()]);
+		mUniv = (UniverseTerm) type;
 	}
 
 	protected String toString(int offset, int prec, boolean raw) {

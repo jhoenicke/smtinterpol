@@ -1699,6 +1699,72 @@ Definition SN.arg3 =
     (\vt:VarType 
      \_:SN (Term.univ vt) -> T.tt)
 
+Definition ConvStep.SN = 
+  Let Thesis = (\t:Term \t':Term \_:ConvStep t t' ->
+        SN (Term.arg1 t) -> SN (Term.arg2 t) -> SN.arg3.type t ->
+	ConvStep.aux (Term.arg1 t) -> ConvStep.aux (Term.arg2 t) -> SN t')
+  ConvStep.rec Thesis
+      ;beta
+      (\m1:Term m2:Term \n:Term
+       \sn1:SN (Term.app m1 m2) \sn2: SN n \sn3: SN (Term.subst m2 n)
+       \_:... \_:... -> sn3)
+      ;lam1
+      (\m1:Term m2:Term \step:ConvStep m1 m2 \hyp:Thesis step \n:Term
+       \snm1:SN m1 \sn2:SN n \_:T
+       \hyp1:... \hyp2:... ->
+       Let snm2 = hyp (SN.arg1 snm1) (SN.arg2 snm1) (SN.arg3 snm1) ->
+       SN(
+       
+       \
+       \sn1:SN (Term.app m1 m2) \sn2: SN n \sn3: SN (Term.subst m2 n) -> sn3)
+
+; Show reverse direction
+Definition SN.fromarg = 
+  Let Thesis = (\t:Term ->
+     SN (Term.arg1 t) -> SN (Term.arg3 t) -> SN.arg3.type t -> SN t)
+  Term.rec Thesis
+      ;lam
+      (\m1:Term \hyp1: Thesis m1 \m2:Term \hyp2:Thesis m2
+       
+  ConvStep.rec Thesis
+      ;beta
+      (\m1:Term m2:Term \n:Term
+       \sn1:SN (Term.app m1 m2) \sn2: SN n \sn3: SN (Term.subst m2 n) -> sn3)
+      ;lam1
+      (\m1:Term m2:Term \step:ConvStep m1 m2 \hyp:Thesis step \n:Term
+       \sn1:SN m1 \sn2:SN n
+       
+       \sn1:SN (Term.app m1 m2) \sn2: SN n \sn3: SN (Term.subst m2 n) -> sn3)
+  
+
+; SN t -- holds if all conversion sequences are finite
+Inductive SN : Term -> U =
+  def   : M:Term -> (M':Term -> ConvStep M M' -> SN M') -> SN M
+Term.rec (\t:Term -> Thesis t)
+    (\M1:Term \hyp1:Thesis M1 \M2:Term \hyp2:Thesis M2
+     \sn1:SN m1 \sn2:SN m2 \_:T
+     \sn
+     \_:SN (Term.lam M1 M2) -> T.tt)
+    (\M1:Term \_:Thesis M1 \M2:Term \_:Thesis M2
+     \_:SN (Term.pi M1 M2) -> T.tt)
+    (\M1:Term \_:Thesis M1 \M2:Term \_:Thesis M2
+     \sn:SN (Term.app M1 M2) ->
+     Bool.rec (\x:Bool -> Bool.ite x (Term.eqLam.type M1) (NotLam M1) ->
+     	       Bool.ite x (SN (Term.subst (Term.arg2 M1) M2)) T)
+       (\eq:Term.eqLam.type M1 ->
+        SN.destruct (I.rsubst eq (\x:Term -> SN (Term.app x M2)) sn)
+	   (ConvStep.beta (Term.arg1 M1) (Term.arg2 M1) M2))
+       (\nl:NotLam M1 -> T.tt)
+       (Term.isLam M1)
+       (Term.classifyLam M1))
+    (\vt:VarType \i:Nat
+     \_:SN (Term.var vt i) -> T.tt)
+    (\vt:VarType 
+     \_:SN (Term.univ vt) -> T.tt)
+
+
+
+
 Definition Normalized.aux =
   Let Thesis = (\t:Term \t':Term \_:ConvStep t t' ->
   	        Normalized (Term.arg1 t) ->

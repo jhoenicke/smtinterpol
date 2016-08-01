@@ -67,6 +67,7 @@ action code {:
 	
 	{
 		globals = new HashMap<String,Term>();
+		globals.put("Prop", Term.PROP);
 		globals.put("U", Term.universe(0));
 		locals = new HashMap<String, Integer>();
 		gamma = new ArrayList<LocalInfo>();
@@ -201,7 +202,7 @@ inductivetype ::= exprPiFront:varInfo
 	| ID:u
 	  {:
 		RESULT = lookupName(u);
-		if (!RESULT.equals(Term.universe(0)))
+		if (!(RESULT instanceof UniverseTerm))
 			parser.report_error("expected type U", u$);
 	  :}
 	;

@@ -83,16 +83,20 @@ same term `T`, i.e. `T1 ~~>* T` and `T2 ~~>* T`.
 
 The typechecking rules are:
 
-     Gamma |- T : Ui
+     Gamma |- T : Ui/Prop
     -------------------
     Gamma, a:T |- a : T
 
-    Gamma |- T : Ui   Gamma |- b : T2
+    Gamma |- T : Ui/Prop   Gamma |- b : T2
     ---------------------------------
     Gamma, a:T |- b : T2
 
-    Gamma |- T1 : Ui   Gamma, x:T1 |- T2 : Uj
+    Gamma |- T1 : Ui   Gamma, x:T1 |- T2 : Prop
     -----------------------------------------
+      Gamma |- (x:T1 -> T2) : Prop
+
+    Gamma |- T1 : Ui/Prop  Gamma, x:T1 |- T2 : Uj
+    ---------------------------------------------
       Gamma |- (x:T1 -> T2) : U{max(i,j)}
 
     Gamma |- T1 : Ui   Gamma, x:T1 |- y : T2
@@ -103,7 +107,12 @@ The typechecking rules are:
     -------------------------------------------
           Gamma |- a b : (\x:T1 -> T2) b
 
+    Gamma |- Prop : U0
     Gamma |- Ui : U{i+1}
+
+    Gamma |- T : Prop
+    -------------------
+    Gamma |- T : U0
 
     Gamma |- T : Ui
     -------------------
@@ -126,7 +135,7 @@ An inductive declaration looks like this:
 This declaration defines `Nat : U`, `Nat.0 : Nat`, `Nat.s : Nat -> Nat`, and
 additionally a recursion operator `Nat.rec`.  The latter has the type
 
-    TypeCheck Nat.rec : C:(Nat -> U1) -> (C Nat.0) -> 
+    TypeCheck Nat.rec : C:(Nat -> U{i}) -> (C Nat.0) -> 
                         (n:Nat -> rec:C n -> C (Nat.s n)) ->
                         n:Nat -> C n
 
@@ -134,12 +143,16 @@ This type can be used to define recursive operations or prove theorems (if `C`
 is a proposition).
 
 There are some restriction on the types used in inductive definitions.
-First the type of the inductive type must be `U` or a function type
-returning `U`.  The declared constructors must return an element from
-the type.  If they use a parameter of the type, all constructors must
-use it in every occurence of the type.  Finally the type may only
-occur as a return value, as a parameter, or as the return value of a
-functional parameter.  You cannot create mutual recursive types.
+First the type of the inductive type must be `U{i}` or `Prop` or a
+function type returning `U{i}`/`Prop`.  The declared constructors must
+return an element from the type.  If they use a parameter of the type,
+all constructors must use it in every occurence of the type.  The type
+may only occur as a return value, as a parameter, or as the return
+value of a functional parameter.  You cannot create mutual recursive
+types.  The type of the constructor type must be `U{i}`/`Prop` (or
+lower).  If the type of the inductive type is `Prop`, the type of `C`
+must be of type `I -> Prop`; for non-propositional inductive types
+the type is `I -> U{i}` for an arbitrarily large `i`.
 
 There is a builtin evaluation that is used when type-checking.  It
 does beta-rewriting of lambda expressions and applies recursion

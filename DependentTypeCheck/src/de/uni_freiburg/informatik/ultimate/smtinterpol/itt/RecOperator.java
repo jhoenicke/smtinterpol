@@ -26,7 +26,8 @@ public class RecOperator extends Term {
 			tcType = Term.application(tcType, tcVars[i], null);
 		}
 		// The type of C: (privateArgs -> TC -> U1)
-		Term cType = new PiTerm(tcType, Term.universe(1));
+		Term univType = type.mUniv.isProp() ? Term.PROP : Term.universe(1);
+		Term cType = new PiTerm(tcType, univType);
 		for (int i = numPriv - 1; i >= 0; i--) {
 			cType = new PiTerm(type.mParams[numShared + i], cType);
 		}

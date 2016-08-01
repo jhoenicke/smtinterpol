@@ -46,6 +46,8 @@ public class PiTerm extends Term {
 		Term rngType = range.getType().evaluateHead();
 		if (domType instanceof UniverseTerm
 			&& rngType instanceof UniverseTerm) {
+			if (((UniverseTerm) rngType).isProp())
+				return rngType;
 			int domLevel = ((UniverseTerm) domType).getLevel();
 			int rngLevel = ((UniverseTerm) rngType).getLevel();
 			return Term.universe(Math.max(domLevel, rngLevel));

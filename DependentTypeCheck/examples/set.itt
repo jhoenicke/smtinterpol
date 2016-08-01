@@ -1,4 +1,4 @@
-Inductive Bool : U = true : Bool, false : Bool
+Inductive Bool : U = tt : Bool, ff : Bool
 Inductive Id: A:U -> a:A -> A -> U =
   refl : Id A a a
 
@@ -6,13 +6,13 @@ Inductive T : U = tt:T
 Inductive F : U =
 
 Definition Bool2U = Bool.rec (\x:Bool -> U) T F
-Definition Bool.not = Bool.rec (\x:Bool -> Bool) Bool.false Bool.true
+Definition Bool.not = Bool.rec (\x:Bool -> Bool) Bool.ff Bool.tt
 
-Definition trueNotFalse =
- \eq:Id Bool Bool.true Bool.false ->
-   Id.rec Bool Bool.true (\b:Bool \e:Id Bool Bool.true b -> Bool2U b) 
-     T.tt Bool.false eq
-TypeCheck trueNotFalse : Id Bool Bool.true Bool.false -> F
+Definition ttNotff =
+ \eq:Id Bool Bool.tt Bool.ff ->
+   Id.rec Bool Bool.tt (\b:Bool \e:Id Bool Bool.tt b -> Bool2U b) 
+     T.tt Bool.ff eq
+TypeCheck ttNotff : Id Bool Bool.tt Bool.ff -> F
 
 Inductive Prop : b:Bool -> U =
   p : Bool2U b -> Prop b
@@ -33,6 +33,9 @@ Definition russel =
 
 Evaluate russel
 EvaluateType russel
+
+
+
 
 ;Evaluate isElem (Set U) (Reflect (Set U) russel) russel
 

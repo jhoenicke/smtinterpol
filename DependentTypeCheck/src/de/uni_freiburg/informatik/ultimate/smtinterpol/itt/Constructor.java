@@ -53,7 +53,7 @@ public class Constructor extends Term {
 				- countPrivateVars(declType);
 		}
 		/* Check the parameter types */
-		if (!(declType.getType().equals(Term.universe(0))))
+		if (!(declType.getType().isSubType(indType.mUniv)))
 			throw new IllegalArgumentException("Universe type not allowed: " +
 											   declType);
 		Term type = declType;

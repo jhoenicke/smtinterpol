@@ -970,5 +970,201 @@ Evaluate Dec.mul (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil))))) (Dec.3 (Dec.2 (
 Evaluate Dec.mul (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))) (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))
 Evaluate Dec.mul (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil))))))) (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil)))))))
 Evaluate Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))
-Evaluate Dec.mul (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))) (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil)))))))))))))))
-Evaluate Dec.mul (Dec.mul (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))) (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil)))))))))))))))) (Dec.mul (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))) (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))))
+;Evaluate Dec.mul (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))) (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil)))))))))))))))
+;Evaluate Dec.mul (Dec.mul (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))) (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil)))))))))))))))) (Dec.mul (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))) (Dec.mul (Dec.3 (Dec.7 (Dec.2 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.5 (Dec.2 (Dec.9 (Dec.5 (Dec.3 Dec.nil)))))))))))))) (Dec.9 (Dec.2 (Dec.1 (Dec.0 (Dec.7 (Dec.7 (Dec.7 (Dec.3 (Dec.3 (Dec.3 (Dec.2 (Dec.5 (Dec.7 (Dec.2 Dec.nil))))))))))))))))
+
+Inductive * : A:U -> B:U -> U =
+  mk: A -> B -> * A B
+Definition *.mk = \A:U \a:A \B:U -> *.mk A B a
+Definition *.1 = \A:U \B:U -> *.rec A B (\_:* A B -> A) (\a:A\_:B->a)
+Definition *.2 = \A:U \B:U -> *.rec A B (\_:* A B -> B) (\_:A\b:B->b)
+
+Definition Nat.fib2 =
+  Nat.rec (\n:Nat -> * Nat Nat)
+    (*.mk Nat.0 (Nat.succ Nat.0))
+    (\n:Nat \Hyp:* Nat Nat ->
+     *.mk (*.2 Hyp) (Nat.plus (*.1 Hyp) (*.2 Hyp)))
+Definition Nat.fib = \n:Nat -> *.1 (Nat.fib2 n)
+
+; show fib(0)=0, fib(1)=1, fib(n+2)=fib(n)+fib(n+1)
+Definition Nat.1 = Nat.succ Nat.0
+TypeCheck I.r Nat.0 : I (Nat.fib Nat.0) Nat.0
+TypeCheck I.r Nat.1 : I (Nat.fib Nat.1) Nat.1
+Definition Nat.fib.rec = \n:Nat -> I.r (Nat.fib (Nat.succ (Nat.succ n)))
+TypeCheck Nat.fib.rec : n:Nat -> I (Nat.fib (Nat.succ (Nat.succ n)))
+                                   (Nat.plus (Nat.fib n) (Nat.fib (Nat.succ n)))
+
+; show fib (n+m+1) = fib(n)*fib(m) + fib(n+1)*fib(m+1)
+Definition Nat.fib.fast =
+  Let Thesis = (\m:Nat -> n:Nat -> I (Nat.fib (Nat.succ (Nat.plus n m)))
+               (Nat.plus (Nat.mul (Nat.fib n) (Nat.fib m))
+                         (Nat.mul (Nat.fib (Nat.succ n)) (Nat.fib (Nat.succ m))))) ->
+  Nat.rec Thesis
+    (\n:Nat ->
+     ; fib(n+1) =
+     ; = 0 + fib(n+1)
+     ; = 0 + (0 + fib(n+1))
+     ; = fib(n)*fib(0) + fib(n+1)*fib(1)
+     I.trans (Nat.plus.symm0 (Nat.fib (Nat.succ n)))
+             (Nat.plus.symm0 (Nat.plus Nat.0 (Nat.fib (Nat.succ n)))))
+    (\m:Nat \Hyp:Thesis m \n:Nat ->
+     Let fibn  = Nat.fib n
+     Let fibn1 = Nat.fib (Nat.succ n)
+     Let fibm  = Nat.fib m
+     Let fibm1 = Nat.fib (Nat.succ m) ->
+     ; fib(n+m+2) = fib((n+1)+m+1)
+     ; = fib(n+1)*fib(m) + fib(n+2)*fib(m+1)
+     ; = fib(n+1)*fib(m) + (fib(n)+fib(n+1)) * fib(m+1)
+     ; = fib(n)*fib(m+1) + fib(n+1)*(fib(m)+fib(m+1))
+     ; = fib(n)*fib(m+1) + fib(n+1)*fib(m+2)
+     I.trans3 (I.cong Nat.fib (Nat.plus.symmstep n (Nat.succ m)))
+              (Hyp (Nat.succ n))
+              (I.cong (Nat.plus (Nat.mul fibn1 fibm))
+		      (Nat.mul.distrib fibn fibn1 fibm1))
+    (I.trans3 (I.symm (Nat.plus.assoc (Nat.mul fibn1 fibm)
+	                              (Nat.mul fibn fibm1)
+				      (Nat.mul fibn1 fibm1)))
+              (I.cong (\x:Nat -> Nat.plus x (Nat.mul fibn1 fibm1))
+	              (Nat.plus.symm (Nat.mul fibn fibm1) (Nat.mul fibn1 fibm)))
+	      (Nat.plus.assoc (Nat.mul fibn fibm1)
+	                      (Nat.mul fibn1 fibm)
+			      (Nat.mul fibn1 fibm1))
+	      (I.cong (Nat.plus (Nat.mul fibn fibm1))
+	              (I.symm (Nat.mul.distrib2 fibn1 fibm fibm1)))))
+
+; Computes fib(b-1) and fib(b)
+Definition Bin.FibFast =
+  Bin.rec (\b:Bin -> * Bin Bin)
+    (*.mk (Bin.1 Bin.nil) Bin.nil)
+    (\b:Bin \Hyp: * Bin Bin ->
+     Let nm1 = *.1 Hyp
+     Let n   = *.2 Hyp ->
+        *.mk (Bin.plus (Bin.mul nm1 nm1) (Bin.mul n n))
+             (Bin.mul n (Bin.plus (Bin.0 nm1) n)))
+    (\b:Bin \Hyp: * Bin Bin ->
+     Let nm1 = *.1 Hyp
+     Let n   = *.2 Hyp
+     Let np1 = Bin.plus nm1 n ->
+        *.mk (Bin.mul n (Bin.plus nm1 np1))
+             (Bin.plus (Bin.mul n n) (Bin.mul np1 np1)))
+
+; fib(n-1) (with special case for n=0)
+Definition Nat.fib.back =
+  Nat.rec (\n:Nat -> Nat) Nat.1 (\n:Nat \_:Nat -> Nat.fib n)
+
+Definition Nat.mul2.plus =
+  Nat.rec (\n:Nat -> I (Nat.mul2 n) (Nat.plus n n))
+    (I.r Nat.0)
+    (\n:Nat \Hyp:I (Nat.mul2 n) (Nat.plus n n) ->
+    I.trans (I.cong (\x:Nat -> Nat.succ (Nat.succ x)) Hyp)
+            (Nat.plus.symmstep n (Nat.succ n)))
+
+Definition Nat.fib.fast2 =
+  Let Thesis = (\n:Nat -> I (Nat.fib.back (Nat.mul2 n))
+    (Nat.plus (Nat.mul (Nat.fib.back n) (Nat.fib.back n))
+              (Nat.mul (Nat.fib n) (Nat.fib n)))) ->
+  Nat.rec Thesis
+    (I.r Nat.1)
+    (\n:Nat \_:Thesis n ->
+     I.trans (I.cong (\x:Nat -> Nat.fib (Nat.succ x)) (Nat.mul2.plus n))
+             (Nat.fib.fast n n))
+Definition Nat.fib.fast3 =
+  Let Thesis = (\n:Nat -> I (Nat.fib (Nat.mul2 n))
+    (Nat.mul (Nat.fib n) (Nat.plus (Nat.fib.back n) (Nat.plus (Nat.fib.back n) (Nat.fib n))))) ->
+  Nat.rec Thesis
+    (I.r Nat.0)
+    (\n:Nat \_:Thesis n ->
+     I.trans3 (I.cong (\x:Nat -> Nat.fib (Nat.succ (Nat.succ x))) (Nat.mul2.plus n))
+              (Nat.fib.fast (Nat.succ n) n)
+	      (I.cong (\x:Nat -> Nat.plus x (Nat.mul (Nat.fib (Nat.succ n)) (Nat.fib (Nat.succ (Nat.succ n)))))
+	              (Nat.mul.symm (Nat.fib (Nat.succ n)) (Nat.fib n)))
+	      (I.symm (Nat.mul.distrib2 (Nat.fib (Nat.succ n)) (Nat.fib n) (Nat.fib (Nat.succ (Nat.succ n))))))
+Definition Nat.fib.fast4 = \n:Nat
+  Let Thesis = (\n:Nat -> I (Nat.fib (Nat.succ (Nat.mul2 n)))
+    (Nat.plus (Nat.mul (Nat.fib n) (Nat.fib n))
+              (Nat.mul (Nat.fib (Nat.succ n)) (Nat.fib (Nat.succ n))))) ->
+  Nat.rec Thesis
+    (I.r Nat.1)
+    (\n:Nat \_:Thesis n ->
+     I.trans (I.cong (\x:Nat -> Nat.fib (Nat.succ x)) (Nat.mul2.plus (Nat.succ n)))
+             (Nat.fib.fast (Nat.succ n) (Nat.succ n)))
+
+Definition Nat.fib.fast4 = \n:Nat ->
+  I.trans2 (I.cong  (\x:Nat -> Nat.fib (Nat.succ x)) (Nat.mul2.plus n))
+           (Nat.fib.fast n n)
+	   (I.cong (\x:Nat -> Nat.plus (Nat.mul (Nat.fib n) (Nat.fib n))
+	                               (Nat.mul x x))
+		   (Let Thesis = (\n:Nat ->
+		         I (Nat.fib (Nat.succ n))
+		           (Nat.plus (Nat.fib.back n) (Nat.fib n))) ->
+		    Nat.rec Thesis (I.r Nat.1)
+			 (\n:Nat \_: Thesis n ->
+			  I.r (Nat.fib (Nat.succ (Nat.succ n))))
+			 n))
+
+Definition Bin.FibFast.Correct =
+  Let Thesis = (\b:Bin ->
+      * (I (bin2nat (*.1 (Bin.FibFast b))) (Nat.fib.back (bin2nat b)))
+        (I (bin2nat (*.2 (Bin.FibFast b))) (Nat.fib (bin2nat b)))) ->
+  Bin.rec Thesis
+    (*.mk (I.r Nat.1) (I.r Nat.0))
+    (\b:Bin \Hyp: Thesis b
+     Let nm1 = *.1 (Bin.FibFast b)
+     Let n   = *.2 (Bin.FibFast b) ->
+     *.mk
+       (I.trans3 (Bin.pluscarry.correct (Bin.mul nm1 nm1) (Bin.mul n n) Carry.0)
+                (I.cong2 Nat.plus
+		         (Bin.mul.correct nm1 nm1)
+			 (Bin.mul.correct n n))
+		(I.cong2 (\x:Nat \y:Nat -> Nat.plus (Nat.mul x x) (Nat.mul y y))
+		         (*.1 Hyp) (*.2 Hyp))
+                (I.symm (Nat.fib.fast2 (bin2nat b))))
+       (I.trans2 (Bin.mul.correct n (Bin.plus (Bin.0 nm1) n))
+                (I.cong2 Nat.mul (*.2 Hyp)
+	           (I.trans2 (Bin.pluscarry.correct (Bin.0 nm1) n Carry.0)
+		         (I.cong2 Nat.plus
+			    (I.trans (I.cong Nat.mul2 (*.1 Hyp))
+			             (Nat.mul2.plus (Nat.fib.back (bin2nat b))))
+			    (*.2 Hyp))
+			 (Nat.plus.assoc (Nat.fib.back (bin2nat b))
+			                 (Nat.fib.back (bin2nat b))
+					 (Nat.fib (bin2nat b)))))
+                (I.symm (Nat.fib.fast3 (bin2nat b)))))
+    (\b:Bin \Hyp: Thesis b
+     Let nm1 = *.1 (Bin.FibFast b)
+     Let n   = *.2 (Bin.FibFast b)
+     Let np1 = Bin.plus nm1 n ->
+     *.mk
+       (I.trans2 (Bin.mul.correct n (Bin.plus nm1 (Bin.plus nm1 n)))
+                (I.cong2 Nat.mul (*.2 Hyp)
+	           (I.trans (Bin.pluscarry.correct nm1 (Bin.plus nm1 n) Carry.0)
+		         (I.cong2 Nat.plus (*.1 Hyp)
+			    (I.trans (Bin.pluscarry.correct nm1 n Carry.0)
+			          (I.cong2 Nat.plus (*.1 Hyp) (*.2 Hyp))))))
+                (I.symm (Nat.fib.fast3 (bin2nat b))))
+       (I.trans3 (Bin.pluscarry.correct (Bin.mul n n) (Bin.mul np1 np1) Carry.0)
+                (I.cong2 Nat.plus
+		         (Bin.mul.correct n n)
+			 (Bin.mul.correct np1 np1))
+		(I.cong2 (\x:Nat \y:Nat -> Nat.plus (Nat.mul x x) (Nat.mul y y))
+		         (*.2 Hyp)
+			 (I.trans (Bin.pluscarry.correct nm1 n Carry.0)
+				  (I.cong2 Nat.plus (*.1 Hyp) (*.2 Hyp))))
+                (I.symm (Nat.fib.fast4 (bin2nat b)))))
+
+TypeCheck (\b:Bin -> *.2 (Bin.FibFast.Correct b)) :
+  b:Bin -> I (bin2nat (*.2 (Bin.FibFast b))) (Nat.fib (bin2nat b))
+
+Definition Dec.Fib = \d:Dec -> (bin2dec (*.2 (Bin.FibFast (dec2bin d))))
+
+Evaluate Dec.Fib (Dec.0 Dec.nil)
+Evaluate Dec.Fib (Dec.1 Dec.nil)
+Evaluate Dec.Fib (Dec.2 Dec.nil)
+Evaluate Dec.Fib (Dec.3 Dec.nil)
+Evaluate Dec.Fib (Dec.4 Dec.nil)
+Evaluate Dec.Fib (Dec.5 (Dec.2 Dec.nil))
+Evaluate Dec.Fib (Dec.6 (Dec.2 Dec.nil))
+;Evaluate Dec.Fib (Dec.5 (Dec.2 (Dec.1 Dec.nil)))
+;Evaluate Dec.Fib (Dec.6 (Dec.2 (Dec.1 Dec.nil)))
+;Evaluate Dec.Fib (Dec.5 (Dec.2 (Dec.8 Dec.nil)))
+;Evaluate Dec.Fib (Dec.6 (Dec.2 (Dec.8 Dec.nil)))

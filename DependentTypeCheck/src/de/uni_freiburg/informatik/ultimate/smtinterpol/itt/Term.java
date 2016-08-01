@@ -56,7 +56,8 @@ public abstract class Term {
 	 * The name of the term.  This is set for defined terms.
 	 */
 	PrettyTerm mName;
-	
+
+	public final static Term PROP = new UniverseTerm(true);
 	private static Term[] universes = new Term[2];
 
 	public Term(Term type) {
