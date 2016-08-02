@@ -80,6 +80,7 @@ Symbol = {Letter}+
 
   /* Predefined Symbols */
   "Assume"               { return symbol(LexerSymbols.ASSUME, yytext()); }
+  "Require"              { return symbol(LexerSymbols.REQUIRE, yytext()); }
   "Inductive"            { return symbol(LexerSymbols.INDUCTIVE, yytext()); }
   "Definition"           { return symbol(LexerSymbols.DEFINITION, yytext()); }
   "Check"                { return symbol(LexerSymbols.CHECK, yytext()); }

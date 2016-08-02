@@ -28,6 +28,7 @@ option symbols = LexerSymbols;
 option java15, compact_red, newpositions;
 
 parser code {:
+	Main context;
 	String filename;
 
 	public void report_error(String s, Object sym) {
@@ -52,6 +53,10 @@ parser code {:
 		report_error("Syntax Error", sym);
 	}
 
+	public void setContext(Main context) {
+		this.context = context;
+	}
+
 	public void setFileName(String filename) {
 		this.filename = filename;
 	}
@@ -61,17 +66,8 @@ action code {:
 	InductiveType inductiveType;
 	int inductiveIndex;
 	
-	ArrayList<LocalInfo> gamma;
-	HashMap<String, Term> globals;
-	HashMap<String, Integer> locals;
-	
-	{
-		globals = new HashMap<String,Term>();
-		globals.put("Prop", Term.PROP);
-		globals.put("U", Term.universe(0));
-		locals = new HashMap<String, Integer>();
-		gamma = new ArrayList<LocalInfo>();
-	}
+	ArrayList<LocalInfo> gamma = new ArrayList<LocalInfo>();
+	HashMap<String, Integer> locals = new HashMap<String, Integer>();
 	
 	public Term lookupName(String id) {
 		if (locals.containsKey(id)) {
@@ -86,18 +82,7 @@ action code {:
 				return Term.variable(debruijn, info.mTerm);
 			}
 		}
-		if (globals.containsKey(id)) {
-			return globals.get(id);
-		}
-		if (id.startsWith("U")) {
-			try {
-				int num = Integer.parseInt(id.substring(1));
-				return Term.universe(num);
-			} catch (NumberFormatException ex) {
-				/* ignore */
-			}
-		}
-		return null;
+		return parser.context.lookupGlobal(id);
 	}
 
 	public Term buildAppTerm(Term exprFunc, Term exprArg, Symbol symbol) {
@@ -125,13 +110,6 @@ action code {:
 		else
 			locals.put(info.mName, info.mLastIndex);
 	}
-
-	public void registerType(InductiveType type) {
-		for (int i = 0; i < type.mConstrs.length; i++) {
-			globals.put(type.mConstrs[i].toString(), type.mConstrs[i]);
-		}
-		globals.put(type.mRecOperator.toString(), type.mRecOperator);
-	}
 :}
 
 /*init with {: getScanner().init(); :} */
@@ -140,7 +118,7 @@ scan with {: return getScanner().next_token(); :}
 
 /* Keywords */
 terminal INDUCTIVE, DEFINITION, CHECK, TYPECHECK, EVALUATETYPE, EVALUATE;
-terminal ASSUME, LET;
+terminal ASSUME, LET, REQUIRE;
 /* Symbols */
 terminal ARROW, COLON, LPAR, RPAR, LAMBDA, COMMA, EQUALS, LBRA, RBRA;
 terminal String ID;
@@ -159,10 +137,11 @@ goal ::= declaration*;
 declaration ::= inductivedecl
 	| ASSUME ID:i COLON expr:t
 	  {:
-		globals.put(i, new Assumption(i, t));
+		parser.context.addDefinition(i, new Assumption(i, t));
 	  :}
 	| DEFINITION ID:i EQUALS expr:e
-	  {: e.setName(i); globals.put(i, e); :}
+	  {:    e.setName(i);
+	        parser.context.addDefinition(i, e); :}
 	| CHECK expr:e1 EQUALS expr:e2
 	  {:
 		if (!e1.equals(e2))
@@ -179,20 +158,22 @@ declaration ::= inductivedecl
 	  {: System.out.println(e.getType().evaluate()); :}
 	| EVALUATE expr:e
 	  {: System.out.println(e.evaluate().toStringRaw()); :}
+	| REQUIRE ID:i
+	  {: parser.context.parseFile(i); :}
 	;
 
 inductivedecl ::= INDUCTIVE ID:i COLON inductivetype:type
 	  {:
 		inductiveType = new InductiveType(i, type);
 		inductiveIndex = 0;
-		globals.put(i, inductiveType);
+		parser.context.addDefinition(i, inductiveType);
 	  :}
 	  EQUALS constrdecls?:constrs
 	  {:
 		for (int j = 0; j < inductiveType.mParams.length; j++)
 			popBruijnVariable();
 		inductiveType.setConstructors(constrs);
-		registerType(inductiveType);
+		parser.context.registerType(inductiveType);
 		inductiveType = null;
 	  :};
 
